@@ -1,0 +1,273 @@
+{
+  "freewechat": {
+    "光伏們": {
+      "type": "freewechat",
+      "biz": "MzAxNjU2NjAyNA==",
+      "route": "/freewechat/profile/MzAxNjU2NjAyNA==",
+      "items": 38,
+      "feed_title": "光伏們"
+    },
+    "索比光伏网": {
+      "type": "freewechat",
+      "biz": "MjM5MzgyMjY2MQ==",
+      "route": "/freewechat/profile/MjM5MzgyMjY2MQ==",
+      "items": 30,
+      "feed_title": "索比光伏网"
+    },
+    "PV-Tech": {
+      "type": "freewechat",
+      "biz": "MjM5MzI1NzEyMA==",
+      "route": "/freewechat/profile/MjM5MzI1NzEyMA==",
+      "items": 2,
+      "feed_title": "PV-Tech"
+    },
+    "光伏资讯": {
+      "type": "freewechat",
+      "biz": "MzA3NjQxMjkxOA==",
+      "route": "/freewechat/profile/MzA3NjQxMjkxOA==",
+      "items": 3,
+      "feed_title": "光伏资讯"
+    },
+    "风芒能源": {
+      "type": "freewechat",
+      "biz": "MzU1NDY3OTAyNw==",
+      "route": "/freewechat/profile/MzU1NDY3OTAyNw==",
+      "items": 5,
+      "feed_title": "风芒能源"
+    },
+    "储能与电力市场": {
+      "type": "freewechat",
+      "biz": "Mzg2Mjc2MzQ4Mg==",
+      "route": "/freewechat/profile/Mzg2Mjc2MzQ4Mg==",
+      "items": 1,
+      "feed_title": "储能与电力市场"
+    },
+    "北极星分布式光伏": {
+      "type": "freewechat",
+      "biz": "MzA5MDMwMDc1MQ==",
+      "route": "/freewechat/profile/MzA5MDMwMDc1MQ==",
+      "items": 2,
+      "feed_title": "北极星分布式光伏"
+    },
+    "光伏见闻": {
+      "type": "freewechat",
+      "biz": "MzAwNTM2NzYxNA==",
+      "route": "/freewechat/profile/MzAwNTM2NzYxNA==",
+      "items": 1,
+      "feed_title": "光伏见闻"
+    },
+    "天合跟踪": {
+      "type": "freewechat",
+      "biz": "Mzg4NTY5MjUxMg==",
+      "route": "/freewechat/profile/Mzg4NTY5MjUxMg==",
+      "items": 1,
+      "feed_title": "天合跟踪"
+    },
+    "天合光能系统解决方案": {
+      "type": "freewechat",
+      "biz": "Mzg2NTg0MzAxMg==",
+      "route": "/freewechat/profile/Mzg2NTg0MzAxMg==",
+      "items": 1,
+      "feed_title": "天合光能系统解决方案"
+    },
+    "中关村储能产业技术联盟": {
+      "type": "freewechat",
+      "biz": "MjM5MzUwNzk2Mg==",
+      "route": "/freewechat/profile/MjM5MzUwNzk2Mg==",
+      "items": 2,
+      "feed_title": "中关村储能产业技术联盟"
+    },
+    "电能革新": {
+      "type": "freewechat",
+      "biz": "MzAwMTc0MzcxOQ==",
+      "route": "/freewechat/profile/MzAwMTc0MzcxOQ==",
+      "items": 1,
+      "feed_title": "电能革新"
+    },
+    "天合光能产品中心": {
+      "type": "freewechat",
+      "biz": "Mzg3MjU2MzA4Ng==",
+      "route": "/freewechat/profile/Mzg3MjU2MzA4Ng==",
+      "items": 1,
+      "feed_title": "天合光能产品中心"
+    },
+    "通威传媒": {
+      "type": "freewechat",
+      "biz": "MzA3MTQ2MzQxMg==",
+      "route": "/freewechat/profile/MzA3MTQ2MzQxMg==",
+      "items": 5,
+      "feed_title": "维科网光伏"
+    },
+    "东吴光伏圈": {
+      "type": "freewechat",
+      "biz": "MzkzMjY4MjE5Mg==",
+      "route": "/freewechat/profile/MzkzMjY4MjE5Mg==",
+      "items": 1,
+      "feed_title": "自由微信 | FreeWeChat"
+    },
+    "ACMI硅基新材料": {
+      "type": "freewechat",
+      "biz": "MzkwNzM4NDI2Mg==",
+      "route": "/freewechat/profile/MzkwNzM4NDI2Mg==",
+      "items": 2,
+      "feed_title": "自由微信 | FreeWeChat"
+    },
+    "昱能科技": {
+      "type": "freewechat",
+      "biz": "MjM5MzY2NDE2NA==",
+      "route": "/freewechat/profile/MjM5MzY2NDE2NA==",
+      "items": 1,
+      "feed_title": "昱能科技"
+    },
+    "隆基氢能": {
+      "type": "freewechat",
+      "biz": "Mzg3ODY1NDgyMw==",
+      "route": "/freewechat/profile/Mzg3ODY1NDgyMw==",
+      "items": 1,
+      "feed_title": "自由微信 | FreeWeChat"
+    },
+    "阳光电源": {
+      "type": "freewechat",
+      "biz": "MzUwOTAxNDM0Nw==",
+      "route": "/freewechat/profile/MzUwOTAxNDM0Nw==",
+      "items": 1,
+      "feed_title": "北极星储能网"
+    }
+  },
+  "sogou": {},
+  "all": {
+    "光伏們": {
+      "type": "freewechat",
+      "biz": "MzAxNjU2NjAyNA==",
+      "route": "/freewechat/profile/MzAxNjU2NjAyNA==",
+      "items": 38,
+      "feed_title": "光伏們"
+    },
+    "索比光伏网": {
+      "type": "freewechat",
+      "biz": "MjM5MzgyMjY2MQ==",
+      "route": "/freewechat/profile/MjM5MzgyMjY2MQ==",
+      "items": 30,
+      "feed_title": "索比光伏网"
+    },
+    "PV-Tech": {
+      "type": "freewechat",
+      "biz": "MjM5MzI1NzEyMA==",
+      "route": "/freewechat/profile/MjM5MzI1NzEyMA==",
+      "items": 2,
+      "feed_title": "PV-Tech"
+    },
+    "光伏资讯": {
+      "type": "freewechat",
+      "biz": "MzA3NjQxMjkxOA==",
+      "route": "/freewechat/profile/MzA3NjQxMjkxOA==",
+      "items": 3,
+      "feed_title": "光伏资讯"
+    },
+    "风芒能源": {
+      "type": "freewechat",
+      "biz": "MzU1NDY3OTAyNw==",
+      "route": "/freewechat/profile/MzU1NDY3OTAyNw==",
+      "items": 5,
+      "feed_title": "风芒能源"
+    },
+    "储能与电力市场": {
+      "type": "freewechat",
+      "biz": "Mzg2Mjc2MzQ4Mg==",
+      "route": "/freewechat/profile/Mzg2Mjc2MzQ4Mg==",
+      "items": 1,
+      "feed_title": "储能与电力市场"
+    },
+    "北极星分布式光伏": {
+      "type": "freewechat",
+      "biz": "MzA5MDMwMDc1MQ==",
+      "route": "/freewechat/profile/MzA5MDMwMDc1MQ==",
+      "items": 2,
+      "feed_title": "北极星分布式光伏"
+    },
+    "光伏见闻": {
+      "type": "freewechat",
+      "biz": "MzAwNTM2NzYxNA==",
+      "route": "/freewechat/profile/MzAwNTM2NzYxNA==",
+      "items": 1,
+      "feed_title": "光伏见闻"
+    },
+    "天合跟踪": {
+      "type": "freewechat",
+      "biz": "Mzg4NTY5MjUxMg==",
+      "route": "/freewechat/profile/Mzg4NTY5MjUxMg==",
+      "items": 1,
+      "feed_title": "天合跟踪"
+    },
+    "天合光能系统解决方案": {
+      "type": "freewechat",
+      "biz": "Mzg2NTg0MzAxMg==",
+      "route": "/freewechat/profile/Mzg2NTg0MzAxMg==",
+      "items": 1,
+      "feed_title": "天合光能系统解决方案"
+    },
+    "中关村储能产业技术联盟": {
+      "type": "freewechat",
+      "biz": "MjM5MzUwNzk2Mg==",
+      "route": "/freewechat/profile/MjM5MzUwNzk2Mg==",
+      "items": 2,
+      "feed_title": "中关村储能产业技术联盟"
+    },
+    "电能革新": {
+      "type": "freewechat",
+      "biz": "MzAwMTc0MzcxOQ==",
+      "route": "/freewechat/profile/MzAwMTc0MzcxOQ==",
+      "items": 1,
+      "feed_title": "电能革新"
+    },
+    "天合光能产品中心": {
+      "type": "freewechat",
+      "biz": "Mzg3MjU2MzA4Ng==",
+      "route": "/freewechat/profile/Mzg3MjU2MzA4Ng==",
+      "items": 1,
+      "feed_title": "天合光能产品中心"
+    },
+    "通威传媒": {
+      "type": "freewechat",
+      "biz": "MzA3MTQ2MzQxMg==",
+      "route": "/freewechat/profile/MzA3MTQ2MzQxMg==",
+      "items": 5,
+      "feed_title": "维科网光伏"
+    },
+    "东吴光伏圈": {
+      "type": "freewechat",
+      "biz": "MzkzMjY4MjE5Mg==",
+      "route": "/freewechat/profile/MzkzMjY4MjE5Mg==",
+      "items": 1,
+      "feed_title": "自由微信 | FreeWeChat"
+    },
+    "ACMI硅基新材料": {
+      "type": "freewechat",
+      "biz": "MzkwNzM4NDI2Mg==",
+      "route": "/freewechat/profile/MzkwNzM4NDI2Mg==",
+      "items": 2,
+      "feed_title": "自由微信 | FreeWeChat"
+    },
+    "昱能科技": {
+      "type": "freewechat",
+      "biz": "MjM5MzY2NDE2NA==",
+      "route": "/freewechat/profile/MjM5MzY2NDE2NA==",
+      "items": 1,
+      "feed_title": "昱能科技"
+    },
+    "隆基氢能": {
+      "type": "freewechat",
+      "biz": "Mzg3ODY1NDgyMw==",
+      "route": "/freewechat/profile/Mzg3ODY1NDgyMw==",
+      "items": 1,
+      "feed_title": "自由微信 | FreeWeChat"
+    },
+    "阳光电源": {
+      "type": "freewechat",
+      "biz": "MzUwOTAxNDM0Nw==",
+      "route": "/freewechat/profile/MzUwOTAxNDM0Nw==",
+      "items": 1,
+      "feed_title": "北极星储能网"
+    }
+  }
+}
