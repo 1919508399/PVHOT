@@ -1,0 +1,38 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Sitemap: https://pvhot.bbroot.com/sitemap.xml
+
+# Crawl-delay 设为 2 秒，避免抓取压力
+Crawl-delay: 2
+
+# 百度爬虫
+User-agent: Baiduspider
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+
+# 360 爬虫
+User-agent: 360Spider
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+
+# 搜狗爬虫
+User-agent: Sogou web spider
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+
+# 必应爬虫
+User-agent: bingbot
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+
+# Google 爬虫
+User-agent: Googlebot
+Allow: /
+Disallow: /api/
+Disallow: /admin/

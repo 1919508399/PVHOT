@@ -1,0 +1,28 @@
+# WorkBuddy internal data
+.workbuddy/
+
+# Node modules
+node_modules/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Temporary debug/utility scripts
+check_server.py
+run_pipeline.py
+debug_dom.py
+
+# Debug screenshots (not source code)
+*.png
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Logs
+*.log
+fetch.log
+
+# Temporary deploy artifacts
+deploy/tmp/

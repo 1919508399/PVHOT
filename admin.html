@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>光伏 HOT · 后台</title>
+<style>
+  :root{
+    --bg:#f4f6f8; --card:#fff; --border:#e6e9ef; --border-soft:#eef1f5;
+    --ink:#1b2230; --ink-2:#4a5468; --ink-3:#8a93a6;
+    --emerald:#11a87a; --cyan:#0ea5b7; --amber:#d98a00;
+    --shadow-1:0 1px 3px rgba(20,30,50,.06),0 6px 18px rgba(20,30,50,.05);
+    --radius:14px;
+  }
+  body.dark{
+    --bg:#0f141b; --card:#161d27; --border:#243040; --border-soft:#1d2733;
+    --ink:#e6ebf2; --ink-2:#aab4c4; --ink-3:#6b7policy;
+    --emerald:#1fd1a0; --cyan:#22c3d6; --amber:#e6a93a;
+    --shadow-1:0 1px 3px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased; min-height:100vh;}
+  a{color:inherit}
+  button{font-family:inherit; cursor:pointer}
+  .wrap{max-width:980px; margin:0 auto; padding:16px 16px 80px;}
+
+  /* 顶栏 */
+  .topbar{position:sticky; top:0; z-index:20; background:color-mix(in srgb,var(--bg) 86%,transparent);
+    backdrop-filter:saturate(140%) blur(8px); border-bottom:1px solid var(--border); padding:12px 0;}
+  .topbar .row{max-width:980px; margin:0 auto; padding:0 16px; display:flex; align-items:center; gap:10px;}
+  .brand{font-weight:800; font-size:17px; letter-spacing:.3px; display:flex; align-items:center; gap:8px;}
+  .brand .dot{width:10px; height:10px; border-radius:50%; background:linear-gradient(135deg,var(--emerald),var(--cyan));}
+  .spacer{flex:1}
+  .btn{border:1px solid var(--border); background:var(--card); color:var(--ink); border-radius:10px;
+    padding:8px 13px; font-size:13px; font-weight:600; transition:.15s; white-space:nowrap;}
+  .btn:hover{border-color:var(--emerald); color:var(--emerald);}
+  .btn.primary{background:var(--emerald); border-color:var(--emerald); color:#fff;}
+  .btn.primary:hover{filter:brightness(1.06); color:#fff;}
+  .btn.ghost{background:transparent;}
+
+  /* 工具条 */
+  .toolbar{display:flex; gap:10px; margin:16px 0; flex-wrap:wrap; align-items:center;}
+  .search{flex:1; min-width:200px; position:relative;}
+  .search input{width:100%; padding:10px 12px 10px 36px; border:1px solid var(--border); border-radius:10px;
+    background:var(--card); color:var(--ink); font-size:14px; outline:none;}
+  .search input:focus{border-color:var(--cyan);}
+  .search svg{position:absolute; left:11px; top:50%; transform:translateY(-50%); opacity:.5;}
+  select.cat{border:1px solid var(--border); background:var(--card); color:var(--ink); border-radius:10px;
+    padding:10px 12px; font-size:14px; outline:none;}
+
+  /* 列表 */
+  .list{display:flex; flex-direction:column; gap:10px;}
+  .item{background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px;
+    box-shadow:var(--shadow-1); transition:.15s;}
+  .item:hover{border-color:var(--border-soft);}
+  .item .h{display:flex; align-items:flex-start; gap:10px;}
+  .item .title{font-size:15px; font-weight:700; line-height:1.5; flex:1; word-break:break-word;}
+  .item .meta{display:flex; gap:8px; align-items:center; margin-top:7px; flex-wrap:wrap; font-size:12px; color:var(--ink-3);}
+  .badge{font-size:11px; font-weight:700; padding:2px 9px; border-radius:20px; background:color-mix(in srgb,var(--emerald) 14%,transparent); color:var(--emerald);}
+  .badge.feat{background:linear-gradient(135deg,var(--amber),#e6b23a); color:#fff;}
+  .src{color:var(--ink-2);}
+  .reason{margin-top:9px; font-size:12.5px; color:var(--ink-2); line-height:1.65;
+    background:color-mix(in srgb,var(--cyan) 8%,transparent); border-left:3px solid var(--cyan); padding:7px 10px; border-radius:6px;}
+  .ops{display:flex; gap:6px; align-items:center; flex:none;}
+  .iconbtn{border:1px solid var(--border); background:var(--card); border-radius:9px; width:34px; height:34px;
+    display:flex; align-items:center; justify-content:center; color:var(--ink-2); transition:.15s;}
+  .iconbtn:hover{border-color:var(--emerald); color:var(--emerald);}
+  .iconbtn.danger:hover{border-color:#e5484d; color:#e5484d;}
+  .iconbtn.star.on{color:var(--amber); border-color:var(--amber); background:color-mix(in srgb,var(--amber) 12%,transparent);}
+  .empty{text-align:center; color:var(--ink-3); padding:60px 0; font-size:14px;}
+
+  /* 分页 */
+  .pager{display:flex; justify-content:center; align-items:center; gap:14px; margin-top:18px; font-size:13px; color:var(--ink-2);}
+  .pager .btn{padding:6px 12px;}
+
+  /* 弹窗 */
+  .mask{position:fixed; inset:0; background:rgba(10,15,25,.5); display:none; align-items:center; justify-content:center; z-index:50; padding:18px;}
+  .mask.show{display:flex;}
+  .modal{background:var(--card); border:1px solid var(--border); border-radius:16px; width:100%; max-width:560px;
+    max-height:88vh; overflow:auto; padding:20px; box-shadow:0 20px 60px rgba(0,0,0,.3);}
+  .modal h3{margin:0 0 16px; font-size:17px;}
+  .field{margin-bottom:13px;}
+  .field label{display:block; font-size:12.5px; font-weight:600; color:var(--ink-2); margin-bottom:6px;}
+  .field input,.field textarea,.field select{width:100%; border:1px solid var(--border); border-radius:10px;
+    background:var(--bg); color:var(--ink); padding:10px 12px; font-size:14px; outline:none; font-family:inherit;}
+  .field input:focus,.field textarea:focus{border-color:var(--cyan);}
+  .field textarea{resize:vertical; min-height:70px; line-height:1.6;}
+  .row2{display:flex; gap:12px;}
+  .row2 .field{flex:1;}
+  .check{display:flex; align-items:center; gap:8px; font-size:14px; color:var(--ink-2); cursor:pointer; user-select:none;}
+  .check input{width:17px; height:17px; accent-color:var(--amber);}
+  .modal .foot{display:flex; justify-content:flex-end; gap:10px; margin-top:18px;}
+
+  /* 登录 */
+  .login{max-width:380px; margin:9vh auto 0; background:var(--card); border:1px solid var(--border);
+    border-radius:18px; padding:28px; box-shadow:var(--shadow-1);}
+  .login h2{margin:0 0 4px; font-size:20px;}
+  .login p{margin:0 0 18px; color:var(--ink-3); font-size:13px;}
+  .login input{width:100%; border:1px solid var(--border); border-radius:11px; background:var(--bg);
+    color:var(--ink); padding:12px 14px; font-size:15px; outline:none;}
+  .login input:focus{border-color:var(--emerald);}
+  .login .err{color:#e5484d; font-size:12.5px; min-height:18px; margin-top:8px;}
+  .login .btn{width:100%; margin-top:12px; padding:12px; font-size:15px;}
+
+  /* 日志 */
+  .logbox{background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:12px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; line-height:1.7; color:var(--ink-2);
+    white-space:pre-wrap; word-break:break-all; max-height:56vh; overflow:auto;}
+
+  .toast{position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px); opacity:0;
+    background:var(--ink); color:var(--bg); padding:10px 18px; border-radius:30px; font-size:13px; font-weight:600;
+    z-index:80; transition:.25s; pointer-events:none;}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  /* 顶部 tab 导航 */
+  .tabs{display:flex; gap:4px; padding:12px 16px 0; max-width:980px; margin:0 auto;}
+  .tab{padding:8px 16px; font-size:13.5px; font-weight:600; color:var(--ink-3); cursor:pointer;
+    border-bottom:2px solid transparent; transition:.15s; user-select:none; position:relative;}
+  .tab:hover{color:var(--ink-2);}
+  .tab.on{color:var(--emerald); border-bottom-color:var(--emerald);}
+  .tab .badge-unread{position:absolute; top:2px; right:2px; min-width:18px; height:18px; padding:0 5px;
+    border-radius:999px; background:#e5484d; color:#fff; font-size:11px; line-height:18px; text-align:center;}
+
+  /* 内容管理 */
+  .text-block{background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px 18px; margin-bottom:14px; box-shadow:var(--shadow-1);}
+  .text-block h4{margin:0 0 6px; font-size:14px; display:flex; align-items:center; gap:8px;}
+  .text-block h4 .hint{color:var(--ink-3); font-weight:400; font-size:12px;}
+  .text-block textarea{width:100%; min-height:80px; padding:10px 12px; border:1px solid var(--border);
+    border-radius:8px; background:var(--bg); color:var(--ink); font-family:inherit; font-size:13px;
+    line-height:1.6; outline:none; resize:vertical;}
+  .text-block textarea:focus{border-color:var(--cyan);}
+  .text-block .ta-big{min-height:140px;}
+  .text-block .foot{display:flex; justify-content:space-between; align-items:center; margin-top:10px; gap:10px;}
+  .text-block .meta-line{font-size:11.5px; color:var(--ink-3); font-family:ui-monospace,monospace;}
+
+  /* 二维码 */
+  .qr-row{display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap;}
+  .qr-preview{width:160px; height:160px; border:1px dashed var(--border); border-radius:10px;
+    background:var(--bg); display:flex; align-items:center; justify-content:center; overflow:hidden; flex:none;}
+  .qr-preview img{width:100%; height:100%; object-fit:contain; display:block;}
+  .qr-empty{color:var(--ink-3); font-size:12.5px;}
+  .qr-ops{display:flex; flex-direction:column; gap:10px; align-items:flex-start;}
+  .qr-meta{font-size:12px; color:var(--ink-3); font-family:ui-monospace,monospace; line-height:1.7;}
+  .btn.danger{background:var(--card); color:#e5484d;}
+  .btn.danger:hover{border-color:#e5484d;}
+
+  /* 反馈列表 */
+  .fb-list{display:flex; flex-direction:column; gap:10px;}
+
+  /* 统计面板 */
+  .stat-cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; margin-bottom:18px;}
+  .stat-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px 18px; box-shadow:var(--shadow-1); text-align:center; transition:.15s;}
+  .stat-card:hover{border-color:var(--emerald);}
+  .stat-card .val{font-size:28px; font-weight:800; line-height:1.2; color:var(--emerald);}
+  .stat-card .lbl{font-size:12px; color:var(--ink-3); margin-top:4px; font-weight:600;}
+  .stat-card.alt .val{color:var(--cyan);}
+  .stat-card.alt2 .val{color:var(--amber);}
+  .stat-card.alt3 .val{color:var(--ink-2);}
+  .stat-section{background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px 18px; margin-bottom:14px; box-shadow:var(--shadow-1);}
+  .stat-section h4{margin:0 0 12px; font-size:14px; display:flex; align-items:center; gap:8px;}
+  .stat-section h4 .hint{color:var(--ink-3); font-weight:400; font-size:12px;}
+  /* 7天趋势柱状图 */
+  .trend-chart{display:flex; gap:6px; align-items:flex-end; height:120px; padding:8px 0;}
+  .trend-bar{flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; height:100%; justify-content:flex-end;}
+  .trend-bar .bar{width:100%; max-width:40px; border-radius:6px 6px 0 0; background:linear-gradient(180deg,var(--emerald),var(--cyan));
+    min-height:3px; transition:height .4s ease; position:relative;}
+  .trend-bar .bar:hover{filter:brightness(1.15);}
+  .trend-bar .bar .tip{position:absolute; top:-22px; left:50%; transform:translateX(-50%); background:var(--ink); color:var(--bg);
+    font-size:11px; padding:2px 6px; border-radius:6px; white-space:nowrap; opacity:0; transition:.15s; pointer-events:none;}
+  .trend-bar:hover .tip{opacity:1;}
+  .trend-bar .dt{font-size:10px; color:var(--ink-3); font-family:ui-monospace,monospace;}
+  /* 表格 */
+  .stat-table{width:100%; border-collapse:collapse; font-size:13px;}
+  .stat-table th{text-align:left; padding:6px 8px; color:var(--ink-3); font-weight:600; font-size:12px; border-bottom:1px solid var(--border);}
+  .stat-table td{padding:6px 8px; border-bottom:1px solid var(--border-soft); color:var(--ink-2);}
+  .stat-table td.num{text-align:right; font-family:ui-monospace,monospace; color:var(--emerald); font-weight:700;}
+  .stat-table tr:last-child td{border-bottom:none;}
+  /* 系统状态 */
+  .sys-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px;}
+  .sys-item{display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:var(--bg);
+    border-radius:8px; border:1px solid var(--border-soft); font-size:13px;}
+  .sys-item .k{color:var(--ink-3); font-weight:600;}
+  .sys-item .v{color:var(--ink); font-weight:700; font-family:ui-monospace,monospace; font-size:12px;}
+  .sys-item .v.ok{color:var(--emerald);}
+  .sys-item .v.err{color:#e5484d;}
+  .stat-row2{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  @media(max-width:640px){.stat-row2{grid-template-columns:1fr;}}
+  .stat-log{background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px;
+    font-family:ui-monospace,monospace; font-size:11.5px; line-height:1.7; color:var(--ink-2);
+    white-space:pre-wrap; word-break:break-all; max-height:160px; overflow:auto;}
+  .fb-card{background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px 16px; box-shadow:var(--shadow-1); transition:.15s;}
+  .fb-card.unread{border-left:3px solid #e5484d; background:color-mix(in srgb,#e5484d 3%,var(--card));}
+  .fb-card.read{opacity:.85;}
+  .fb-head{display:flex; align-items:center; gap:10px; margin-bottom:8px; font-size:12.5px; color:var(--ink-3); flex-wrap:wrap;}
+  .fb-time{font-family:ui-monospace,monospace; color:var(--ink-2);}
+  .fb-status{font-size:11px; font-weight:700; padding:1px 8px; border-radius:10px; background:#e5484d; color:#fff;}
+  .fb-status.read{background:var(--ink-3);}
+  .fb-email{color:var(--cyan); font-size:12.5px;}
+  .fb-msg{font-size:14px; line-height:1.7; color:var(--ink); white-space:pre-wrap; word-break:break-word;
+    background:var(--bg); border-radius:8px; padding:10px 12px; border:1px solid var(--border-soft);}
+  .fb-meta{font-size:11.5px; color:var(--ink-3); margin-top:8px; word-break:break-all;}
+  .fb-foot{display:flex; gap:6px; margin-top:10px; flex-wrap:wrap;}
+
+  @media (max-width:560px){
+    .toolbar{gap:8px;}
+    .search{min-width:100%; order:-1;}
+    .item .title{font-size:14px;}
+    .btn{padding:8px 11px; font-size:12.5px;}
+  }
+</style>
+</head>
+<body>
+  <!-- 登录 -->
+  <div id="loginView" class="wrap" style="display:none">
+    <div class="login">
+      <h2>光伏 HOT 后台</h2>
+      <p>请输入管理密码以进入</p>
+      <input id="passInput" type="password" placeholder="管理密码" autocomplete="current-password" />
+      <div class="err" id="loginErr"></div>
+      <button class="btn primary" id="loginBtn">登 录</button>
+    </div>
+  </div>
+
+  <!-- 主界面 -->
+  <div id="mainView" style="display:none">
+    <div class="topbar">
+      <div class="row">
+        <div class="brand"><span class="dot"></span>光伏 HOT · 后台</div>
+        <div class="spacer"></div>
+        <button class="btn ghost" id="themeBtn" title="切换主题">◐</button>
+        <button class="btn ghost" id="logoutBtn">退出</button>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab on" data-tab="news">📰 新闻</div>
+      <div class="tab" data-tab="stats">📊 状态</div>
+      <div class="tab" data-tab="content">📝 内容管理</div>
+      <div class="tab" data-tab="feedback">✉ 反馈 <span class="badge-unread" id="fbUnreadBadge" style="display:none">0</span></div>
+    </div>
+
+    <div class="wrap">
+      <!-- 新闻 panel（原有） -->
+      <div id="panelNews">
+        <div class="toolbar">
+          <div class="search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input id="searchInput" placeholder="搜索标题 / 摘要…" />
+          </div>
+          <select class="cat" id="catSelect">
+            <option value="">全部分类</option>
+            <option>政策</option><option>价格</option><option>硅料</option><option>硅片</option><option>电池片</option><option>组件</option>
+            <option>逆变器</option><option>支架BOS</option><option>储能</option><option>电站</option><option>行情</option>
+          </select>
+          <button class="btn" id="refreshBtn">⟳ 触发抓取</button>
+          <button class="btn" id="logBtn">日志</button>
+          <button class="btn primary" id="addBtn">＋ 手动添加</button>
+        </div>
+
+        <div class="list" id="list"></div>
+        <div class="pager" id="pager"></div>
+      </div>
+
+      <!-- 状态面板 panel -->
+      <div id="panelStats" style="display:none">
+        <div class="toolbar" style="margin-top:8px">
+          <div class="meta-line" id="statsMeta">加载中…</div>
+          <div class="spacer"></div>
+          <button class="btn" id="statsRefresh">↻ 刷新</button>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="stat-cards" id="statCards">
+          <div class="stat-card"><div class="val" id="sTodayPV">—</div><div class="lbl">今日访问量 (PV)</div></div>
+          <div class="stat-card alt"><div class="val" id="sTodayUV">—</div><div class="lbl">今日访客数 (UV)</div></div>
+          <div class="stat-card alt2"><div class="val" id="sTotalPV">—</div><div class="lbl">总访问量 (PV)</div></div>
+          <div class="stat-card alt3"><div class="val" id="sTotalUV">—</div><div class="lbl">总访客数 (UV)</div></div>
+        </div>
+
+        <!-- 7天趋势 -->
+        <div class="stat-section">
+          <h4>📈 近 7 天访问趋势 <span class="hint">柱高 = PV，悬浮看详情</span></h4>
+          <div class="trend-chart" id="trendChart"></div>
+        </div>
+
+        <div class="stat-row2">
+          <!-- 热门页面 -->
+          <div class="stat-section">
+            <h4>📄 今日热门页面</h4>
+            <table class="stat-table" id="topPathsTable">
+              <thead><tr><th>路径</th><th style="text-align:right">访问</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <!-- 访问来源 -->
+          <div class="stat-section">
+            <h4>🔗 今日访问来源</h4>
+            <table class="stat-table" id="topRefsTable">
+              <thead><tr><th>来源</th><th style="text-align:right">访问</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 系统状态 -->
+        <div class="stat-section">
+          <h4>🖥️ 系统状态 <span class="hint" id="sysHint">—</span></h4>
+          <div class="sys-grid" id="sysGrid"></div>
+        </div>
+
+        <!-- 最近日志 -->
+        <div class="stat-section">
+          <h4>📋 最近抓取日志 <span class="hint">fetch.log 末 5 行</span></h4>
+          <div class="stat-log" id="sysLog">—</div>
+        </div>
+      </div>
+
+      <!-- 内容管理 panel -->
+      <div id="panelContent" style="display:none">
+        <div class="toolbar" style="margin-top:8px">
+          <div class="meta-line" id="txtMeta">—</div>
+          <div class="spacer"></div>
+          <button class="btn primary" id="txtSaveAll">💾 保存全部</button>
+        </div>
+
+        <!-- 关于 + 二维码 -->
+        <div class="text-block" data-key="about">
+          <h4>关于页 <span class="hint">/about · 字体内容</span></h4>
+          <div class="field"><label>eyebrow 小字</label><textarea data-field="eyebrow" placeholder="关于这个站"></textarea></div>
+          <div class="field"><label>title_html 标题（可含 &lt;span class="abt-emerald"&gt;…&lt;/span&gt;）</label><textarea data-field="title_html" class="ta-big" placeholder="嗨，我是 ..."></textarea></div>
+          <div class="field"><label>sub 副标题</label><textarea data-field="sub" placeholder="这个站是我做的..."></textarea></div>
+          <div class="field"><label>poem 三行诗（每行一条，换行分隔）</label><textarea data-field="poem" class="ta-big" placeholder="每天抓 ..."></textarea></div>
+          <div class="field"><label>fineprint_html 底部署名（可含 &lt;br&gt; / &lt;a&gt;）</label><textarea data-field="fineprint_html" class="ta-big"></textarea></div>
+        </div>
+
+        <!-- Agent 接入 -->
+        <div class="text-block" data-key="agent">
+          <h4>Agent 接入 <span class="hint">/agent · 让其他 Agent 装这个 skill</span></h4>
+          <div class="field"><label>eyebrow 小字</label><textarea data-field="eyebrow" placeholder="AGENT 与开发者接入"></textarea></div>
+          <div class="field"><label>title_html 标题（可含 &lt;span class="abt-emerald"&gt;…&lt;/span&gt;）</label><textarea data-field="title_html" class="ta-big"></textarea></div>
+          <div class="field"><label>sub_html 副标题（可含 &lt;br&gt;）</label><textarea data-field="sub_html" class="ta-big"></textarea></div>
+          <div class="field"><label>verify_q 验证问题</label><textarea data-field="verify_q"></textarea></div>
+          <div class="field"><label>SKILL.md 正文（直接编辑，保存后线上 /pvhot-skill/SKILL.md 同步更新）</label><textarea data-field="skill_md" class="ta-big" style="min-height:240px; font-family:ui-monospace,monospace; font-size:12px;"></textarea></div>
+        </div>
+
+        <div class="text-block" data-key="qrcode">
+          <h4>关于页二维码 <span class="hint">/about · 微信公众号图</span></h4>
+          <p style="margin:0 0 12px; color:var(--ink-3); font-size:12.5px; line-height:1.6">
+            上传后，网站关于页底部会显示这张图（公众号二维码）。<br/>
+            建议正方形 ≤ 500KB；未上传时该区域自动隐藏。
+          </p>
+          <div class="qr-row">
+            <div class="qr-preview" id="qrPreview">
+              <div class="qr-empty">未上传</div>
+            </div>
+            <div class="qr-ops">
+              <div class="qr-meta" id="qrMeta">—</div>
+              <label class="btn" style="display:inline-block; cursor:pointer">
+                <input type="file" id="qrFile" accept="image/png,image/jpeg" style="display:none" />
+                📤 上传图片
+              </label>
+              <button class="btn danger" id="qrDel" style="border-color:#e5484d; color:#e5484d" disabled>🗑 删除</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 更新日志管理 -->
+        <div class="text-block" data-key="changelog">
+          <h4>更新日志 <span class="hint">/changelog · 前台自动同步</span></h4>
+          <p style="margin:0 0 12px; color:var(--ink-3); font-size:12.5px; line-height:1.6">
+            在此添加/编辑/删除更新条目，保存后前台「更新日志」页面自动显示最新内容。
+          </p>
+          <div id="clList" style="margin-bottom:16px"></div>
+          <div class="cl-add-form" style="border:1px dashed var(--border); border-radius:8px; padding:14px; margin-top:8px">
+            <div style="font-weight:600; margin-bottom:10px; font-size:13px">＋ 添加新条目</div>
+            <div class="row2" style="gap:10px">
+              <div class="field" style="flex:0 0 120px"><label>版本号</label><input id="clNewVer" placeholder="v3.4" style="width:100%" /></div>
+              <div class="field" style="flex:0 0 140px"><label>日期</label><input id="clNewDate" type="date" style="width:100%" /></div>
+            </div>
+            <div class="field"><label>更新内容</label><textarea id="clNewText" class="ta-big" placeholder="精简描述本次更新内容…" style="min-height:60px"></textarea></div>
+            <button class="btn" id="clAddBtn" style="margin-top:6px">＋ 添加到列表</button>
+          </div>
+          <button class="btn primary" id="clSaveBtn" style="margin-top:12px">💾 保存更新日志</button>
+        </div>
+      </div>
+
+      <!-- 反馈列表 panel -->
+      <div id="panelFeedback" style="display:none">
+        <div class="toolbar" style="margin-top:8px">
+          <div class="meta-line" id="fbMeta">—</div>
+          <div class="spacer"></div>
+          <select class="cat" id="fbFilter">
+            <option value="all">全部</option>
+            <option value="unread">未读</option>
+            <option value="read">已读</option>
+          </select>
+          <button class="btn" id="fbRefresh">↻ 刷新</button>
+        </div>
+        <div class="fb-list" id="fbList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑弹窗 -->
+  <div class="mask" id="editMask">
+    <div class="modal">
+      <h3>编辑新闻</h3>
+      <div class="field"><label>标题（中文）</label><input id="eTitle" /></div>
+      <div class="field"><label>摘要（中文）</label><textarea id="eSummary"></textarea></div>
+      <div class="row2">
+        <div class="field"><label>分类</label>
+          <select id="eCat">
+            <option>政策</option><option>价格</option><option>硅料</option><option>硅片</option><option>电池片</option><option>组件</option>
+            <option>逆变器</option><option>支架BOS</option><option>储能</option><option>电站</option><option>行情</option>
+          </select>
+        </div>
+        <div class="field"><label>来源链接</label><input id="eLink" /></div>
+      </div>
+      <div class="field"><label>推荐理由</label><textarea id="eReason"></textarea></div>
+      <label class="check"><input type="checkbox" id="eFeat" /> 标记为「精选」</label>
+      <div class="foot">
+        <button class="btn ghost" data-close>取消</button>
+        <button class="btn primary" id="eSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 添加弹窗 -->
+  <div class="mask" id="addMask">
+    <div class="modal">
+      <h3>手动添加新闻</h3>
+      <div class="field"><label>标题（中文）*</label><input id="aTitle" placeholder="必填" /></div>
+      <div class="field"><label>摘要（中文）</label><textarea id="aSummary"></textarea></div>
+      <div class="row2">
+        <div class="field"><label>分类</label>
+          <select id="aCat">
+            <option>政策</option><option>价格</option><option>硅料</option><option>硅片</option><option>电池片</option><option>组件</option>
+            <option>逆变器</option><option>支架BOS</option><option>储能</option><option>电站</option><option>行情</option>
+          </select>
+        </div>
+        <div class="field"><label>来源名</label><input id="aSource" placeholder="如：公司公告" /></div>
+      </div>
+      <div class="field"><label>来源链接</label><input id="aLink" placeholder="https://…" /></div>
+      <div class="field"><label>推荐理由（可选）</label><textarea id="aReason"></textarea></div>
+      <label class="check"><input type="checkbox" id="aFeat" /> 标记为「精选」</label>
+      <div class="foot">
+        <button class="btn ghost" data-close>取消</button>
+        <button class="btn primary" id="aSave">添加</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 日志弹窗 -->
+  <div class="mask" id="logMask">
+    <div class="modal">
+      <h3>抓取日志（fetch.log 末 200 行）</h3>
+      <div class="logbox" id="logBox">加载中…</div>
+      <div class="foot">
+        <button class="btn ghost" data-close>关闭</button>
+        <button class="btn" id="logRefresh">↻ 刷新</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  'use strict';
+  const API = '/admin/api';
+  let state = { q:'', cat:'', page:1, pageSize:20, total:0, tab: 'news' };
+  let editingId = null;
+  let TEXTS_DATA = null; // 内容管理加载到的整组数据
+
+  let editingFeatured = false; // 编辑前该条的精选状态，用于「精选」改动才上报
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+  const esc = (s) => (s==null?'':String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  function toast(msg){
+    const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(t._t); t._t = setTimeout(()=>t.classList.remove('show'), 1800);
+  }
+  async function api(path, opts){
+    opts = opts || {};
+    const r = await fetch(API + path, Object.assign({ credentials:'same-origin',
+      headers:{'Content-Type':'application/json'} }, opts));
+    let data = {}; try { data = await r.json(); } catch(e){}
+    if (r.status === 401){ showLogin(); throw new Error('未登录'); }
+    return { ok: r.ok, status: r.status, data };
+  }
+
+  /* ---- 主题 ---- */
+  function applyTheme(dark){
+    document.body.classList.toggle('dark', dark);
+    try { localStorage.setItem('pvhot_admin_dark', dark?'1':'0'); } catch(e){}
+  }
+  applyTheme((()=>{ try { return localStorage.getItem('pvhot_admin_dark')==='1'; } catch(e){ return false; } })());
+  $('#themeBtn').onclick = () => applyTheme(!document.body.classList.contains('dark'));
+
+  /* ---- 登录 ---- */
+  function showLogin(){ $('#mainView').style.display='none'; $('#loginView').style.display='block'; $('#passInput').focus(); }
+  function showMain(){ $('#loginView').style.display='none'; $('#mainView').style.display='block'; load(); }
+  async function doLogin(){
+    const pass = $('#passInput').value;
+    const r = await api('/login', { method:'POST', body: JSON.stringify({ pass }) });
+    if (r.ok){ $('#loginErr').textContent=''; showMain(); }
+    else { $('#loginErr').textContent = (r.data && r.data.error) || '登录失败'; }
+  }
+  $('#loginBtn').onclick = doLogin;
+  $('#passInput').addEventListener('keydown', e => { if (e.key==='Enter') doLogin(); });
+  $('#logoutBtn').onclick = async () => { await api('/logout', { method:'POST' }); showLogin(); };
+
+  /* ---- 列表 ---- */
+  async function load(){
+    const qs = new URLSearchParams({ q:state.q, cat:state.cat, page:state.page, pageSize:state.pageSize });
+    const r = await api('/items?' + qs.toString());
+    if (!r.ok) return;
+    const d = r.data; state.total = d.total;
+    const list = $('#list');
+    if (!d.items.length){ list.innerHTML = '<div class="empty">没有匹配的新闻 🌿</div>'; $('#pager').innerHTML=''; return; }
+    list.innerHTML = d.items.map(it => card(it)).join('');
+    renderPager();
+  }
+  function card(it){
+    const feat = it.featured === true;
+    const title = it.title_cn || it.title || '(无标题)';
+    const catCls = feat ? 'badge feat' : 'badge';
+    const catTxt = feat ? '★ 精选' : (it.category||'');
+    const reason = it.reason ? `<div class="reason">${esc(it.reason)}</div>` : '';
+    return `<div class="item" data-id="${esc(it.id)}">
+      <div class="h">
+        <div class="title">${esc(title)}</div>
+        <div class="ops">
+          <button class="iconbtn star ${feat?'on':''}" data-act="feat" title="精选">★</button>
+          <button class="iconbtn" data-act="edit" title="编辑">✎</button>
+          <button class="iconbtn danger" data-act="del" title="删除">🗑</button>
+        </div>
+      </div>
+      <div class="meta">
+        <span class="${catCls}">${esc(catTxt)}</span>
+        <span class="src">${esc(it.source||'')}</span>
+        <span>${esc((it.pubDate||'').slice(0,16).replace('T',' '))}</span>
+      </div>
+      ${reason}
+    </div>`;
+  }
+  function renderPager(){
+    const totalPages = Math.max(1, Math.ceil(state.total / state.pageSize));
+    $('#pager').innerHTML =
+      `<button class="btn" data-pg="prev" ${state.page<=1?'disabled':''}>上一页</button>
+       <span>${state.page} / ${totalPages} · 共 ${state.total} 条</span>
+       <button class="btn" data-pg="next" ${state.page>=totalPages?'disabled':''}>下一页</button>`;
+  }
+  $('#pager').onclick = (e) => {
+    const b = e.target.closest('[data-pg]'); if (!b || b.disabled) return;
+    const totalPages = Math.max(1, Math.ceil(state.total / state.pageSize));
+    if (b.dataset.pg==='prev' && state.page>1) state.page--;
+    if (b.dataset.pg==='next' && state.page<totalPages) state.page++;
+    load();
+  };
+
+  /* ---- 搜索 / 分类 ---- */
+  let searchTimer;
+  $('#searchInput').addEventListener('input', (e) => {
+    clearTimeout(searchTimer); searchTimer = setTimeout(() => { state.q = e.target.value; state.page=1; load(); }, 300);
+  });
+  $('#catSelect').onchange = (e) => { state.cat = e.target.value; state.page=1; load(); };
+
+  /* ---- 列表操作（事件委托） ---- */
+  $('#list').onclick = async (e) => {
+    const btn = e.target.closest('[data-act]'); if (!btn) return;
+    const id = btn.closest('.item').dataset.id;
+    const act = btn.dataset.act;
+    if (act==='edit'){ openEdit(id); }
+    else if (act==='feat'){
+      const cur = btn.classList.contains('on');
+      const r = await api('/items/'+encodeURIComponent(id)+'/feature', { method:'POST', body: JSON.stringify({ featured:!cur }) });
+      if (r.ok){ toast(!cur?'已标记精选':'已取消精选'); load(); }
+    }
+    else if (act==='del'){
+      if (!confirm('确定从榜单删除这条新闻？')) return;
+      const r = await api('/items/'+encodeURIComponent(id), { method:'DELETE' });
+      if (r.ok){ toast('已删除'); load(); }
+    }
+  };
+
+  /* ---- 编辑 ---- */
+  async function openEdit(id){
+    editingId = id;
+    const r = await api('/items/'+encodeURIComponent(id));
+    if (!r.ok) return;
+    const it = r.data;
+    $('#eTitle').value = it.title_cn || it.title || '';
+    $('#eSummary').value = it.summary_cn || it.summary || '';
+    $('#eCat').value = it.category || '行情';
+    $('#eLink').value = it.link || '';
+    $('#eReason').value = it.reason || '';
+    $('#eFeat').checked = (it.featured === true);
+    editingFeatured = (it.featured === true);
+    $('#editMask').classList.add('show');
+  }
+  $('#eSave').onclick = async () => {
+    const body = {
+      title_cn: $('#eTitle').value,
+      summary_cn: $('#eSummary').value,
+      category: $('#eCat').value,
+      link: $('#eLink').value,
+      reason: $('#eReason').value,
+    };
+    // 仅当「精选」状态相对编辑前发生改变时才上报，避免误清精选
+    const ef = $('#eFeat').checked;
+    if (ef !== editingFeatured) body.featured = ef;
+    const r = await api('/items/'+encodeURIComponent(editingId), { method:'PUT', body: JSON.stringify(body) });
+    if (r.ok){ toast('已保存'); $('#editMask').classList.remove('show'); load(); }
+    else toast((r.data&&r.data.error)||'保存失败');
+  };
+
+  /* ---- 添加 ---- */
+  $('#addBtn').onclick = () => { $('#addMask').classList.add('show'); $('#aTitle').focus(); };
+  $('#aSave').onclick = async () => {
+    const body = {
+      title_cn: $('#aTitle').value,
+      summary_cn: $('#aSummary').value,
+      category: $('#aCat').value,
+      source: $('#aSource').value,
+      link: $('#aLink').value,
+      reason: $('#aReason').value,
+      featured: $('#aFeat').checked,
+    };
+    if (!body.title_cn.trim()){ toast('标题必填'); return; }
+    const r = await api('/items', { method:'POST', body: JSON.stringify(body) });
+    if (r.ok){ toast('已添加'); $('#addMask').classList.remove('show');
+      $('#aTitle').value=''; $('#aSummary').value=''; $('#aLink').value=''; $('#aReason').value=''; $('#aFeat').checked=false;
+      state.page=1; load(); }
+    else toast((r.data&&r.data.error)||'添加失败');
+  };
+
+  /* ---- 触发抓取 ---- */
+  $('#refreshBtn').onclick = async () => {
+    $('#refreshBtn').disabled = true; $('#refreshBtn').textContent = '抓取中…';
+    const r = await api('/refresh', { method:'POST' });
+    setTimeout(() => { $('#refreshBtn').disabled=false; $('#refreshBtn').textContent='⟳ 触发抓取'; if (r.ok) toast('已触发，稍后看日志'); }, 600);
+  };
+
+  /* ---- 日志 ---- */
+  async function openLog(){
+    $('#logMask').classList.add('show');
+    const r = await api('/log');
+    $('#logBox').textContent = (r.data && r.data.lines && r.data.lines.length) ? r.data.lines.join('\n') : '（暂无日志）';
+  }
+  $('#logBtn').onclick = openLog;
+  $('#logRefresh').onclick = openLog;
+
+  /* ---- 弹窗关闭 ---- */
+  $$('[data-close]').forEach(b => b.onclick = () => b.closest('.mask').classList.remove('show'));
+  $$('.mask').forEach(m => m.addEventListener('click', e => { if (e.target===m) m.classList.remove('show'); }));
+
+  /* ---- 启动：探测登录态（访问受保护接口，401 则登录） ---- */
+  (async () => {
+    try {
+      const r = await api('/items?pageSize=1');
+      if (r.ok) showMain(); else showLogin();
+    } catch(e){ showLogin(); }
+  })();
+
+  /* ============== Tab 切换 ============== */
+  function switchTab(name){
+    state.tab = name;
+    $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === name));
+    $('#panelNews').style.display = name === 'news' ? '' : 'none';
+    $('#panelStats').style.display = name === 'stats' ? '' : 'none';
+    $('#panelContent').style.display = name === 'content' ? '' : 'none';
+    $('#panelFeedback').style.display = name === 'feedback' ? '' : 'none';
+    if (name === 'content' && !TEXTS_DATA) loadContent();
+    if (name === 'feedback') loadFeedback();
+    if (name === 'stats') loadStats();
+  }
+  $$('.tab').forEach(t => t.onclick = () => switchTab(t.dataset.tab));
+
+  /* ============== 内容管理 ============== */
+  async function loadContent(){
+    $('#txtMeta').textContent = '加载中…';
+    const r = await api('/texts');
+    if (!r.ok || !r.data.texts){ $('#txtMeta').textContent = '加载失败'; return; }
+    TEXTS_DATA = r.data.texts;
+    fillTextPanels();
+    $('#txtMeta').textContent = '已加载 · 最近一次修改时间请以保存后为准（自动同步到 site_texts.json）';
+  }
+  function fillTextPanels(){
+    // about
+    setTextBlock('about', TEXTS_DATA.about || {}, (v) => {
+      const arr = Array.isArray(v.poem) ? v.poem.join('\n') : (v.poem || '');
+      return { eyebrow: v.eyebrow, title_html: v.title_html, sub: v.sub, poem: arr, fineprint_html: v.fineprint_html };
+    });
+    // agent
+    setTextBlock('agent', TEXTS_DATA.agent || {}, (v) => ({
+      eyebrow: v.eyebrow, title_html: v.title_html, sub_html: v.sub_html,
+      verify_q: v.verify_q, skill_md: v.skill_md || '',
+    }));
+    // 二维码
+    loadQrcode();
+    // 更新日志
+    clItems = (TEXTS_DATA.changelog && Array.isArray(TEXTS_DATA.changelog.items))
+      ? JSON.parse(JSON.stringify(TEXTS_DATA.changelog.items))
+      : JSON.parse(JSON.stringify(DEFAULT_CHANGELOG));
+    renderChangelogList();
+  }
+  function setTextBlock(key, src, mapper){
+    const block = document.querySelector('.text-block[data-key="' + key + '"]');
+    if (!block) return;
+    const v = mapper(src || {});
+    $$('[data-field]', block).forEach(ta => { ta.value = v[ta.dataset.field] != null ? v[ta.dataset.field] : ''; });
+  }
+  function readTextPanels(){
+    const out = {};
+    out.about = readTextBlock('about', (m) => ({
+      eyebrow: m.eyebrow, title_html: m.title_html, sub: m.sub,
+      poem: m.poem.split(/\r?\n/).map(s => s).filter(s => s.length),
+      fineprint_html: m.fineprint_html,
+    }));
+    out.agent = readTextBlock('agent', (m) => ({
+      eyebrow: m.eyebrow, title_html: m.title_html, sub_html: m.sub_html,
+      verify_q: m.verify_q, skill_md: m.skill_md || '',
+    }));
+    return out;
+  }
+  function readTextBlock(key, mapper){
+    const block = document.querySelector('.text-block[data-key="' + key + '"]');
+    const m = {};
+    $$('[data-field]', block).forEach(ta => { m[ta.dataset.field] = ta.value; });
+    return mapper(m);
+  }
+  $('#txtSaveAll').onclick = async () => {
+    let payload;
+    try { payload = readTextPanels(); }
+    catch (e) { toast(e.message); return; }
+    $('#txtSaveAll').disabled = true; $('#txtSaveAll').textContent = '保存中…';
+    let okCount = 0;
+    for (const k of ['about', 'agent']) {
+      const r = await api('/texts/' + k, { method:'PUT', body: JSON.stringify({ value: payload[k] }) });
+      if (r.ok) okCount++;
+    }
+    $('#txtSaveAll').disabled = false; $('#txtSaveAll').textContent = '💾 保存全部';
+    if (okCount === 2){ toast('已保存（关于页 + Agent 接入）'); TEXTS_DATA.about = payload.about; TEXTS_DATA.agent = payload.agent; }
+    else toast('部分保存失败，请重试（成功 ' + okCount + '/2）');
+  };
+
+  /* ---- 二维码 ---- */
+  async function loadQrcode(){
+    const r = await api('/qrcode');
+    const prev = $('#qrPreview'), meta = $('#qrMeta'), del = $('#qrDel');
+    if (r.ok && r.data && r.data.exists){
+      prev.innerHTML = '<img src="/uploads/qrcode.png?v=' + (r.data.mtime || Date.now()) + '" alt="qrcode" />';
+      const kb = (r.data.size / 1024).toFixed(1);
+      meta.textContent = '✅ 已上传 · ' + kb + ' KB · ' + (r.data.mtime || '');
+      del.disabled = false;
+    } else {
+      prev.innerHTML = '<div class="qr-empty">未上传</div>';
+      meta.textContent = '— 暂无二维码';
+      del.disabled = true;
+    }
+  }
+  $('#qrFile').addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    if (f.size > 2 * 1024 * 1024){ toast('图片不能超过 2MB'); e.target.value = ''; return; }
+    if (!/^image\/(png|jpe?g|webp|gif)$/i.test(f.type)){ toast('只支持 png/jpg/webp/gif'); e.target.value = ''; return; }
+    const dataUrl = await new Promise((res, rej) => {
+      const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(f);
+    });
+    $('#qrMeta').textContent = '上传中…';
+    const r = await api('/qrcode', { method:'POST', body: JSON.stringify({ data: dataUrl, filename: f.name, type: f.type }) });
+    e.target.value = '';
+    if (r.ok){ toast('已上传'); loadQrcode(); }
+    else { toast((r.data&&r.data.error)||'上传失败'); loadQrcode(); }
+  });
+  $('#qrDel').onclick = async () => {
+    if (!confirm('确定删除这张二维码？删除后关于页该区域自动隐藏。')) return;
+    const r = await api('/qrcode', { method:'DELETE' });
+    if (r.ok){ toast('已删除'); loadQrcode(); }
+    else toast((r.data&&r.data.error)||'删除失败');
+  };
+
+  /* ---- 更新日志管理 ---- */
+  const DEFAULT_CHANGELOG = [
+    { ver: "v3.3", date: "2026-07-24", text: "新增「政策」「价格」分类导航；恢复关于页二维码；后台访问统计面板上线（PV/UV、7天趋势、热门页面）；全部动态取消精选标签。" },
+    { ver: "v3.2", date: "2026-07-23", text: "多信源聚合上线（Google News + 索比光伏 + 北极星 + RSSHub 微博/微信公众号）；后台管理系统上线（编辑/精选/合并层）；榜单按信源数排行，精选按 AI 推荐分排序；HTTPS 启用。" },
+    { ver: "v3.1", date: "2026-07-22", text: "反馈页改造：居中布局 + 输入提示 + 字数计数 + 邮箱选填，支持内嵌提交反馈（草稿存 localStorage）。" },
+    { ver: "v3.0", date: "2026-07-22", text: "Agent 接入页 + 关于页：eyebrow + 大标题 + 三行诗 + 微信公众号二维码 + 6 平台安装命令。" },
+    { ver: "v2.0", date: "2026-07-22", text: "左侧栏导航 + 时间线带头像/推荐理由 + 多视图（精选/全部/日报/收藏/Agent/关于/日志/反馈）+ 暗色模式 + 移动端侧栏。" },
+    { ver: "v1.1", date: "2026-07-22", text: "接真实数据源（pv-magazine / pv-tech 等），英文自动翻译成中文。" },
+    { ver: "v1.0", date: "2026-07-22", text: "光伏版新闻聚合门户上线：9 大分类，时间线 feed 形式。" }
+  ];
+  let clItems = [];
+
+  function renderChangelogList(){
+    const wrap = $('#clList');
+    if (!wrap) return;
+    if (!clItems.length){
+      wrap.innerHTML = '<p style="color:var(--ink-3); font-size:12.5px; padding:8px 0">暂无条目，在下方添加。</p>';
+      return;
+    }
+    wrap.innerHTML = clItems.map((it, i) =>
+      '<div class="cl-item" style="display:flex; gap:8px; align-items:flex-start; padding:8px 0; border-bottom:1px solid var(--border)">' +
+        '<div style="flex:0 0 64px"><input class="cl-ver" data-i="' + i + '" value="' + esc(it.ver||'') + '" style="width:100%; font-size:12px" placeholder="v3.4" /></div>' +
+        '<div style="flex:0 0 130px"><input class="cl-date" data-i="' + i + '" type="date" value="' + esc(it.date||'') + '" style="width:100%; font-size:12px" /></div>' +
+        '<div style="flex:1"><textarea class="cl-text" data-i="' + i + '" style="width:100%; min-height:36px; font-size:12.5px; resize:vertical" placeholder="更新内容…">' + esc(it.text||'') + '</textarea></div>' +
+        '<button class="btn danger cl-del" data-i="' + i + '" style="flex:0 0 auto; border-color:#e5484d; color:#e5484d; padding:4px 8px; font-size:14px">✕</button>' +
+      '</div>'
+    ).join('');
+    $$('.cl-ver', wrap).forEach(el => el.oninput = e => { clItems[+e.target.dataset.i].ver = e.target.value; });
+    $$('.cl-date', wrap).forEach(el => el.oninput = e => { clItems[+e.target.dataset.i].date = e.target.value; });
+    $$('.cl-text', wrap).forEach(el => el.oninput = e => { clItems[+e.target.dataset.i].text = e.target.value; });
+    $$('.cl-del', wrap).forEach(el => el.onclick = e => { clItems.splice(+e.target.dataset.i, 1); renderChangelogList(); });
+  }
+  $('#clAddBtn').onclick = () => {
+    const ver = $('#clNewVer').value.trim();
+    const date = $('#clNewDate').value || new Date().toISOString().slice(0, 10);
+    const text = $('#clNewText').value.trim();
+    if (!text){ toast('请输入更新内容'); return; }
+    clItems.unshift({ ver: ver || 'v' + (clItems.length + 1), date, text });
+    $('#clNewVer').value = ''; $('#clNewText').value = '';
+    renderChangelogList();
+    toast('已添加到列表（记得点「保存更新日志」生效）');
+  };
+  $('#clSaveBtn').onclick = async () => {
+    $('#clSaveBtn').disabled = true; $('#clSaveBtn').textContent = '保存中…';
+    const r = await api('/texts/changelog', { method:'PUT', body: JSON.stringify({ value: { items: clItems } }) });
+    $('#clSaveBtn').disabled = false; $('#clSaveBtn').textContent = '💾 保存更新日志';
+    if (r.ok){ toast('更新日志已保存，前台已同步'); if (TEXTS_DATA) TEXTS_DATA.changelog = { items: clItems }; }
+    else toast((r.data&&r.data.error)||'保存失败');
+  };
+
+  /* ============== 反馈列表 ============== */
+  async function loadFeedback(){
+    $('#fbMeta').textContent = '加载中…';
+    $('#fbList').innerHTML = '<div class="empty">加载中…</div>';
+    const r = await api('/feedback');
+    if (!r.ok){ $('#fbMeta').textContent = '加载失败'; return; }
+    const items = r.data.items || [];
+    const unread = r.data.unread || 0;
+    $('#fbMeta').textContent = '共 ' + items.length + ' 条 · 未读 ' + unread;
+    const badge = $('#fbUnreadBadge');
+    if (unread > 0) { badge.textContent = unread > 99 ? '99+' : unread; badge.style.display = ''; }
+    else { badge.style.display = 'none'; }
+    renderFbList(items);
+  }
+  function renderFbList(items){
+    const filter = $('#fbFilter').value;
+    const list = items.filter(it => filter === 'all' ? true : filter === 'unread' ? !it.read : it.read);
+    const box = $('#fbList');
+    if (!list.length) { box.innerHTML = '<div class="empty">暂无反馈 🌿</div>'; return; }
+    box.innerHTML = list.map(it => fbCard(it)).join('');
+  }
+  function fbCard(it){
+    const t = (it.t || '').replace('T', ' ').slice(0, 19);
+    const status = it.read
+      ? '<span class="fb-status read">已读</span>'
+      : '<span class="fb-status">未读</span>';
+    const email = it.email ? `<span class="fb-email">✉ ${esc(it.email)}</span>` : '';
+    return `<div class="fb-card ${it.read?'read':'unread'}" data-id="${esc(it.id)}">
+      <div class="fb-head">
+        ${status}
+        <span class="fb-time">${esc(t)}</span>
+        ${email}
+        <span class="spacer"></span>
+        <span style="font-family:ui-monospace,monospace; font-size:11px; color:var(--ink-3)">${esc(it.id)}</span>
+      </div>
+      <div class="fb-msg">${esc(it.msg || '')}</div>
+      <div class="fb-meta">页面：${esc(it.page || '—')} · UA：${esc(it.ua || '—')} · IP：${esc(it.ip || '—')}</div>
+      <div class="fb-foot">
+        <button class="btn" data-fb-act="toggle">${it.read?'标为未读':'标为已读'}</button>
+        <button class="btn danger" data-fb-act="del" style="border-color:#e5484d;color:#e5484d">删除</button>
+      </div>
+    </div>`;
+  }
+  $('#fbList').onclick = async (e) => {
+    const btn = e.target.closest('[data-fb-act]'); if (!btn) return;
+    const card = btn.closest('.fb-card');
+    const id = card.dataset.id;
+    const act = btn.dataset.fbAct;
+    if (act === 'del'){
+      if (!confirm('确定删除这条反馈？')) return;
+      const r = await api('/feedback/' + encodeURIComponent(id), { method:'DELETE' });
+      if (r.ok) { toast('已删除'); loadFeedback(); }
+    } else if (act === 'toggle'){
+      const cur = card.classList.contains('unread');
+      const r = await api('/feedback/' + encodeURIComponent(id), { method:'PUT', body: JSON.stringify({ read: cur }) });
+      if (r.ok) { toast(cur ? '已标记已读' : '已标记未读'); loadFeedback(); }
+    }
+  };
+  $('#fbFilter').onchange = () => { if (state.tab === 'feedback') loadFeedback(); };
+  $('#fbRefresh').onclick = loadFeedback;
+
+  /* ============== 统计面板 ============== */
+  async function loadStats(){
+    $('#statsMeta').textContent = '加载中…';
+    // 并行获取统计数据和系统状态
+    const [statsR, statusR] = await Promise.all([
+      api('/stats'),
+      api('/status'),
+    ]);
+    if (!statsR.ok){ $('#statsMeta').textContent = '加载失败'; return; }
+    const s = statsR.data;
+    // 卡片
+    $('#sTodayPV').textContent = (s.today && s.today.pv) || 0;
+    $('#sTodayUV').textContent = (s.today && s.today.uv) || 0;
+    $('#sTotalPV').textContent = (s.total && s.total.pv) || 0;
+    $('#sTotalUV').textContent = (s.total && s.total.uv) || 0;
+    // 7天趋势柱状图
+    const last7 = s.last7 || [];
+    const maxPV = Math.max(1, ...last7.map(d => d.pv));
+    $('#trendChart').innerHTML = last7.map(d => {
+      const h = Math.round((d.pv / maxPV) * 100);
+      const dt = d.date.slice(5); // MM-DD
+      return `<div class="trend-bar">
+        <div class="bar" style="height:${h}%">
+          <span class="tip">PV ${d.pv} · UV ${d.uv}</span>
+        </div>
+        <span class="dt">${dt}</span>
+      </div>`;
+    }).join('');
+    // 热门页面
+    const topPaths = (s.today && s.today.topPaths) || [];
+    $('#topPathsTable tbody').innerHTML = topPaths.length
+      ? topPaths.map(([p, n]) => `<tr><td>${esc(p)}</td><td class="num">${n}</td></tr>`).join('')
+      : '<tr><td colspan="2" style="color:var(--ink-3);text-align:center">暂无数据</td></tr>';
+    // 访问来源
+    const topRefs = (s.today && s.today.topRefs) || [];
+    $('#topRefsTable tbody').innerHTML = topRefs.length
+      ? topRefs.map(([r, n]) => `<tr><td>${esc(r)}</td><td class="num">${n}</td></tr>`).join('')
+      : '<tr><td colspan="2" style="color:var(--ink-3);text-align:center">暂无数据</td></tr>';
+
+    // 系统状态
+    const st = statusR.ok ? statusR.data : {};
+    const fmtSize = (b) => b ? (b > 1048576 ? (b/1048576).toFixed(1)+'MB' : (b/1024).toFixed(0)+'KB') : '—';
+    const fmtTime = (t) => t ? new Date(t).toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
+    const rsshubStatus = s.rsshub === 'ok' ? '<span class="ok">正常</span>' : '<span class="err">'+esc(s.rsshub||'未知')+'</span>';
+    const items = [
+      ['新闻条数', st.items || 0],
+      ['分类数', st.categories || 0],
+      ['data.json', fmtSize(st.dataSize)],
+      ['data_raw.json', fmtSize(st.rawSize)],
+      ['上次抓取', fmtTime(st.rawMtime)],
+      ['RSSHub', rsshubStatus],
+      ['后台编辑', '删除'+(st.deletedCount||0)+' / 覆盖'+(st.overrideCount||0)+' / 新增'+(st.addedCount||0)],
+      ['磁盘', st.disk || '—'],
+      ['内存(RSS)', st.memRSS || '—'],
+      ['内存(Heap)', st.memHeap || '—'],
+      ['运行时长', st.uptime || '—'],
+    ];
+    $('#sysGrid').innerHTML = items.map(([k, v]) =>
+      `<div class="sys-item"><span class="k">${k}</span><span class="v">${v}</span></div>`
+    ).join('');
+    // 最近日志
+    const logLines = (st.lastLog || []).join('\n');
+    $('#sysLog').textContent = logLines || '（暂无日志）';
+    $('#statsMeta').textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN');
+    $('#sysHint').textContent = 'RSSHub: ' + (s.rsshub === 'ok' ? '✅' : '⚠️');
+  }
+  $('#statsRefresh').onclick = loadStats;
+})();
+</script>
+</body>
+</html>
