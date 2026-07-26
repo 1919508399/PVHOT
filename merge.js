@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const ROOT = '/var/www/pvhot';
+const ROOT = process.env.PVHOT_ROOT || '/var/www/pvhot';
 const RAW = path.join(ROOT, 'data_raw.json');
 const EDITS = path.join(ROOT, 'admin_edits.json');
 const OUT = path.join(ROOT, 'data.json');

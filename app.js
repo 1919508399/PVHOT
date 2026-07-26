@@ -12,22 +12,6 @@
   const $  = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 
-  /* ---------- 虚拟"同事"账号池（aihot 风格的「谁转的精选」归属） ---------- */
-  const USERS = [
-    { name: "光伏老王",   handle: "pvking_w",     color: "#2f7d5c" },
-    { name: "储能观察",   handle: "storage_watch", color: "#135e6b" },
-    { name: "碳索笔记",   handle: "carbon_notes",  color: "#7a4ea0" },
-    { name: "光子前线",   handle: "photon_front",  color: "#b3402a" },
-    { name: "硅基研究",   handle: "silicom_lab",   color: "#3a7bd5" },
-    { name: "绿能周报",   handle: "green_weekly",  color: "#0e6e7c" },
-    { name: "北辰能源",   handle: "polaris_neo",   color: "#c2570f" },
-    { name: "链上光伏",   handle: "chain_pv",      color: "#5b8a3a" },
-    { name: "度电思考",   handle: "kwh_thinker",   color: "#8a4a8e" },
-    { name: "硅业分会",   handle: "silicon_assoc", color: "#1d6f8b" },
-    { name: "PV-Sense",   handle: "pv_sense",      color: "#a23b3b" },
-    { name: "光伏客",     handle: "pvke",          color: "#4a6b3a" },
-  ];
-
   let DATA = null;
   let TEXTS = null;  // 关于 / Agent / 反馈 / 更新日志 4 段可编辑文本
   let state = { view: "featured", cat: "全部", tag: null, kw: "", dailyTab: "day", dailyDate: null, dailyWeek: null, dailyMonth: null };
@@ -66,7 +50,7 @@
       title_html: "让 Agent 直接使用 <span class=\"abt-emerald\">PV HOT</span>",
       sub_html: "Agent Skill 负责理解问题和整理答案；RSS 与 REST API 负责稳定传递公开精选、最近 7 天动态和日报。<br/>匿名只读，无需 API Key。",
       note_html: "",
-      verify_q: "过去 24 小时光伏行业最重要的 5 件事是什么？"
+      verify_q: "今天光伏行业最重要的 5 件事是什么？"
     },
     feedback: {
       eyebrow: "反 馈",
@@ -75,6 +59,57 @@
     },
     changelog: {
       items: [
+        {
+          ver: "v5.3", date: "2026-07-26", time: "21:25", type: "重构",
+          title: "Agent 接入升级为可验证的开发者工作台",
+          text: "Agent 接入从静态说明页升级为实时工作台，补齐公开 REST、RSS 与状态接口，并支持现场组合参数、复制和测试。",
+          bullets: [
+            "新增日期、赛道、关键词、AI 精选和返回数量组合生成器",
+            "提供 Agent 提示词、REST API、RSS 三种即用型输出",
+            "实时显示数据状态、今日动态、今日精选与覆盖信源",
+            "Skill 文档升级到 v0.2，严格约束今天不混入旧闻"
+          ]
+        },
+        {
+          ver: "v5.2", date: "2026-07-26", time: "20:58", type: "更新",
+          title: "更新日志与主题体验重做",
+          text: "更新日志改为按日期分组的产品时间轴；侧栏底部恢复浅色、跟随系统与深色三段式切换，同时移除前台后台入口。",
+          bullets: [
+            "更新日志按日期、时间和更新类型展示，长内容更容易浏览",
+            "深色模式重新覆盖首页、时间线、日报、信息页与移动端",
+            "主题选择会保存在当前设备，并支持跟随系统自动变化"
+          ]
+        },
+        {
+          ver: "v5.1", date: "2026-07-26", time: "20:47", type: "重构",
+          title: "管理后台 2.0：专业工作台整体升级",
+          text: "后台升级为独立侧栏工作台，统一新闻审核、数据状态、站点内容与用户反馈。",
+          bullets: [
+            "新闻审核卡片增加原文图片、完整摘要、信源数与 AI 分数",
+            "新增资讯总量、今日资讯、今日精选和活跃信源概览",
+            "加入登录限频、抓取任务防重复与北京时间统计"
+          ]
+        },
+        {
+          ver: "v5.0", date: "2026-07-26", time: "20:28", type: "优化",
+          title: "AI 精选、正文摘要与近 7 天新闻链路重构",
+          text: "精选严格限定北京时间当天新闻，并从发布方原文提炼完整短总结与重要主图。",
+          bullets: [
+            "综合网络热度、跨信源报道、权威度、时效性和产业影响评分",
+            "原文可访问时提炼 120–300 字摘要，受限时生成完整信源简报",
+            "补齐近 7 天新闻，修复未来日期和旧闻混入精选的问题"
+          ]
+        },
+        {
+          ver: "v4.0", date: "2026-07-26", time: "18:40", type: "重构",
+          title: "全站 UI 与信源体系升级",
+          text: "建立暖白、深青与香槟金的 PV HOT 视觉体系，同时扩展国内外光伏行业信源。",
+          bullets: [
+            "重做品牌侧栏、情报头图、热点榜和时间线卡片",
+            "扩展国际媒体、行业机构、国内网站与微信公众号监控",
+            "优化静态数据加载、文章缓存与多信源聚合"
+          ]
+        },
         { ver: "v3.3", date: "2026-07-24", text: "新增「政策」「价格」分类导航；恢复关于页二维码；后台访问统计面板上线（PV/UV、7天趋势、热门页面）；全部动态取消精选标签。" },
         { ver: "v3.2", date: "2026-07-23", text: "多信源聚合上线（Google News + 索比光伏 + 北极星 + RSSHub 微博/微信公众号）；后台管理系统上线（编辑/精选/合并层）；榜单按信源数排行，精选按 AI 推荐分排序；HTTPS 启用。" },
         { ver: "v3.1", date: "2026-07-22", text: "反馈页改造：居中布局 + 输入提示 + 字数计数 + 邮箱选填，支持内嵌提交反馈（草稿存 localStorage）。" },
@@ -225,19 +260,24 @@
       fc.style.display = n ? "" : "none";
     }
   };
-  /* 数据兜底：派生字段（pubTime / retweetCount / user / related） */
+  /* 数据兜底：派生字段（pubTime / 真实信源 / related） */
   function ensureDerived(items) {
     const byCat = {};
     items.forEach((it, i) => (byCat[it.category] = byCat[it.category] || []).push({ ...it, _i: i }));
     items.forEach((it, i) => {
       if (!it.pubTime) it.pubTime = fmtHHMM(it.pubDate);
-      if (typeof it.retweetCount !== "number") {
-        it.retweetCount = Math.max(2, Math.round(it.heat * 0.28 + (it.title.length % 5)));
-      }
-      if (!it.user) {
-        const seed = it.id.split("").reduce((a, c) => a + c.charCodeAt(0), 0) + i;
-        it.user = USERS[seed % USERS.length];
-      }
+      const sourceName = (it.author || it.source || "行业信源").trim();
+      const colorByCat = {
+        "政策": "#805ad5", "硅料": "#0e7490", "硅片": "#2563eb",
+        "电池片": "#0284c7", "组件": "#0f766e", "逆变器": "#2563eb",
+        "储能": "#b7791f", "电站": "#2f855a", "价格": "#c2410c"
+      };
+      // 始终以真实来源覆盖旧版的虚拟编辑账号，避免用户误认为是原作者。
+      it.user = {
+        name: sourceName,
+        handle: (it.sourceCount || 1) > 1 ? `${it.sourceCount} 个信源聚合` : "原文信源",
+        color: colorByCat[it.category] || "#0f766e"
+      };
       /* v3.5：来源标记 — 按源头类型分配标签和颜色 */
       if (!it.srcLabel) {
         const s = (it.source || '').toLowerCase();
@@ -280,9 +320,9 @@
     featured:  { title: "精选",   sub: () => {
       const d = new Date(DATA.meta.date);
       const w = ["星期日","星期一","星期二","星期三","星期四","星期五","星期六"][d.getDay()];
-      return `${fmtDateFull(DATA.meta.date)} ${w} · 榜单按多信源报道数排行 · 精选按 AI 推荐分排序`;
+      return `${fmtDateFull(DATA.meta.date)} ${w} · 仅收录今日新闻 · 综合网络热度、信源权威度与产业影响筛选`;
     }},
-    all:       { title: "全部动态", sub: () => `${DATA.items.length} 条最新光伏资讯，按时间倒序` },
+    all:       { title: "全部动态", sub: () => `${DATA.items.length} 条近 7 天光伏资讯，按时间倒序` },
     daily:     { title: "日报",   sub: () => `左侧日历/周/月选择期号 · 右侧每日（周/月）精选摘要 + 全量分类报道` },
     fav:       { title: "收藏",   sub: () => `你收藏的光伏资讯（共 ${getFavs().length} 条，本地保存）` },
     agent:     { title: "Agent 接入", sub: () => "通过 Agent Skill / RSS / REST API 把 PV HOT 接入你的工作流" },
@@ -294,7 +334,25 @@
     const m = VIEW_META[state.view] || VIEW_META.featured;
     $("#heroTitle").textContent = m.title;
     $("#heroSub").textContent   = m.sub();
-    // aihot 风格的几个视图自己带 eyebrow + 大标题，隐藏全局 hero + 顶部分类条 + 搜索条
+    const kickerMap = {
+      featured: "每日精选", all: "实时情报流", daily: "研究简报", fav: "个人资料夹",
+      agent: "开发者接入", about: "关于本站", changelog: "产品更新", feedback: "联系与建议"
+    };
+    const kicker = $("#heroKicker");
+    if (kicker) kicker.textContent = kickerMap[state.view] || "光伏情报";
+    const uniqueSources = new Set(DATA.items.map(it => it.source).filter(Boolean)).size;
+    const latest = DATA.items.map(it => it.pubDate).filter(Boolean).sort().pop();
+    const metricItems = $("#metricItems");
+    const metricSources = $("#metricSources");
+    const metricTopics = $("#metricTopics");
+    const metricUpdated = $("#metricUpdated");
+    if (metricItems) metricItems.textContent = DATA.items.length;
+    if (metricSources) metricSources.textContent = uniqueSources;
+    if (metricTopics) metricTopics.textContent = Math.max(0, DATA.categories.length - 1);
+    if (metricUpdated) metricUpdated.textContent = latest ? fmtHHMM(latest) : "—";
+    const topbarDate = $("#topbarDate");
+    if (topbarDate) topbarDate.textContent = fmtDateFull(DATA.meta.date);
+    // 几个信息视图自带完整页头，隐藏全局 hero 与筛选工具条
     const noHero = state.view === "about" || state.view === "agent" || state.view === "feedback";
     const hero = document.querySelector(".hero");
     if (hero) hero.style.display = noHero ? "none" : "";
@@ -374,16 +432,28 @@
     });
   }
 
-  /* ---------- 渲染：当前热点 TOP 5（v3b：按多信源报道数量排序） ---------- */
+  function itemDateKey(it) {
+    return it.dateKey || (it.pubDate || '').slice(0, 10);
+  }
+
+  /* ---------- 渲染：今日热点 TOP 5 ---------- */
   function renderTop5() {
-    const top = [...DATA.items].sort((a, b) => (b.sourceCount || 1) - (a.sourceCount || 1) || (b.heat || 0) - (a.heat || 0)).slice(0, 5);
+    const todayKey = DATA.meta.date;
+    const top = DATA.items
+      .filter((it) => itemDateKey(it) === todayKey)
+      .sort((a, b) =>
+        (b.networkHeat || 0) - (a.networkHeat || 0)
+        || (b.sourceCount || 1) - (a.sourceCount || 1)
+        || (b.score || 0) - (a.score || 0)
+      )
+      .slice(0, 5);
     $("#top5").innerHTML = top.map((it, i) => `
-      <a class="row" href="${esc(it.link)}">
+      <a class="row" href="${esc(it.link)}" target="_blank" rel="noopener">
         <span class="rank">${i + 1}</span>
         <span class="t-title" title="${esc(it.orig_title || '')}">${hl(it.title, state.kw)}</span>
         <span class="t-time">${it.pubTime}</span>
         <span class="t-right">
-          <span class="t-srccnt"><b>${it.sourceCount || 1}</b> 个信源同时报道</span>
+          <span class="t-srccnt"><b>${it.networkHeat || it.score || 0}</b> 热度</span>
         </span>
       </a>`).join("");
   }
@@ -393,17 +463,12 @@
     const list = filtered();
     const body = $("#viewBody");
     if (state.view === "featured") {
-      // v3b：榜单 TOP5 按多信源报道数排序
-      const top = `<section class="block"><div class="block-head"><h2>当前热点</h2><span class="hint">按多信源报道数排序</span></div><div class="top5" id="top5"></div></section>`;
-      // v3b：精选 = AI 推荐（score 阈值），按推荐分排序，不显示全部新闻
-      const scored = list.map(it => ({ ...it, _score: it.score || it.heat || 50 }));
-      scored.sort((a, b) => b._score - a._score);
-      // 取 top 40%（至少 10 条，最多 60 条），确保"精选不显示全部"
-      const cap = Math.min(60, Math.max(10, Math.ceil(scored.length * 0.4)));
-      const threshold = scored[Math.min(cap, scored.length) - 1]?._score || 60;
-      let curated = scored.filter(it => it._score >= threshold);
-      if (curated.length > cap) curated = curated.slice(0, cap);
-      const curatedSection = `<section class="block"><div class="block-head"><h2>AI 推荐精选</h2><span class="hint">按推荐分排序 · ${curated.length}/${list.length} 条入选</span></div></section>`;
+      const today = list.filter((it) => itemDateKey(it) === DATA.meta.date);
+      const top = `<section class="block hot-block"><div class="block-head"><div><span class="block-eyebrow">TODAY'S SIGNAL</span><h2>今日热点</h2></div><span class="hint">网络热度 × 多源报道 × 信源权威度</span></div><div class="top5" id="top5"></div></section>`;
+      const curated = today
+        .filter((it) => it.featured === true)
+        .sort((a, b) => (b.score || 0) - (a.score || 0) || (b.networkHeat || 0) - (a.networkHeat || 0));
+      const curatedSection = `<section class="block curated-block"><div class="block-head"><div><span class="block-eyebrow">AI EDITORIAL SELECTION</span><h2>今日 AI 精选</h2></div><span class="hint">只看今天 · ${curated.length}/${today.length} 条入选</span></div></section>`;
       body.innerHTML = top + curatedSection + `<div id="feedTimeline"></div>`;
       renderTop5();
       $("#feedTimeline").innerHTML = renderTimeline(curated);
@@ -817,26 +882,31 @@
     });
   }
 
-  /* v18.10：body 是详细正文摘要；v3.0.3: 精简至80字，有头有尾，清理日期前缀 */
+  /* 正文级短总结：后端优先提取原文，前端只做完整句安全截断。 */
   function bodyHTML(it) {
     let raw = (it.summary || '').replace(/^\[\d{4}-\d{2}-\d{2}\]\s*/, '');
     let sum = raw.replace(/\s+/g, ' ').trim();
     if (!sum || sum.length < 8) return '';
-    // 二次截断保险：超过80字时在句号/逗号处截断
-    if (sum.length > 80) {
-      const sub = sum.slice(0, 80);
-      const endM = sub.search(/[。！？!?][^。！？!?]*$/);
-      if (endM !== -1 && endM >= 25) sum = sub.slice(0, endM + 1);
-      else {
-        const commaM = sub.search(/[，,；;][^，,；;]*$/);
-        sum = (commaM !== -1 && commaM >= 30) ? sub.slice(0, commaM) + '…' : sub + '…';
-      }
+    if (sum.length > 320) {
+      const sub = sum.slice(0, 320);
+      const end = Math.max(sub.lastIndexOf('。'), sub.lastIndexOf('！'), sub.lastIndexOf('？'));
+      sum = end >= 100 ? sub.slice(0, end + 1) : sub.replace(/[…，,；;、\s]+$/, '') + '。';
     }
     const norm = s => s.toLowerCase().replace(/[^\w\u4e00-\u9fff]+/g, '');
     const t = norm(it.title || '');
     const m = norm(sum.replace(/…$/, ''));
     if (t && m && (t.startsWith(m.slice(0, 20)) || m.startsWith(t.slice(0, 20)))) return '';
     return `<p class="tl-body">${hl(sum, state.kw)}</p>`;
+  }
+
+  function mediaHTML(it) {
+    const image = String(it.image || '').trim();
+    if (!/^https?:\/\//i.test(image)) return '';
+    return `<a class="tl-media" href="${esc(it.link)}" target="_blank" rel="noopener" aria-label="查看原文图片">
+      <img src="${esc(image)}" alt="${esc(it.title || '新闻配图')}" loading="lazy" decoding="async" referrerpolicy="no-referrer"
+        onerror="this.closest('.tl-media').remove()" />
+      <span>原文配图</span>
+    </a>`;
   }
   /* v18.10：推荐理由段（淡色独立段，"推荐理由"前缀，与 aihot 风格一致） */
   function reasonHTML(it) {
@@ -848,12 +918,13 @@
   function renderItem(it) {
     const userObj = it.user || { name: '媒体', handle: it.source || 'media', color: '#3a7bd5' };
     const srcName = esc(userObj.name);
-    const srcType = esc(userObj.handle ? '@' + userObj.handle : '');
-    const avatarChar = (userObj.name || '媒').slice(-1);
+    const srcType = esc(userObj.handle || '');
+    const avatarName = userObj.name || '媒体';
+    const avatarChar = /^[a-z]/i.test(avatarName) ? avatarName.slice(0, 1).toUpperCase() : avatarName.slice(0, 1);
     const avatarBg = esc(userObj.color || '#3a7bd5');
     /* v3.5：头像 — 有真实头像用 img，否则用文字圆 */
     const avatarHTML = userObj.avatar
-      ? `<img class="tl-avatar-img" src="${esc(userObj.avatar)}" alt="${srcName}" onerror="this.remove()" /><span class="tl-avatar" style="background:${avatarBg}">${esc(avatarChar)}</span>`
+      ? `<img class="tl-avatar-img" src="${esc(userObj.avatar)}" alt="${srcName}" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()" /><span class="tl-avatar" style="background:${avatarBg}">${esc(avatarChar)}</span>`
       : `<span class="tl-avatar" style="background:${avatarBg}">${esc(avatarChar)}</span>`;
     /* v3.5：来源标记标签 */
     const srcLabel = it.srcLabel || '资讯';
@@ -882,11 +953,12 @@
               ${featHTML}
             </div>
             <div class="tl-head-r">
-              <span class="tl-num" title="推荐分">● ${numStr}</span>
+              <span class="tl-num" title="AI 推荐分">AI ${numStr}</span>
               <button class="tl-fav ${isFav(it.id) ? "on" : ""}" data-fav="${esc(it.id)}" title="收藏" aria-label="收藏">${isFav(it.id) ? "★" : "☆"}</button>
             </div>
           </header>
           <a class="tl-title" href="${esc(it.link)}" title="${esc(it.orig_title || '')}" target="_blank" rel="noopener">${hl(it.title, state.kw)}</a>
+          ${mediaHTML(it)}
           ${bodyHTML(it)}
           <div class="tl-tags">${(it.tags || []).map(t => `<span class="tl-tag" data-tag="${esc(t)}"># ${hl(t, state.kw)}</span>`).join("")}</div>
           ${reasonHTML(it) ? `<div class="tl-divider"></div>${reasonHTML(it)}` : ''}
@@ -948,6 +1020,134 @@
   }
 
   /* ---------- 移动端底部 Tab Bar + 更多抽屉 ---------- */
+  function bindAgentConsole(origin) {
+    const scope = $("#agtScope");
+    const category = $("#agtCategory");
+    const limit = $("#agtLimit");
+    const keyword = $("#agtKeyword");
+    const featured = $("#agtFeatured");
+    const generated = $("#agtGenerated");
+    const openLink = $("#agtOpenApi");
+    const testBtn = $("#agtTestApi");
+    const testState = $("#agtTestState");
+    const preview = $("#agtPreview");
+    const tabs = $$("[data-agent-output]");
+    if (!scope || !category || !generated) return;
+
+    let outputType = "prompt";
+
+    const buildUrl = (kind = "rest") => {
+      const endpoint = kind === "rss" ? "/api/v1/rss.xml" : "/api/v1/news";
+      const url = new URL(endpoint, origin);
+      if (scope.value !== "all") url.searchParams.set("date", scope.value);
+      if (category.value) url.searchParams.set("category", category.value);
+      if (featured.checked) url.searchParams.set("featured", "true");
+      if (keyword.value.trim()) url.searchParams.set("q", keyword.value.trim());
+      url.searchParams.set("limit", limit.value);
+      return url.toString();
+    };
+
+    const renderOutput = () => {
+      const restUrl = buildUrl("rest");
+      const rssUrl = buildUrl("rss");
+      const scopeText = scope.options[scope.selectedIndex]?.text || "所选时间";
+      const categoryText = category.value || "全产业链";
+      const focusText = keyword.value.trim() ? `，重点关注“${keyword.value.trim()}”` : "";
+      const featuredText = featured.checked ? "，仅保留 AI 精选事件" : "";
+      const prompt = `请使用 PV HOT 查询${scopeText}的${categoryText}光伏情报${focusText}${featuredText}：
+${restUrl}
+
+请按重要性整理，合并同一事件的重复报道；每条给出中文标题、简短摘要、时间和原文链接。涉及数字、政策或原话时，提醒我回到原文核验。`;
+
+      if (outputType === "rest") generated.textContent = `curl -fsSL "${restUrl}"`;
+      else if (outputType === "rss") generated.textContent = rssUrl;
+      else generated.textContent = prompt;
+      openLink.href = outputType === "rss" ? rssUrl : restUrl;
+      testState.textContent = "参数已更新，等待测试";
+      testState.className = "agt-test-state";
+    };
+
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        outputType = tab.dataset.agentOutput;
+        tabs.forEach((item) => item.classList.toggle("active", item === tab));
+        renderOutput();
+      });
+    });
+    [scope, category, limit, featured].forEach((el) => el.addEventListener("change", renderOutput));
+    keyword.addEventListener("input", renderOutput);
+
+    testBtn.addEventListener("click", async () => {
+      testBtn.disabled = true;
+      testState.textContent = "正在请求实时数据…";
+      testState.className = "agt-test-state is-loading";
+      preview.hidden = true;
+      try {
+        const response = await fetch(buildUrl("rest"), { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        const items = Array.isArray(data.items) ? data.items.slice(0, 3) : [];
+        testState.textContent = `连接成功 · 返回 ${data.count || 0} 条`;
+        testState.className = "agt-test-state is-ok";
+        preview.innerHTML = items.length
+          ? `<div class="agt-preview-head"><b>实时返回预览</b><span>展示前 ${items.length} 条</span></div>
+             ${items.map((item, index) => `<a class="agt-preview-item" href="${esc(item.link || "#")}" target="_blank" rel="noopener">
+               <i>${index + 1}</i>
+               <span><b>${esc(item.title || "未命名动态")}</b><small>${esc(item.source || "PV HOT")} · ${esc(item.dateKey || "")}</small></span>
+               <em>↗</em>
+             </a>`).join("")}`
+          : `<div class="agt-preview-empty">当前条件没有匹配动态，尝试扩大时间范围或取消“仅 AI 精选”。</div>`;
+        preview.hidden = false;
+      } catch (error) {
+        testState.textContent = `连接失败 · ${error.message || "请稍后再试"}`;
+        testState.className = "agt-test-state is-error";
+      } finally {
+        testBtn.disabled = false;
+      }
+    });
+
+    fetch(new URL("/api/v1/status", origin), { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      })
+      .then((status) => {
+        const dot = $("#agtLiveDot");
+        const title = $("#agtLiveTitle");
+        if (dot) dot.classList.add("is-ok");
+        if (title) title.textContent = `数据服务正常 · API ${status.apiVersion || "v1"}`;
+        const updated = $("#agtLiveUpdated");
+        if (updated) {
+          const stamp = status.updated ? new Date(status.updated) : null;
+          updated.textContent = stamp && !Number.isNaN(stamp.getTime())
+            ? `最近更新 ${stamp.toLocaleString("zh-CN", { hour12: false })}`
+            : "实时状态已确认";
+        }
+        const values = {
+          agtLiveToday: status.today,
+          agtLiveFeatured: status.featuredToday,
+          agtLiveSources: status.sources,
+          agtLiveTotal: status.items,
+        };
+        Object.entries(values).forEach(([id, value]) => {
+          const node = document.getElementById(id);
+          if (node) node.textContent = Number.isFinite(Number(value)) ? String(value) : "—";
+        });
+        (status.categories || []).forEach((name) => {
+          if (!name || Array.from(category.options).some((option) => option.value === name)) return;
+          category.add(new Option(name, name));
+        });
+      })
+      .catch(() => {
+        const title = $("#agtLiveTitle");
+        const updated = $("#agtLiveUpdated");
+        if (title) title.textContent = "数据服务暂时不可达";
+        if (updated) updated.textContent = "可稍后重试，安装文档仍可使用";
+      });
+
+    renderOutput();
+  }
+
   function bindMbTab() {
     const mbTab = $("#mbTab");
     const sheet = $("#mbSheet");
@@ -959,9 +1159,6 @@
       if (mask) mask.hidden = true;
     };
     const openSheet = () => {
-      const on = document.body.classList.contains("dark");
-      const dl = $("#mbSheetDarkLabel");
-      if (dl) dl.textContent = on ? "切换浅色" : "切换暗色";
       const fc = $("#mbSheetFavCount");
       const n = getFavs().length;
       if (fc) { fc.textContent = n ? String(n) + " 条" : ""; fc.style.display = n ? "" : "none"; }
@@ -1001,24 +1198,7 @@
       });
     });
 
-    const darkBtn = $("#mbSheetDark");
-    if (darkBtn) darkBtn.addEventListener("click", e => {
-      e.preventDefault();
-      const t = $("#darkToggle");
-      if (t) t.click();
-      const on = document.body.classList.contains("dark");
-      const dl = $("#mbSheetDarkLabel");
-      if (dl) dl.textContent = on ? "切换浅色" : "切换暗色";
-    });
-
     if (mask) mask.addEventListener("click", closeSheet);
-
-    document.addEventListener("pvhot-darkchange", () => {
-      const dl = $("#mbSheetDarkLabel");
-      if (!dl || !sheet || sheet.hidden) return;
-      const on = document.body.classList.contains("dark");
-      dl.textContent = on ? "切换浅色" : "切换暗色";
-    });
   }
 
   async function renderInfoView(view) {
@@ -1073,9 +1253,9 @@
     /* ============ Agent 接入（aihot 版式，可编辑字段由 TEXTS 注入） ============ */
     if (view === "agent") {
       const ag = t.agent || DEFAULT_TEXTS.agent;
-      const origin = location.origin || "http://127.0.0.1:8099";
+      const origin = /^https?:/.test(location.origin) ? location.origin : "https://pvhot.bbroot.com";
       const installCmd = `bash <(curl -fsSL ${origin}/pvhot-skill/install.sh) --target claude`;
-      const verifyQ = ag.verify_q || "过去 24 小时光伏行业最重要的 5 件事是什么？";
+      const verifyQ = ag.verify_q || "今天光伏行业最重要的 5 件事是什么？";
       const noteBlock = ag.note_html
         ? `<div class="agt-note">${ag.note_html}</div>`
         : "";
@@ -1090,8 +1270,8 @@
           <div class="agt-pills">
             <span class="agt-pill">匿名只读</span>
             <span class="agt-pill">无需 API Key</span>
-            <span class="agt-pill">API v1.0.0</span>
-            <span class="agt-pill">Skill v0.1.0</span>
+            <span class="agt-pill">API v1.1.0</span>
+            <span class="agt-pill">Skill v0.2.0</span>
           </div>
 
           <div class="agt-cards">
@@ -1108,6 +1288,90 @@
               <div class="agt-card-d">给程序、工作流和自定义 Agent 使用</div>
             </div>
           </div>
+
+          <section class="agt-live" id="agtLive" aria-live="polite">
+            <div class="agt-live-copy">
+              <span class="agt-live-kicker"><i id="agtLiveDot"></i> 实时连接</span>
+              <strong id="agtLiveTitle">正在连接 PV HOT 数据服务…</strong>
+              <span id="agtLiveUpdated">读取数据更新时间</span>
+            </div>
+            <div class="agt-live-metrics">
+              <div><b id="agtLiveToday">—</b><span>今日动态</span></div>
+              <div><b id="agtLiveFeatured">—</b><span>今日精选</span></div>
+              <div><b id="agtLiveSources">—</b><span>覆盖信源</span></div>
+              <div><b id="agtLiveTotal">—</b><span>可查询动态</span></div>
+            </div>
+          </section>
+
+          <section class="agt-block agt-builder">
+            <div class="agt-builder-head">
+              <div>
+                <div class="abt-eyebrow">PLAYGROUND · 无需 API KEY</div>
+                <h2 class="agt-h2">生成你的专属接入</h2>
+                <p class="agt-desc">选择时间、赛道和数量，立即得到 Agent 提示词、REST 地址或 RSS 订阅，并可现场验证返回结果。</p>
+              </div>
+              <span class="agt-builder-badge">只读接口</span>
+            </div>
+
+            <div class="agt-formgrid">
+              <label class="agt-field">
+                <span>时间范围</span>
+                <select id="agtScope">
+                  <option value="today">今天</option>
+                  <option value="7d">最近 7 天</option>
+                  <option value="all">全部可用数据</option>
+                </select>
+              </label>
+              <label class="agt-field">
+                <span>产业赛道</span>
+                <select id="agtCategory">
+                  <option value="">全部赛道</option>
+                  <option value="硅料">硅料</option>
+                  <option value="硅片">硅片</option>
+                  <option value="电池片">电池片</option>
+                  <option value="组件">组件</option>
+                  <option value="逆变器">逆变器</option>
+                  <option value="支架BOS">支架 BOS</option>
+                  <option value="储能">储能</option>
+                  <option value="电站">电站</option>
+                  <option value="行情">行情</option>
+                </select>
+              </label>
+              <label class="agt-field">
+                <span>返回数量</span>
+                <select id="agtLimit">
+                  <option value="5">5 条</option>
+                  <option value="10" selected>10 条</option>
+                  <option value="20">20 条</option>
+                  <option value="50">50 条</option>
+                </select>
+              </label>
+              <label class="agt-field agt-field-wide">
+                <span>关键词（可选）</span>
+                <input id="agtKeyword" type="search" maxlength="60" placeholder="例如：TOPCon、组件价格、美国关税">
+              </label>
+              <label class="agt-check">
+                <input id="agtFeatured" type="checkbox">
+                <span><b>仅 AI 精选</b><small>只返回当天高价值事件</small></span>
+              </label>
+            </div>
+
+            <div class="agt-output-tabs" role="tablist" aria-label="接入格式">
+              <button class="active" type="button" data-agent-output="prompt">Agent 提示词</button>
+              <button type="button" data-agent-output="rest">REST API</button>
+              <button type="button" data-agent-output="rss">RSS 订阅</button>
+            </div>
+            <div class="agt-codebox agt-generated-box">
+              <pre id="agtGenerated"></pre>
+              ${copyBtn("#agtGenerated")}
+            </div>
+            <div class="agt-builder-actions">
+              <button class="agt-linkbtn agt-test-btn" id="agtTestApi" type="button">测试当前接口</button>
+              <a class="agt-linkbtn" id="agtOpenApi" href="#" target="_blank" rel="noopener">在新窗口打开</a>
+              <span class="agt-test-state" id="agtTestState">等待测试</span>
+            </div>
+            <div class="agt-preview" id="agtPreview" hidden></div>
+          </section>
 
           <div class="agt-block">
             <div class="abt-eyebrow">推荐路径 · AGENT-FIRST</div>
@@ -1130,14 +1394,14 @@
               <a class="agt-linkbtn" href="${origin}/pvhot-skill/SKILL.md" download rel="noopener">⬇ 下载 SKILL.md</a>
               <a class="agt-linkbtn" href="${origin}/pvhot-skill/install.sh" target="_blank" rel="noopener">查看安装脚本</a>
               <a class="agt-linkbtn" href="${origin}/pvhot-skill/install.sh" download rel="noopener">⬇ 下载 install.sh</a>
-              <a class="agt-linkbtn" href="https://github.com/" target="_blank" rel="noopener">GitHub 来源</a>
+              <a class="agt-linkbtn" href="https://github.com/1919508399/add" target="_blank" rel="noopener">GitHub 来源</a>
             </div>
           </div>
 
           <div class="agt-block">
             <div class="agt-blockh">Agent Skill · 自动理解意图</div>
             <h2 class="agt-h2">安装、验证、再开始使用</h2>
-            <div class="agt-meta">v0.1.0</div>
+            <div class="agt-meta">v0.2.0</div>
             <div class="agt-steps">
               <div class="agt-step">
                 <div class="agt-stepno">1</div>
@@ -1168,7 +1432,7 @@
               ${copyBtn("#agtVerify")}
             </div>
             <div class="agt-success">
-              <b>成功标志</b> 回答注明"过去 24 小时"，给出 5 条以内中文摘要，并把标题链接到 PV HOT 阅读页。
+              <b>成功标志</b> 回答严格限定“今天”，给出 5 条以内中文摘要和原文链接；当天没有匹配事件时，不使用旧闻填充。
             </div>
           </div>
 
@@ -1268,18 +1532,66 @@
             </div>
           </div>
         </div>`;
+      bindAgentConsole(origin);
       return;
     }
 
     if (view === "changelog") {
       const cl = (t.changelog || DEFAULT_TEXTS.changelog);
-      const items = (cl.items || []).map(it =>
-        `<li><span class="ver">${esc(it.ver || "")}</span><span class="date">${esc(it.date || "")}</span><span>${esc(it.text || "")}</span></li>`
-      ).join("");
+      const dayNames = ["周日","周一","周二","周三","周四","周五","周六"];
+      const formatDate = key => {
+        const d = new Date(`${key}T12:00:00`);
+        if (Number.isNaN(d.getTime())) return { label:key, weekday:"" };
+        return {
+          label:`${d.getFullYear()} 年 ${d.getMonth() + 1} 月 ${d.getDate()} 日`,
+          weekday:dayNames[d.getDay()]
+        };
+      };
+      const sorted = (cl.items || []).slice().sort((a, b) =>
+        String(b.date || "").localeCompare(String(a.date || "")) ||
+        String(b.time || "").localeCompare(String(a.time || ""))
+      );
+      const groups = [];
+      sorted.forEach(it => {
+        const key = it.date || "未标注日期";
+        let group = groups.find(g => g.key === key);
+        if (!group) { group = { key, items:[] }; groups.push(group); }
+        group.items.push(it);
+      });
+      const days = groups.map(group => {
+        const d = formatDate(group.key);
+        const entries = group.items.map(it => {
+          const raw = String(it.text || "");
+          const legacyLead = raw.split(/[；。]/)[0].slice(0, 34);
+          const title = it.title || `${it.ver || "更新"}：${legacyLead}`;
+          const bullets = Array.isArray(it.bullets) && it.bullets.length
+            ? `<ul>${it.bullets.map(line => `<li>${esc(line)}</li>`).join("")}</ul>`
+            : "";
+          return `<article class="change-entry">
+            <div class="change-meta">
+              <time>${esc(it.time || "—")}</time>
+              <span><i></i>${esc(it.type || "更新")}</span>
+            </div>
+            <div class="change-content">
+              <h3>${esc(title)}${it.ver ? `<small>${esc(it.ver)}</small>` : ""}</h3>
+              <p>${esc(raw)}</p>
+              ${bullets}
+            </div>
+          </article>`;
+        }).join("");
+        return `<section class="change-day">
+          <header class="change-date"><h2>${esc(d.label)}</h2><span>${esc(d.weekday)}</span></header>
+          <div class="change-entries">${entries}</div>
+        </section>`;
+      }).join("");
       body.innerHTML = `
-        <div class="info-card">
-          <h3>${esc((cl.title || "更新日志"))}</h3>
-          <ul class="info-list">${items}</ul>
+        <div class="changelog-page">
+          <header class="change-hero">
+            <span>CHANGELOG</span>
+            <h1>${esc(cl.title || "更新日志")}</h1>
+            <p>${esc(cl.sub || "最近发生了什么——新功能、调整、优化，都写在这里。")}</p>
+          </header>
+          <div class="change-list">${days}</div>
         </div>`;
       return;
     }
@@ -1522,23 +1834,46 @@
     });
   }
 
-  /* ---------- 暗色模式 ---------- */
+  /* ---------- 浅色 / 跟随系统 / 深色主题 ---------- */
   function bindDark() {
-    const apply = (on) => {
-      document.body.classList.toggle("dark", on);
-      $("#darkToggle").textContent = on ? "☀" : "🌙";
-      $("#darkToggle").title = on ? "浅色模式" : "暗色模式";
-      document.dispatchEvent(new CustomEvent("pvhot-darkchange", { detail: { on } }));
-    };
+    const KEY = "pvhot-theme";
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    let mode = "system";
     try {
-      const saved = localStorage.getItem("pvhot-dark") === "1";
-      apply(saved);
+      const saved = localStorage.getItem(KEY);
+      if (["light","system","dark"].includes(saved)) mode = saved;
+      else if (localStorage.getItem("pvhot-dark") === "1") mode = "dark";
     } catch (e) {}
-    $("#darkToggle").addEventListener("click", () => {
-      const on = !document.body.classList.contains("dark");
-      apply(on);
-      try { localStorage.setItem("pvhot-dark", on ? "1" : "0"); } catch (e) {}
-    });
+
+    const apply = next => {
+      mode = ["light","system","dark"].includes(next) ? next : "system";
+      const dark = mode === "dark" || (mode === "system" && media.matches);
+      document.body.classList.toggle("dark", dark);
+      document.documentElement.classList.toggle("dark", dark);
+      document.documentElement.dataset.theme = mode;
+      $$(".theme-option").forEach(btn => {
+        const active = btn.dataset.theme === mode;
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-pressed", active ? "true" : "false");
+      });
+      const themeMeta = document.querySelector('meta[name="theme-color"]');
+      if (themeMeta) themeMeta.setAttribute("content", dark ? "#0d1517" : "#f8f7f3");
+      try {
+        localStorage.setItem(KEY, mode);
+        localStorage.removeItem("pvhot-dark");
+      } catch (e) {}
+      document.dispatchEvent(new CustomEvent("pvhot-darkchange", { detail:{ mode, dark } }));
+    };
+
+    $$(".theme-option").forEach(btn => btn.addEventListener("click", e => {
+      e.preventDefault();
+      e.stopPropagation();
+      apply(btn.dataset.theme);
+    }));
+    const onSystemChange = () => { if (mode === "system") apply("system"); };
+    if (media.addEventListener) media.addEventListener("change", onSystemChange);
+    else if (media.addListener) media.addListener(onSystemChange);
+    apply(mode);
   }
 
   /* ---------- 回到顶部 ---------- */
@@ -1608,17 +1943,34 @@
       console.warn("[PV-HOT] 已回退到内嵌数据（fetch 失败）");
     }
   };
-  fetch("data.json")
-    .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-    .then(json => useData(json, false))
-    .catch(err => {
-      if (window.__PV_FALLBACK_DATA) {
-        console.warn("[PV-HOT] fetch 失败，使用内嵌备份：", err.message);
-        useData(window.__PV_FALLBACK_DATA, true);
-      } else {
-        $("#viewBody").innerHTML = `<div class="empty">数据加载失败：${esc(err.message)}<br/>请通过本地服务器打开（见 README / fetch_pv_news.js 说明）。</div>`;
-      }
+  function loadFallbackData() {
+    if (window.__PV_FALLBACK_DATA) return Promise.resolve(window.__PV_FALLBACK_DATA);
+    return new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "data_fallback.js";
+      script.onload = () => window.__PV_FALLBACK_DATA ? resolve(window.__PV_FALLBACK_DATA) : reject(new Error("兜底数据无效"));
+      script.onerror = () => reject(new Error("兜底数据加载失败"));
+      document.head.appendChild(script);
     });
+  }
+
+  const liveData = location.protocol === "file:"
+    ? Promise.reject(new Error("file 协议使用兜底数据"))
+    : fetch("data.json").then(r => {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      });
+
+  liveData
+    .then(json => useData(json, false))
+    .catch(err => loadFallbackData()
+      .then(json => {
+        console.warn("[PV-HOT] 实时数据不可用，已加载兜底数据：", err.message);
+        useData(json, true);
+      })
+      .catch(fallbackErr => {
+        $("#viewBody").innerHTML = `<div class="empty">数据加载失败：${esc(fallbackErr.message)}<br/>请稍后刷新重试。</div>`;
+      }));
 
   /* ---------- 加载可编辑 texts（关于/Agent/反馈/更新日志） ---------- */
   function loadTexts() {
@@ -1630,7 +1982,7 @@
       }
     };
     if (window.__PV_FALLBACK_TEXTS) { apply(window.__PV_FALLBACK_TEXTS); return; }
-    fetch("site_texts.json")
+    fetch("site_texts.json?v=20260726-v52", { cache:"no-store" })
       .then(r => { if (!r.ok) throw 0; return r.json(); })
       .then(t => apply(t))
       .catch(() => apply(DEFAULT_TEXTS));
