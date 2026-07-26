@@ -213,41 +213,292 @@
     .item .title{font-size:14px;}
     .btn{padding:8px 11px; font-size:12.5px;}
   }
+
+  /* PV HOT Admin 2.0 · 高级浅色管理工作台 */
+  :root{
+    --bg:#f4f6f3; --card:#fffefa; --border:#dde4df; --border-soft:#e9eeea;
+    --ink:#17342f; --ink-2:#536b65; --ink-3:#8a9b96;
+    --emerald:#0c8d73; --cyan:#168b94; --amber:#b98226;
+    --mint:#eaf4f0; --cream:#f7f2e8; --danger:#c94d48;
+    --shadow-1:0 1px 2px rgba(25,55,47,.04),0 12px 35px rgba(30,67,57,.06);
+    --shadow-2:0 24px 70px rgba(26,61,52,.14);
+    --radius:18px;
+  }
+  body.dark{
+    --bg:#edf1ec; --card:#fbfcf8; --border:#d3ddd7; --border-soft:#e2e8e4;
+    --ink:#142f2a; --ink-2:#4d665f; --ink-3:#82938e;
+    --emerald:#087b65; --cyan:#147d86; --amber:#a97420;
+    --shadow-1:0 1px 2px rgba(25,55,47,.05),0 12px 35px rgba(30,67,57,.08);
+  }
+  body{background:
+    radial-gradient(circle at 78% -10%,rgba(223,238,229,.9),transparent 32%),
+    var(--bg); color:var(--ink);}
+  button,input,textarea,select{font:inherit}
+  button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,a:focus-visible{
+    outline:3px solid rgba(12,141,115,.18); outline-offset:2px;
+  }
+  .btn{min-height:38px; border-color:var(--border); border-radius:11px; padding:8px 14px;
+    box-shadow:0 1px 1px rgba(29,64,54,.02);}
+  .btn:hover{transform:translateY(-1px); box-shadow:0 7px 18px rgba(26,76,62,.08);}
+  .btn.primary{background:linear-gradient(135deg,#0b846d,#11967b); box-shadow:0 8px 22px rgba(12,141,115,.18);}
+  .btn:disabled{opacity:.55; cursor:not-allowed; transform:none; box-shadow:none;}
+  .btn.compact{min-width:42px; padding:8px 10px;}
+
+  /* 登录页 */
+  .login-page{min-height:100vh; display:grid; grid-template-columns:minmax(360px,1.06fr) minmax(380px,.94fr);
+    background:#f6f7f3;}
+  .login-story{min-height:100vh; padding:52px clamp(36px,6vw,90px); color:#f7fbf7; position:relative; overflow:hidden;
+    display:flex; flex-direction:column; justify-content:space-between;
+    background:linear-gradient(145deg,#153d35 0%,#1b5447 54%,#38695a 100%);}
+  .login-story:before,.login-story:after{content:""; position:absolute; border:1px solid rgba(255,255,255,.12); border-radius:50%;}
+  .login-story:before{width:520px;height:520px;right:-240px;top:-190px;box-shadow:0 0 0 72px rgba(255,255,255,.025);}
+  .login-story:after{width:260px;height:260px;left:-130px;bottom:-90px;box-shadow:0 0 0 44px rgba(255,255,255,.025);}
+  .login-brand,.side-brand{display:flex;align-items:center;gap:13px;position:relative;z-index:1;}
+  .brand-mark{width:42px;height:42px;border-radius:13px;background:linear-gradient(145deg,#f0c96d,#e3a840);
+    color:#17342f;display:grid;place-items:center;font-weight:900;font-size:13px;box-shadow:0 8px 25px rgba(0,0,0,.12);}
+  .login-brand b,.side-brand b{display:block;font-size:17px;letter-spacing:.11em;}
+  .login-brand small,.side-brand small{display:block;margin-top:3px;font-size:8px;letter-spacing:.19em;opacity:.62;}
+  .login-copy{position:relative;z-index:1;max-width:670px;}
+  .eyebrow,.login-kicker,.top-eyebrow{font-size:10px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--emerald);}
+  .login-copy .eyebrow{color:#d5b86c;}
+  .login-copy h1{font-size:clamp(36px,4.4vw,66px);line-height:1.15;letter-spacing:-.045em;margin:22px 0 22px;font-weight:760;}
+  .login-copy p{font-size:16px;line-height:1.9;color:rgba(245,252,248,.72);margin:0;max-width:520px;}
+  .login-points{display:flex;gap:9px;flex-wrap:wrap;position:relative;z-index:1;}
+  .login-points span{border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);border-radius:999px;
+    padding:8px 13px;font-size:12px;color:rgba(255,255,255,.8);}
+  .login-panel{display:grid;place-items:center;padding:40px;background:
+    radial-gradient(circle at 85% 15%,rgba(225,238,229,.9),transparent 30%),#f8f8f5;}
+  .login{width:min(420px,100%);max-width:none;margin:0;background:rgba(255,254,250,.92);border:1px solid rgba(215,225,219,.9);
+    border-radius:24px;padding:38px;box-shadow:var(--shadow-2);backdrop-filter:blur(15px);}
+  .login h2{font-size:30px;letter-spacing:-.03em;margin:14px 0 6px;}
+  .login p{font-size:14px;margin-bottom:28px;}
+  .login-label{display:block;font-size:12px;font-weight:700;color:var(--ink-2);margin:0 0 8px;}
+  .login input{border-radius:12px;background:#f7f8f5;border-color:var(--border);padding:13px 14px;}
+  .login .btn{margin-top:8px;min-height:46px;}
+  .login-safe{display:flex;align-items:center;justify-content:center;gap:7px;margin-top:18px;font-size:11px;color:var(--ink-3);}
+  .login-safe span{width:7px;height:7px;border-radius:50%;background:#37b88e;box-shadow:0 0 0 4px rgba(55,184,142,.12);}
+
+  /* 主工作台 */
+  .admin-shell{min-height:100vh;display:grid;grid-template-columns:248px minmax(0,1fr);}
+  .admin-sidebar{position:sticky;top:0;height:100vh;padding:28px 18px 20px;background:rgba(255,254,250,.92);
+    border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:30;backdrop-filter:blur(18px);}
+  .side-brand{padding:0 10px 26px;border-bottom:1px solid var(--border-soft);}
+  .side-brand .brand-mark{width:38px;height:38px;border-radius:11px;}
+  .side-label{font-size:10px;font-weight:800;letter-spacing:.16em;color:var(--ink-3);padding:26px 12px 10px;text-transform:uppercase;}
+  .tabs{max-width:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px;}
+  .tab{width:100%;border:0;background:transparent;border-radius:12px;padding:11px 12px;display:flex;align-items:center;gap:11px;
+    color:var(--ink-2);font-size:13px;font-weight:650;text-align:left;transition:.18s;position:relative;}
+  .tab:hover{background:#f2f6f2;color:var(--ink);}
+  .tab.on{color:#0b735f;background:linear-gradient(90deg,#e7f3ef,#edf6f2);box-shadow:inset 0 0 0 1px rgba(12,141,115,.08);}
+  .nav-icon{width:27px;height:27px;border-radius:9px;border:1px solid var(--border);background:var(--card);
+    display:grid;place-items:center;font-size:10px;font-weight:900;color:var(--ink-3);}
+  .tab.on .nav-icon{border-color:rgba(12,141,115,.2);color:var(--emerald);background:#f7fffb;}
+  .tab .badge-unread{position:static;margin-left:auto;min-width:20px;height:20px;line-height:20px;}
+  .side-foot{margin-top:auto;border-top:1px solid var(--border-soft);padding-top:16px;}
+  .service-card{display:flex;align-items:flex-start;gap:10px;padding:12px;border-radius:13px;background:#f4f8f5;border:1px solid #e5ece7;}
+  .service-dot{width:8px;height:8px;border-radius:50%;background:#2eb589;box-shadow:0 0 0 5px rgba(46,181,137,.12);flex:none;margin-top:4px;}
+  .service-card b{display:block;font-size:12px;}
+  .service-card small{display:block;font-size:10px;color:var(--ink-3);margin-top:3px;}
+  .side-link{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding:10px 12px;text-decoration:none;
+    color:var(--ink-2);font-size:12px;border-radius:10px;}
+  .side-link:hover{background:var(--mint);color:var(--emerald);}
+  .admin-workspace{min-width:0;}
+  .topbar{position:sticky;top:0;z-index:20;padding:20px clamp(22px,3vw,44px);background:rgba(244,246,243,.86);
+    backdrop-filter:saturate(150%) blur(18px);border-bottom:1px solid rgba(217,226,220,.9);}
+  .topbar .row{max-width:none;padding:0;margin:0;}
+  .topbar{display:flex;align-items:center;gap:24px;}
+  .topbar-copy h1{font-size:21px;line-height:1.2;letter-spacing:-.025em;margin:4px 0 3px;}
+  .topbar-copy p{margin:0;font-size:11px;color:var(--ink-3);}
+  .topbar-actions{margin-left:auto;display:flex;align-items:center;gap:9px;}
+  .sync-state{display:flex;align-items:center;gap:8px;padding:8px 11px;border-radius:999px;background:rgba(255,255,255,.66);
+    border:1px solid var(--border);font-size:11px;color:var(--ink-2);white-space:nowrap;}
+  .sync-state i{width:7px;height:7px;border-radius:50%;background:#2eb589;box-shadow:0 0 0 4px rgba(46,181,137,.1);}
+  .wrap{max-width:1360px;margin:0 auto;padding:30px clamp(22px,3vw,44px) 80px;}
+  .panel-hero{border-radius:22px;border:1px solid #dce6df;background:
+    radial-gradient(circle at 90% 20%,rgba(228,210,164,.2),transparent 26%),
+    linear-gradient(135deg,#fffefa 0%,#f4f8f3 100%);padding:26px 28px;display:flex;align-items:center;justify-content:space-between;
+    gap:25px;box-shadow:var(--shadow-1);margin-bottom:16px;}
+  .panel-hero h2{font-size:25px;letter-spacing:-.035em;margin:8px 0 7px;}
+  .panel-hero p{margin:0;color:var(--ink-2);font-size:13px;}
+  .compact-hero{padding:22px 25px;}
+  .compact-hero h2{font-size:22px;}
+  .hero-note{border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,.72);
+    padding:9px 13px;display:flex;align-items:center;gap:9px;font-size:11px;color:var(--ink-2);white-space:nowrap;}
+  .overview-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px;}
+  .overview-card{background:rgba(255,254,250,.9);border:1px solid var(--border);border-radius:15px;padding:16px 18px;box-shadow:var(--shadow-1);}
+  .overview-card span{display:block;font-size:25px;font-weight:800;letter-spacing:-.03em;color:var(--ink);}
+  .overview-card small{display:block;margin-top:5px;color:var(--ink-3);font-size:11px;font-weight:650;}
+  .workspace-card{background:rgba(255,254,250,.9);border:1px solid var(--border);border-radius:20px;padding:6px 18px 20px;box-shadow:var(--shadow-1);}
+  .toolbar{margin:12px 0 16px;padding-bottom:14px;border-bottom:1px solid var(--border-soft);}
+  .search input,select.cat{background:#f8faf7;border-color:var(--border);min-height:42px;border-radius:11px;}
+  .search input:focus,select.cat:focus{background:var(--card);box-shadow:0 0 0 4px rgba(12,141,115,.07);}
+
+  /* 新闻卡片 */
+  .list{gap:8px;}
+  .item{position:relative;border-radius:14px;padding:15px 16px;box-shadow:none;background:var(--card);transition:.18s;}
+  .item:hover{border-color:#cbd9d1;box-shadow:0 10px 28px rgba(30,67,57,.065);transform:translateY(-1px);}
+  .item-layout{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:start;}
+  .item-thumb{width:92px;height:72px;border-radius:11px;overflow:hidden;background:var(--mint);border:1px solid var(--border-soft);}
+  .item-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+  .item-main{min-width:0;}
+  .item .title{font-size:14px;line-height:1.55;letter-spacing:-.01em;}
+  .item-summary{font-size:12.5px;color:var(--ink-2);line-height:1.65;margin-top:6px;display:-webkit-box;
+    -webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;}
+  .item .meta{margin-top:8px;}
+  .badge{background:#edf5f1;color:#16745f;}
+  .badge.feat{background:#f4e9cc;color:#8b651a;}
+  .metric-chip{border:1px solid var(--border-soft);border-radius:999px;padding:2px 7px;color:var(--ink-3);background:#fafbf8;}
+  .reason{margin:10px 0 0;background:#f1f7f4;border-left:2px solid #57a993;padding:8px 10px;color:#5b716b;}
+  .ops{gap:5px;}
+  .iconbtn{width:32px;height:32px;border-radius:9px;box-shadow:none;}
+  .pager{padding-top:18px;border-top:1px solid var(--border-soft);}
+
+  /* 内容与状态 */
+  .stat-cards{grid-template-columns:repeat(4,minmax(0,1fr));}
+  .stat-card{text-align:left;border-radius:16px;padding:18px;box-shadow:var(--shadow-1);}
+  .stat-card .val{font-size:30px;color:var(--ink);}
+  .stat-card .lbl{margin-top:7px;}
+  .stat-section,.text-block,.fb-card{border-radius:18px;box-shadow:var(--shadow-1);padding:20px 22px;}
+  .stat-section h4,.text-block h4{font-size:15px;margin-bottom:16px;}
+  .trend-chart{height:160px;padding-top:26px;}
+  .trend-bar .bar{border-radius:8px 8px 2px 2px;background:linear-gradient(180deg,#25a383,#0d7f6a);}
+  .sys-item{background:#f7f9f6;border-radius:10px;padding:10px 12px;}
+  .text-block{max-width:980px;margin-left:auto;margin-right:auto;}
+  .text-block .field label{font-size:12px;letter-spacing:.01em;}
+  .field input,.field textarea,.field select,.text-block textarea{background:#f8faf7;border-radius:11px;}
+  .field input:focus,.field textarea:focus,.text-block textarea:focus{border-color:var(--emerald);box-shadow:0 0 0 4px rgba(12,141,115,.07);}
+  #panelContent>.toolbar{position:sticky;top:99px;z-index:9;background:rgba(244,246,243,.92);padding:10px 0;backdrop-filter:blur(15px);}
+  .qr-preview{border-radius:14px;background:#f7f9f6;}
+  .fb-msg{background:#f7f9f6;border-radius:11px;}
+  .modal{border-radius:22px;padding:24px;box-shadow:var(--shadow-2);border-color:rgba(221,228,223,.9);}
+  .mask{backdrop-filter:blur(8px);background:rgba(25,48,42,.28);}
+  .toast{background:#173d35;color:#f5faf7;box-shadow:0 12px 35px rgba(20,55,46,.25);}
+  .empty{border:1px dashed var(--border);border-radius:14px;background:#fafbf8;padding:52px 20px;}
+  .skeleton-card{height:105px;border-radius:14px;background:linear-gradient(100deg,#f1f4f1 20%,#fafbf9 42%,#f1f4f1 64%);
+    background-size:220% 100%;animation:skeleton 1.2s ease-in-out infinite;border:1px solid var(--border-soft);}
+  @keyframes skeleton{to{background-position-x:-220%;}}
+
+  @media(max-width:1050px){
+    .admin-shell{grid-template-columns:210px minmax(0,1fr);}
+    .item-thumb{width:78px;height:64px;}
+    .overview-grid,.stat-cards{grid-template-columns:repeat(2,minmax(0,1fr));}
+  }
+  @media(max-width:780px){
+    .login-page{grid-template-columns:1fr;}
+    .login-story{display:none;}
+    .login-panel{min-height:100vh;padding:22px;}
+    .admin-shell{display:block;}
+    .admin-sidebar{position:sticky;height:auto;padding:12px 14px;border-right:0;border-bottom:1px solid var(--border);display:block;}
+    .side-brand{padding:0 0 10px;border:0;}
+    .side-brand .brand-mark{width:34px;height:34px;}
+    .side-label,.side-foot{display:none;}
+    .tabs{flex-direction:row;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;}
+    .tab{width:auto;min-width:max-content;padding:9px 11px;}
+    .nav-icon{display:none;}
+    .topbar{position:relative;padding:16px 18px;}
+    .topbar-copy p,.top-eyebrow,.sync-state{display:none;}
+    .topbar-copy h1{font-size:19px;margin:0;}
+    .topbar-actions{gap:6px;}
+    .wrap{padding:20px 16px 70px;}
+    .panel-hero{padding:21px;align-items:flex-start;}
+    .hero-note{display:none;}
+    #panelContent>.toolbar{top:0;}
+    .stat-row2{grid-template-columns:1fr;}
+  }
+  @media(max-width:560px){
+    .login{padding:28px 22px;}
+    .overview-grid,.stat-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+    .overview-card{padding:13px 14px;}
+    .overview-card span{font-size:22px;}
+    .workspace-card{padding:5px 12px 16px;}
+    .toolbar .btn{flex:1;}
+    .item-layout{grid-template-columns:minmax(0,1fr) auto;}
+    .item-thumb{display:none;}
+    .item-summary{-webkit-line-clamp:3;}
+    .row2{flex-direction:column;gap:0;}
+    .topbar-actions .compact{display:none;}
+    .compact-hero,.panel-hero{padding:18px;}
+    .panel-hero h2{font-size:21px;}
+  }
 </style>
 </head>
 <body>
   <!-- 登录 -->
-  <div id="loginView" class="wrap" style="display:none">
-    <div class="login">
-      <h2>光伏 HOT 后台</h2>
-      <p>请输入管理密码以进入</p>
-      <input id="passInput" type="password" placeholder="管理密码" autocomplete="current-password" />
-      <div class="err" id="loginErr"></div>
-      <button class="btn primary" id="loginBtn">登 录</button>
+  <div id="loginView" class="login-page" style="display:none">
+    <section class="login-story" aria-label="PV HOT 管理系统介绍">
+      <div class="login-brand"><span class="brand-mark">PV</span><span><b>PV HOT</b><small>SOLAR INTELLIGENCE</small></span></div>
+      <div class="login-copy">
+        <span class="eyebrow">EDITORIAL OPERATIONS</span>
+        <h1>让每一条光伏资讯<br/>都有依据，也有秩序。</h1>
+        <p>统一管理新闻、AI 精选、站点内容、访问数据与用户反馈。</p>
+      </div>
+      <div class="login-points">
+        <span>多信源聚合</span><span>当天精选</span><span>原文可追溯</span>
+      </div>
+    </section>
+    <div class="login-panel">
+      <div class="login">
+        <div class="login-kicker">PV HOT CONTROL ROOM</div>
+        <h2>欢迎回来</h2>
+        <p>请输入管理密码进入工作台</p>
+        <label class="login-label" for="passInput">管理密码</label>
+        <input id="passInput" type="password" placeholder="请输入密码" autocomplete="current-password" />
+        <div class="err" id="loginErr"></div>
+        <button class="btn primary" id="loginBtn">进入管理后台</button>
+        <div class="login-safe"><span></span>安全会话将在 8 小时后自动失效</div>
+      </div>
     </div>
   </div>
 
   <!-- 主界面 -->
   <div id="mainView" style="display:none">
-    <div class="topbar">
-      <div class="row">
-        <div class="brand"><span class="dot"></span>光伏 HOT · 后台</div>
-        <div class="spacer"></div>
-        <button class="btn ghost" id="themeBtn" title="切换主题">◐</button>
-        <button class="btn ghost" id="logoutBtn">退出</button>
-      </div>
-    </div>
+    <div class="admin-shell">
+      <aside class="admin-sidebar">
+        <div class="side-brand">
+          <span class="brand-mark">PV</span>
+          <span><b>PV HOT</b><small>CONTROL ROOM</small></span>
+        </div>
+        <div class="side-label">工作台</div>
+        <nav class="tabs" aria-label="后台功能">
+          <button class="tab on" data-tab="news" type="button"><span class="nav-icon">N</span><span>新闻管理</span></button>
+          <button class="tab" data-tab="stats" type="button"><span class="nav-icon">D</span><span>数据状态</span></button>
+          <button class="tab" data-tab="content" type="button"><span class="nav-icon">C</span><span>内容管理</span></button>
+          <button class="tab" data-tab="feedback" type="button"><span class="nav-icon">F</span><span>用户反馈</span><span class="badge-unread" id="fbUnreadBadge" style="display:none">0</span></button>
+        </nav>
+        <div class="side-foot">
+          <div class="service-card"><span class="service-dot"></span><div><b id="serviceTitle">系统运行正常</b><small id="serviceSub">数据自动同步中</small></div></div>
+          <a class="side-link" href="/" target="_blank" rel="noopener">查看前台网站 <span>↗</span></a>
+        </div>
+      </aside>
 
-    <div class="tabs">
-      <div class="tab on" data-tab="news">📰 新闻</div>
-      <div class="tab" data-tab="stats">📊 状态</div>
-      <div class="tab" data-tab="content">📝 内容管理</div>
-      <div class="tab" data-tab="feedback">✉ 反馈 <span class="badge-unread" id="fbUnreadBadge" style="display:none">0</span></div>
-    </div>
+      <section class="admin-workspace">
+        <header class="topbar">
+          <div class="topbar-copy">
+            <span class="top-eyebrow">PV HOT · 管理中心</span>
+            <h1 id="pageTitle">新闻管理</h1>
+            <p id="pageDesc">审核资讯、维护精选并管理信源内容</p>
+          </div>
+          <div class="topbar-actions">
+            <span class="sync-state"><i></i><span id="lastSyncText">实时数据</span></span>
+            <button class="btn ghost compact" id="themeBtn" title="切换柔光模式">Aa</button>
+            <button class="btn ghost" id="logoutBtn">安全退出</button>
+          </div>
+        </header>
 
-    <div class="wrap">
-      <!-- 新闻 panel（原有） -->
-      <div id="panelNews">
+        <main class="wrap">
+          <!-- 新闻 panel -->
+          <div id="panelNews">
+            <section class="panel-hero">
+              <div><span class="eyebrow">EDITORIAL DESK</span><h2>资讯与 AI 精选</h2><p>管理聚合新闻、人工校正与当日精选状态。</p></div>
+              <div class="hero-note"><span class="service-dot"></span>自动抓取持续运行</div>
+            </section>
+            <div class="overview-grid">
+              <div class="overview-card"><span id="newsTotal">—</span><small>资讯总量</small></div>
+              <div class="overview-card"><span id="newsToday">—</span><small>今日资讯</small></div>
+              <div class="overview-card"><span id="newsFeatured">—</span><small>今日精选</small></div>
+              <div class="overview-card"><span id="newsSources">—</span><small>活跃信源</small></div>
+            </div>
+        <section class="workspace-card news-manager">
         <div class="toolbar">
           <div class="search">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
@@ -265,10 +516,14 @@
 
         <div class="list" id="list"></div>
         <div class="pager" id="pager"></div>
+        </section>
       </div>
 
       <!-- 状态面板 panel -->
       <div id="panelStats" style="display:none">
+        <section class="panel-hero compact-hero">
+          <div><span class="eyebrow">OPERATIONS OVERVIEW</span><h2>数据与系统状态</h2><p>查看访问趋势、信源健康和最近抓取情况。</p></div>
+        </section>
         <div class="toolbar" style="margin-top:8px">
           <div class="meta-line" id="statsMeta">加载中…</div>
           <div class="spacer"></div>
@@ -324,6 +579,9 @@
 
       <!-- 内容管理 panel -->
       <div id="panelContent" style="display:none">
+        <section class="panel-hero compact-hero">
+          <div><span class="eyebrow">SITE CONTENT</span><h2>站点内容管理</h2><p>集中维护关于页、Agent 接入、二维码和更新日志。</p></div>
+        </section>
         <div class="toolbar" style="margin-top:8px">
           <div class="meta-line" id="txtMeta">—</div>
           <div class="spacer"></div>
@@ -393,6 +651,9 @@
 
       <!-- 反馈列表 panel -->
       <div id="panelFeedback" style="display:none">
+        <section class="panel-hero compact-hero">
+          <div><span class="eyebrow">USER VOICE</span><h2>用户反馈</h2><p>处理站内意见、问题报告与联系信息。</p></div>
+        </section>
         <div class="toolbar" style="margin-top:8px">
           <div class="meta-line" id="fbMeta">—</div>
           <div class="spacer"></div>
@@ -405,6 +666,8 @@
         </div>
         <div class="fb-list" id="fbList"></div>
       </div>
+        </main>
+      </section>
     </div>
   </div>
 
@@ -490,10 +753,15 @@
   }
   async function api(path, opts){
     opts = opts || {};
-    const r = await fetch(API + path, Object.assign({ credentials:'same-origin',
-      headers:{'Content-Type':'application/json'} }, opts));
+    let r;
+    try {
+      r = await fetch(API + path, Object.assign({ credentials:'same-origin',
+        headers:{'Content-Type':'application/json'} }, opts));
+    } catch (e) {
+      return { ok:false, status:0, data:{ error:'网络连接失败，请稍后重试' } };
+    }
     let data = {}; try { data = await r.json(); } catch(e){}
-    if (r.status === 401){ showLogin(); throw new Error('未登录'); }
+    if (r.status === 401 && path !== '/login'){ showLogin(); throw new Error('未登录'); }
     return { ok: r.ok, status: r.status, data };
   }
 
@@ -501,17 +769,23 @@
   function applyTheme(dark){
     document.body.classList.toggle('dark', dark);
     try { localStorage.setItem('pvhot_admin_dark', dark?'1':'0'); } catch(e){}
+    $('#themeBtn').setAttribute('aria-pressed', dark ? 'true' : 'false');
   }
   applyTheme((()=>{ try { return localStorage.getItem('pvhot_admin_dark')==='1'; } catch(e){ return false; } })());
   $('#themeBtn').onclick = () => applyTheme(!document.body.classList.contains('dark'));
 
   /* ---- 登录 ---- */
-  function showLogin(){ $('#mainView').style.display='none'; $('#loginView').style.display='block'; $('#passInput').focus(); }
-  function showMain(){ $('#loginView').style.display='none'; $('#mainView').style.display='block'; load(); }
+  function showLogin(){ $('#mainView').style.display='none'; $('#loginView').style.display='grid'; $('#passInput').focus(); }
+  function showMain(){ $('#loginView').style.display='none'; $('#mainView').style.display='block'; load(); loadFeedback(); }
   async function doLogin(){
     const pass = $('#passInput').value;
+    if (!pass){ $('#loginErr').textContent = '请输入管理密码'; return; }
+    $('#loginBtn').disabled = true;
+    $('#loginBtn').textContent = '正在验证…';
     const r = await api('/login', { method:'POST', body: JSON.stringify({ pass }) });
-    if (r.ok){ $('#loginErr').textContent=''; showMain(); }
+    $('#loginBtn').disabled = false;
+    $('#loginBtn').textContent = '进入管理后台';
+    if (r.ok){ $('#loginErr').textContent=''; $('#passInput').value=''; showMain(); }
     else { $('#loginErr').textContent = (r.data && r.data.error) || '登录失败'; }
   }
   $('#loginBtn').onclick = doLogin;
@@ -521,10 +795,21 @@
   /* ---- 列表 ---- */
   async function load(){
     const qs = new URLSearchParams({ q:state.q, cat:state.cat, page:state.page, pageSize:state.pageSize });
-    const r = await api('/items?' + qs.toString());
-    if (!r.ok) return;
-    const d = r.data; state.total = d.total;
     const list = $('#list');
+    list.innerHTML = '<div class="skeleton-card"></div><div class="skeleton-card"></div><div class="skeleton-card"></div>';
+    const r = await api('/items?' + qs.toString());
+    if (!r.ok) {
+      list.innerHTML = '<div class="empty">数据加载失败，请稍后重试</div>';
+      toast((r.data && r.data.error) || '加载失败');
+      return;
+    }
+    const d = r.data; state.total = d.total;
+    const overview = d.overview || {};
+    $('#newsTotal').textContent = overview.total == null ? d.total : overview.total;
+    $('#newsToday').textContent = overview.today == null ? '—' : overview.today;
+    $('#newsFeatured').textContent = overview.featured == null ? '—' : overview.featured;
+    $('#newsSources').textContent = overview.sources == null ? '—' : overview.sources;
+    $('#lastSyncText').textContent = overview.updated ? '更新 ' + overview.updated.slice(11) : '实时数据';
     if (!d.items.length){ list.innerHTML = '<div class="empty">没有匹配的新闻 🌿</div>'; $('#pager').innerHTML=''; return; }
     list.innerHTML = d.items.map(it => card(it)).join('');
     renderPager();
@@ -535,22 +820,35 @@
     const catCls = feat ? 'badge feat' : 'badge';
     const catTxt = feat ? '★ 精选' : (it.category||'');
     const reason = it.reason ? `<div class="reason">${esc(it.reason)}</div>` : '';
-    return `<div class="item" data-id="${esc(it.id)}">
-      <div class="h">
-        <div class="title">${esc(title)}</div>
+    const summary = it.summary_cn || it.summary || '';
+    const thumb = /^https?:\/\//i.test(it.image || '')
+      ? `<a class="item-thumb" href="${esc(it.link || '#')}" target="_blank" rel="noopener"><img src="${esc(it.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.item-thumb').remove()" /></a>`
+      : '';
+    const sourceCount = Number(it.sourceCount || 1);
+    const score = Number(it.score || 0);
+    return `<article class="item" data-id="${esc(it.id)}">
+      <div class="item-layout">
+        ${thumb}
+        <div class="item-main">
+          <div class="title">${esc(title)}</div>
+          ${summary ? `<div class="item-summary">${esc(summary)}</div>` : ''}
+          <div class="meta">
+            <span class="${catCls}">${esc(catTxt)}</span>
+            ${feat && it.category ? `<span class="badge">${esc(it.category)}</span>` : ''}
+            <span class="src">${esc(it.source||'未知信源')}</span>
+            <span>${esc((it.pubDate||'').slice(0,16).replace('T',' '))}</span>
+            <span class="metric-chip">${sourceCount} 个信源</span>
+            ${score ? `<span class="metric-chip">AI ${score}</span>` : ''}
+          </div>
+          ${reason}
+        </div>
         <div class="ops">
-          <button class="iconbtn star ${feat?'on':''}" data-act="feat" title="精选">★</button>
-          <button class="iconbtn" data-act="edit" title="编辑">✎</button>
-          <button class="iconbtn danger" data-act="del" title="删除">🗑</button>
+          <button class="iconbtn star ${feat?'on':''}" data-act="feat" title="${feat?'取消精选':'设为精选'}" aria-label="${feat?'取消精选':'设为精选'}">★</button>
+          <button class="iconbtn" data-act="edit" title="编辑" aria-label="编辑">✎</button>
+          <button class="iconbtn danger" data-act="del" title="删除" aria-label="删除">×</button>
         </div>
       </div>
-      <div class="meta">
-        <span class="${catCls}">${esc(catTxt)}</span>
-        <span class="src">${esc(it.source||'')}</span>
-        <span>${esc((it.pubDate||'').slice(0,16).replace('T',' '))}</span>
-      </div>
-      ${reason}
-    </div>`;
+    </article>`;
   }
   function renderPager(){
     const totalPages = Math.max(1, Math.ceil(state.total / state.pageSize));
@@ -647,7 +945,11 @@
   $('#refreshBtn').onclick = async () => {
     $('#refreshBtn').disabled = true; $('#refreshBtn').textContent = '抓取中…';
     const r = await api('/refresh', { method:'POST' });
-    setTimeout(() => { $('#refreshBtn').disabled=false; $('#refreshBtn').textContent='⟳ 触发抓取'; if (r.ok) toast('已触发，稍后看日志'); }, 600);
+    setTimeout(() => {
+      $('#refreshBtn').disabled=false;
+      $('#refreshBtn').textContent='⟳ 触发抓取';
+      toast(r.ok ? '抓取任务已启动，可在状态页查看进度' : ((r.data&&r.data.error)||'触发失败'));
+    }, 600);
   };
 
   /* ---- 日志 ---- */
@@ -662,6 +964,9 @@
   /* ---- 弹窗关闭 ---- */
   $$('[data-close]').forEach(b => b.onclick = () => b.closest('.mask').classList.remove('show'));
   $$('.mask').forEach(m => m.addEventListener('click', e => { if (e.target===m) m.classList.remove('show'); }));
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') $$('.mask.show').forEach(m => m.classList.remove('show'));
+  });
 
   /* ---- 启动：探测登录态（访问受保护接口，401 则登录） ---- */
   (async () => {
@@ -674,7 +979,19 @@
   /* ============== Tab 切换 ============== */
   function switchTab(name){
     state.tab = name;
-    $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === name));
+    const pageMeta = {
+      news:['新闻管理','审核资讯、维护精选并管理信源内容'],
+      stats:['数据状态','查看访问表现、信源健康与系统运行情况'],
+      content:['内容管理','维护站点文案、二维码与更新日志'],
+      feedback:['用户反馈','处理意见、问题报告与用户联系信息'],
+    };
+    $$('.tab').forEach(t => {
+      const active = t.dataset.tab === name;
+      t.classList.toggle('on', active);
+      t.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    $('#pageTitle').textContent = pageMeta[name][0];
+    $('#pageDesc').textContent = pageMeta[name][1];
     $('#panelNews').style.display = name === 'news' ? '' : 'none';
     $('#panelStats').style.display = name === 'stats' ? '' : 'none';
     $('#panelContent').style.display = name === 'content' ? '' : 'none';
@@ -944,9 +1261,20 @@
     const fmtSize = (b) => b ? (b > 1048576 ? (b/1048576).toFixed(1)+'MB' : (b/1024).toFixed(0)+'KB') : '—';
     const fmtTime = (t) => t ? new Date(t).toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
     const rsshubStatus = s.rsshub === 'ok' ? '<span class="ok">正常</span>' : '<span class="err">'+esc(s.rsshub||'未知')+'</span>';
+    const sh = st.sourceHealth || {};
+    const shSummary = sh.summary || {};
+    const shConfigured = sh.configured || {};
+    const monitoredTotal = (shConfigured.googleQueries||0) + (shConfigured.rss||0) + (shConfigured.scrape||0) + (shConfigured.rsshubWechat||0);
+    const sourceHealthText = sh.checkedAt
+      ? `<span class="ok">${shSummary.ok||0}/${shSummary.checked||0} 正常</span>`
+      : '<span class="err">尚未检查</span>';
     const items = [
+      ['抓取任务', st.refreshRunning ? '<span class="ok">运行中</span>' : '<span class="ok">空闲</span>'],
       ['新闻条数', st.items || 0],
       ['分类数', st.categories || 0],
+      ['信源入口', monitoredTotal || '—'],
+      ['信源健康', sourceHealthText],
+      ['微信公众号', shConfigured.wechatAccounts ? `${shConfigured.wechatAccounts} 个监控 / 缓存 ${shSummary.wechatCachedItems||0} 条` : '—'],
       ['data.json', fmtSize(st.dataSize)],
       ['data_raw.json', fmtSize(st.rawSize)],
       ['上次抓取', fmtTime(st.rawMtime)],
@@ -964,7 +1292,11 @@
     const logLines = (st.lastLog || []).join('\n');
     $('#sysLog').textContent = logLines || '（暂无日志）';
     $('#statsMeta').textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN');
-    $('#sysHint').textContent = 'RSSHub: ' + (s.rsshub === 'ok' ? '✅' : '⚠️');
+    $('#serviceTitle').textContent = st.refreshRunning ? '新闻抓取进行中' : '系统运行正常';
+    $('#serviceSub').textContent = st.refreshRunning ? '完成后会自动合并数据' : '数据自动同步中';
+    $('#sysHint').textContent = sh.registryVersion
+      ? `信源 ${sh.registryVersion} · ${shSummary.ok||0}/${shSummary.checked||0} 正常`
+      : '信源健康尚未生成';
   }
   $('#statsRefresh').onclick = loadStats;
 })();

@@ -10,11 +10,18 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 const crypto = require('crypto');
+const {
+  REGISTRY_VERSION,
+  WECHAT_ACCOUNTS,
+  WECHAT_TOPIC_QUERIES,
+} = require('./source_registry');
 
-const KEYWORDS = ['光伏', '太阳能', '储能'];
-const MAX_PER_KEYWORD = 15;
-const OUTPUT_PATH = '/var/www/pvhot/wechat_items.json';
-const FRESH_DAYS = 14;
+const ROOT = process.env.PVHOT_ROOT || '/var/www/pvhot';
+const MAX_PER_QUERY = 12;
+const OUTPUT_PATH = `${ROOT}/wechat_items.json`;
+const FRESH_DAYS = 7;
+const ACCOUNT_BATCH_SIZE = Math.max(1, Math.min(16, Number(process.env.PVHOT_WECHAT_ACCOUNT_BATCH || 8)));
+const TOPIC_BATCH_SIZE = Math.max(1, Math.min(WECHAT_TOPIC_QUERIES.length, Number(process.env.PVHOT_WECHAT_TOPIC_BATCH || 4)));
 
 const CHROME_PATH = process.env.PUPPETEER_EXECUTABLE_PATH
   || '/home/admin/.cache/puppeteer/chrome/linux-149.0.7827.22/chrome-linux64/chrome';
@@ -23,6 +30,20 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 function extractItemId(link) {
   return 'pv' + crypto.createHash('sha1').update(link).digest('hex').slice(0, 14);
+}
+
+function normalizeAccountName(value) {
+  return (value || '').toLowerCase().replace(/[\s·\-—_（）()｜|]/g, '');
+}
+
+function isRegistryAccount(value) {
+  const actual = normalizeAccountName(value);
+  if (!actual) return false;
+  return WECHAT_ACCOUNTS.some((account) =>
+    [account.name, ...(account.aliases || [])]
+      .map(normalizeAccountName)
+      .some((alias) => actual.includes(alias) || alias.includes(actual))
+  );
 }
 
 /** Parse sogou's messy date format into ISO date string */
@@ -84,9 +105,14 @@ function isFresh(pubDateStr) {
   return ageDays <= FRESH_DAYS;
 }
 
-async function searchWechat(keyword, page) {
-  const url = `https://weixin.sogou.com/weixin?type=2&query=${encodeURIComponent(keyword)}&ie=utf8`;
-  console.log(`[wechat] searching: ${keyword} -> ${url}`);
+async function searchWechat(keyword, page, targetAccount = null) {
+  const now = new Date();
+  // 搜狗默认会优先返回多年以前的高热文章；加入年份（月度主题再加月份）可显著提高近期命中率。
+  const searchTerm = targetAccount
+    ? `${keyword} ${now.getFullYear()}`
+    : `${keyword} ${now.getFullYear()} ${now.getMonth() + 1}月`;
+  const url = `https://weixin.sogou.com/weixin?type=2&query=${encodeURIComponent(searchTerm)}&ie=utf8`;
+  console.log(`[wechat] searching: ${searchTerm}${targetAccount ? ` [account:${targetAccount.name}]` : ''} -> ${url}`);
 
   await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
   await sleep(3000);
@@ -95,7 +121,7 @@ async function searchWechat(keyword, page) {
   const pageTitle = await page.title();
   if (pageTitle.includes('验证') || pageTitle.includes('verify') || pageTitle.includes('captcha')) {
     console.log(`[wechat] captcha detected for "${keyword}", skipping`);
-    return [];
+    return { items: [], rawCount: 0, status: 'captcha' };
   }
 
   // Extract article entries - evaluate in browser context
@@ -160,6 +186,11 @@ async function searchWechat(keyword, page) {
   // Parse dates and filter fresh
   const items = [];
   for (const raw of rawItems) {
+    if (targetAccount) {
+      const actual = normalizeAccountName(raw.account);
+      const aliases = [targetAccount.name, ...(targetAccount.aliases || [])].map(normalizeAccountName);
+      if (!actual || !aliases.some((alias) => actual.includes(alias) || alias.includes(actual))) continue;
+    }
     const pubDate = parseSogouDate(raw.rawDate);
     if (!isFresh(pubDate)) {
       console.log(`[wechat] skip old: ${raw.title.slice(0, 40)} (date: ${raw.rawDate})`);
@@ -176,7 +207,11 @@ async function searchWechat(keyword, page) {
   }
 
   console.log(`[wechat] "${keyword}": ${rawItems.length} raw -> ${items.length} fresh`);
-  return items.slice(0, MAX_PER_KEYWORD);
+  return {
+    items: items.slice(0, MAX_PER_QUERY),
+    rawCount: rawItems.length,
+    status: items.length ? 'ok' : 'empty',
+  };
 }
 
 async function main() {
@@ -196,16 +231,39 @@ async function main() {
   });
 
   const allItems = [];
+  const health = [];
+  const hourSlot = Math.floor(Date.now() / 3600000);
+  const configuredStart = Number(process.env.PVHOT_WECHAT_ACCOUNT_START);
+  const accountStart = Number.isInteger(configuredStart)
+    ? ((configuredStart % WECHAT_ACCOUNTS.length) + WECHAT_ACCOUNTS.length) % WECHAT_ACCOUNTS.length
+    : (hourSlot * ACCOUNT_BATCH_SIZE) % WECHAT_ACCOUNTS.length;
+  const queriedAccounts = Array.from({ length: Math.min(ACCOUNT_BATCH_SIZE, WECHAT_ACCOUNTS.length) }, (_, i) =>
+    WECHAT_ACCOUNTS[(accountStart + i) % WECHAT_ACCOUNTS.length]
+  );
+  const topicStart = (hourSlot * TOPIC_BATCH_SIZE) % WECHAT_TOPIC_QUERIES.length;
+  const topicQueries = Array.from({ length: TOPIC_BATCH_SIZE }, (_, i) =>
+    WECHAT_TOPIC_QUERIES[(topicStart + i) % WECHAT_TOPIC_QUERIES.length]
+  );
   
   try {
     const page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'zh-CN,zh;q=0.9' });
 
-    for (const kw of KEYWORDS) {
+    for (const kw of topicQueries) {
       try {
-        const items = await searchWechat(kw, page);
-        for (const it of items) {
+        const result = await searchWechat(kw, page);
+        const trustedItems = result.items.filter((it) => isRegistryAccount(it.account));
+        health.push({
+          id: `topic:${kw}`,
+          name: kw,
+          kind: 'topic',
+          status: trustedItems.length ? 'ok' : 'empty',
+          raw: result.rawCount,
+          candidateFresh: result.items.length,
+          fresh: trustedItems.length,
+        });
+        for (const it of trustedItems) {
           allItems.push({
             id: extractItemId(it.link),
             title: it.title,
@@ -228,6 +286,47 @@ async function main() {
         }
       } catch (e) {
         console.error(`[wechat] error for "${kw}": ${e.message}`);
+        health.push({ id: `topic:${kw}`, name: kw, kind: 'topic', status: 'error', error: e.message });
+      }
+      await sleep(3000);
+    }
+
+    for (const account of queriedAccounts) {
+      try {
+        const result = await searchWechat(account.name, page, account);
+        health.push({
+          id: `account:${account.name}`,
+          name: account.name,
+          kind: account.kind || '公众号',
+          tier: account.tier || 2,
+          status: result.status,
+          raw: result.rawCount,
+          fresh: result.items.length,
+        });
+        for (const it of result.items) {
+          allItems.push({
+            id: extractItemId(it.link),
+            title: it.title,
+            title_cn: it.title,
+            link: it.link,
+            summary: it.summary,
+            summary_cn: it.summary,
+            reason: '',
+            category: 'ALL',
+            lang: 'zh',
+            pubDate: it.pubDate,
+            source: 'wechat',
+            sources: [{ name: it.account || account.name, source: 'wechat', link: it.link, avatar: it.avatar || '' }],
+            sourceCount: 1,
+            heat: account.tier === 1 ? 55 : 48,
+            tags: [],
+            score: account.tier === 1 ? 55 : 48,
+            avatar: it.avatar || ''
+          });
+        }
+      } catch (e) {
+        console.error(`[wechat] account error for "${account.name}": ${e.message}`);
+        health.push({ id: `account:${account.name}`, name: account.name, kind: account.kind || '公众号', status: 'error', error: e.message });
       }
       await sleep(3000);
     }
@@ -235,23 +334,41 @@ async function main() {
     await browser.close();
   }
 
-  // Deduplicate by id
+  // 与前几轮结果合并。账号按小时轮询，但最近 7 天的有效文章不会因轮换丢失。
+  let previousItems = [];
+  try {
+    const previous = JSON.parse(fs.readFileSync(OUTPUT_PATH, 'utf8'));
+    previousItems = Array.isArray(previous.items)
+      ? previous.items.filter((it) =>
+          isFresh(it.pubDate)
+          && isRegistryAccount(it.sources?.[0]?.name)
+        )
+      : [];
+  } catch (e) {}
+
+  // Deduplicate by id，新结果优先。
   const seen = new Set();
-  const deduped = allItems.filter(it => {
+  const deduped = [...allItems, ...previousItems].filter(it => {
+    if (!isFresh(it.pubDate)) return false;
     if (seen.has(it.id)) return false;
     seen.add(it.id);
     return true;
-  });
+  }).sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
 
   // Write output
   const output = {
     fetchedAt: new Date().toISOString(),
+    registryVersion: REGISTRY_VERSION,
+    monitoredAccounts: WECHAT_ACCOUNTS.length,
+    queriedAccounts: queriedAccounts.map((account) => account.name),
+    topicQueries,
+    health,
     count: deduped.length,
     items: deduped
   };
   
   fs.writeFileSync(OUTPUT_PATH, JSON.stringify(output, null, 2));
-  console.log(`[wechat] OK wrote ${deduped.length} items -> ${OUTPUT_PATH}`);
+  console.log(`[wechat] OK registry=${REGISTRY_VERSION} monitored=${WECHAT_ACCOUNTS.length} queried=${queriedAccounts.length} wrote=${deduped.length} -> ${OUTPUT_PATH}`);
 }
 
 main().catch(e => {
