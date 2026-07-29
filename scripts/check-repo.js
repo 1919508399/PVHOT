@@ -74,7 +74,9 @@ function validateUtf8(files) {
     '.json',
     '.md',
     '.py',
+    '.service',
     '.sh',
+    '.timer',
     '.txt',
     '.xml',
     '.yaml',
@@ -84,7 +86,9 @@ function validateUtf8(files) {
   let count = 0;
 
   for (const file of files) {
-    if (!extensions.has(path.extname(file).toLowerCase())) continue;
+    const isExtensionlessOpsText = file.startsWith('ops/sudoers/')
+      || file.startsWith('ops/logrotate/');
+    if (!extensions.has(path.extname(file).toLowerCase()) && !isExtensionlessOpsText) continue;
     const absolutePath = path.join(ROOT, file);
     if (!fs.existsSync(absolutePath) || fs.statSync(absolutePath).size > 8 * 1024 * 1024) continue;
     count += 1;
@@ -99,6 +103,32 @@ function validateUtf8(files) {
     }
   }
   pass(`${count} UTF-8 text files`);
+}
+
+function validateUnixLineEndings(files) {
+  const linuxFiles = files.filter((file) => {
+    const extension = path.extname(file).toLowerCase();
+    return [
+      '.conf',
+      '.service',
+      '.sh',
+      '.timer',
+      '.yaml',
+      '.yml',
+    ].includes(extension)
+      || file.endsWith('.env.example')
+      || file.startsWith('ops/sudoers/')
+      || file.startsWith('ops/logrotate/');
+  });
+
+  for (const file of linuxFiles) {
+    const absolutePath = path.join(ROOT, file);
+    if (!fs.existsSync(absolutePath)) continue;
+    if (fs.readFileSync(absolutePath).includes(0x0d)) {
+      fail('line-endings', `${file} must use LF because Linux reads it directly`);
+    }
+  }
+  pass(`${linuxFiles.length} Linux deployment files use LF`);
 }
 
 function validateJavaScript(files) {
@@ -242,6 +272,7 @@ function main() {
 
   validateRequiredFiles(files);
   validateUtf8(files);
+  validateUnixLineEndings(files);
   validateJavaScript(files);
   validatePython(files);
   validateJson(files);
