@@ -1,0 +1,43 @@
+[Unit]
+Description=PVHOT hourly news and WeChat refresh
+After=network-online.target
+Wants=network-online.target
+ConditionPathIsSymbolicLink=/var/www/pvhot/current
+
+[Service]
+Type=oneshot
+User=pvhot
+Group=pvhot
+WorkingDirectory=/var/www/pvhot/current
+Environment=NODE_ENV=production
+Environment=PVHOT_ROOT=/var/www/pvhot/current
+Environment=PVHOT_LOCK_DIR=/var/www/pvhot/shared/run/locks
+Environment=PVHOT_NODE=/usr/bin/node
+Environment=HOME=/var/lib/pvhot
+Environment=XDG_CACHE_HOME=/var/cache/pvhot
+EnvironmentFile=-/etc/pvhot/pvhot-common.env
+EnvironmentFile=-/etc/pvhot/pvhot-fetch.env
+ExecStartPre=/usr/bin/test -r /var/www/pvhot/current/fetch_pv_news.js
+ExecStart=/usr/bin/flock --wait 120 /var/www/pvhot/shared/run/.pipeline.lock /bin/bash -c 'set -euo pipefail; /usr/bin/node /var/www/pvhot/current/fetch_wechat.js || { echo "[pvhot-fetch] WeChat refresh failed; continuing with other sources" >&2; }; /usr/bin/node /var/www/pvhot/current/fetch_pv_news.js; /usr/bin/node /var/www/pvhot/current/merge.js'
+TimeoutStartSec=25min
+Nice=5
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+UMask=0007
+StateDirectory=pvhot
+CacheDirectory=pvhot
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/www/pvhot/shared /var/lib/pvhot /var/cache/pvhot

@@ -1,0 +1,12 @@
+/var/www/pvhot/shared/log/fetch.log {
+    daily
+    rotate 14
+    maxsize 20M
+    missingok
+    notifempty
+    compress
+    delaycompress
+    dateext
+    create 0660 pvhot pvhot
+    su pvhot pvhot
+}

@@ -1,0 +1,5 @@
+# Validate with visudo before installing as /etc/sudoers.d/pvhot-deploy.
+# The deployment user can only restart and inspect the PVHOT API service.
+
+Cmnd_Alias PVHOT_ADMIN_SERVICE = /usr/bin/systemctl restart pvhot-admin.service, /usr/bin/systemctl is-active --quiet pvhot-admin.service
+pvhot-deploy ALL=(root) NOPASSWD: PVHOT_ADMIN_SERVICE

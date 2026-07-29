@@ -24,5 +24,10 @@ Thumbs.db
 *.log
 fetch.log
 
-# Temporary deploy artifacts
-deploy/tmp/
+# Runtime state and release artifacts
+.locks/
+.env
+.env.*
+!.env.example
+pvhot-*.tar.gz
+pvhot-*.tar.gz.sha256

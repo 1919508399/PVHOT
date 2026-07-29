@@ -1,0 +1,33 @@
+[Unit]
+Description=Submit PVHOT URLs to Baidu Search
+After=network-online.target
+Wants=network-online.target
+ConditionPathIsSymbolicLink=/var/www/pvhot/current
+
+[Service]
+Type=oneshot
+User=pvhot
+Group=pvhot
+WorkingDirectory=/var/www/pvhot/current
+Environment=PVHOT_ROOT=/var/www/pvhot/current
+EnvironmentFile=-/etc/pvhot/pvhot-baidu.env
+ExecStartPre=/usr/bin/test -r /var/www/pvhot/current/bd_push.py
+ExecStart=/usr/bin/python3 /var/www/pvhot/current/bd_push.py
+TimeoutStartSec=5min
+Nice=10
+UMask=0007
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/www/pvhot/shared

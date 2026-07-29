@@ -1,9 +1,12 @@
 # 后台密码配置
 
-后台不再使用内置默认密码。部署前请配置以下任一方式：
+后台不再使用内置默认密码。生产环境应使用 systemd 环境文件配置：
 
-1. 将管理员密码的 SHA-256 十六进制摘要写入 `/var/www/pvhot/admin_pass.txt`；或
-2. 设置环境变量 `PVHOT_ADMIN_PASSWORD_HASH` 为同一摘要。
+1. 将 `ops/config/pvhot-admin.env.example` 复制到 `/etc/pvhot/pvhot-admin.env`；
+2. 将 `PVHOT_ADMIN_PASSWORD_HASH` 设置为管理员密码的 SHA-256 十六进制摘要；
+3. 将文件所有者设为 `root:root`、权限设为 `0600`，然后重启 `pvhot-admin.service`。
+
+`/var/www/pvhot/shared/config/admin_pass.txt` 仅用于兼容旧部署，正式环境优先使用 `/etc/pvhot/pvhot-admin.env`。不要把明文密码或摘要提交到 Git。
 
 可用 Node.js 生成摘要：
 
