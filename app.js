@@ -60,6 +60,39 @@
     changelog: {
       items: [
         {
+          ver: "v5.6", date: "2026-07-30", time: "09:25", type: "发布",
+          title: "工程整改完成：CI、原子发布与安全运维上线",
+          text: "PV HOT 的开发、合并和部署流程完成生产化整改；每个线上版本都能追溯到 Git 提交，并经过自动检查、健康验证和可恢复发布。",
+          bullets: [
+            "PR 自动执行代码规范、单元测试、首页冒烟测试、发布包白名单和完整历史凭据扫描",
+            "主分支合并后自动构建锁定版本发布包，校验摘要后原子切换，并保留上一版本快速回滚",
+            "抓取、价格、证书和后台服务改为最小权限账号与 systemd 管理，补齐日志轮转和失败状态检查",
+            "线上数据重新抓取并验证今日新闻、AI 精选、移动端轻量首屏、UTF-8 编码和公开健康接口"
+          ]
+        },
+        {
+          ver: "v5.5", date: "2026-07-29", time: "15:50", type: "工程",
+          title: "交付链路、安全与数据稳定性升级",
+          text: "PV HOT 建立从代码检查到正式发布的可追溯工程链路，降低手工部署、版本混用和数据写入中断带来的风险。",
+          bullets: [
+            "新增快速 CI，自动检查语法、编码、关键数据逻辑、首页可用性与明文凭据",
+            "正式版本按 Git 提交生成独立发布包，支持原子切换、健康检查和快速回滚",
+            "新闻、微信、价格与后台数据统一改为原子写入，并增加跨进程任务锁",
+            "服务器改用受限密钥账号，补齐运行状态、数据新鲜度和证书续期监控"
+          ]
+        },
+        {
+          ver: "v5.4", date: "2026-07-27", time: "14:24", type: "性能",
+          title: "手机端首屏数据加速",
+          text: "手机首次打开改为先加载轻量今日情报，再在后台补齐近 7 天完整数据，减少等待和主线程解析压力。",
+          bullets: [
+            "首屏数据从完整 280 条降为今日内容与最近动态轻量包",
+            "手机端提前并行预加载数据，不再等待页面脚本执行后才发起请求",
+            "完整数据后台静默补齐，切换全部动态和日报仍可直接使用",
+            "生产 JSON 改为紧凑格式，并增加短时缓存与过期内容复用"
+          ]
+        },
+        {
           ver: "v5.3", date: "2026-07-26", time: "21:25", type: "重构",
           title: "Agent 接入升级为可验证的开发者工作台",
           text: "Agent 接入从静态说明页升级为实时工作台，补齐公开 REST、RSS 与状态接口，并支持现场组合参数、复制和测试。",
@@ -322,7 +355,7 @@
       const w = ["星期日","星期一","星期二","星期三","星期四","星期五","星期六"][d.getDay()];
       return `${fmtDateFull(DATA.meta.date)} ${w} · 仅收录今日新闻 · 综合网络热度、信源权威度与产业影响筛选`;
     }},
-    all:       { title: "全部动态", sub: () => `${DATA.items.length} 条近 7 天光伏资讯，按时间倒序` },
+    all:       { title: "全部动态", sub: () => `${DATA.meta?.totalItems || DATA.items.length} 条近 7 天光伏资讯，按时间倒序` },
     daily:     { title: "日报",   sub: () => `左侧日历/周/月选择期号 · 右侧每日（周/月）精选摘要 + 全量分类报道` },
     fav:       { title: "收藏",   sub: () => `你收藏的光伏资讯（共 ${getFavs().length} 条，本地保存）` },
     agent:     { title: "Agent 接入", sub: () => "通过 Agent Skill / RSS / REST API 把 PV HOT 接入你的工作流" },
@@ -340,13 +373,14 @@
     };
     const kicker = $("#heroKicker");
     if (kicker) kicker.textContent = kickerMap[state.view] || "光伏情报";
-    const uniqueSources = new Set(DATA.items.map(it => it.source).filter(Boolean)).size;
+    const uniqueSources = DATA.meta?.totalSources
+      || new Set(DATA.items.map(it => it.source).filter(Boolean)).size;
     const latest = DATA.items.map(it => it.pubDate).filter(Boolean).sort().pop();
     const metricItems = $("#metricItems");
     const metricSources = $("#metricSources");
     const metricTopics = $("#metricTopics");
     const metricUpdated = $("#metricUpdated");
-    if (metricItems) metricItems.textContent = DATA.items.length;
+    if (metricItems) metricItems.textContent = DATA.meta?.totalItems || DATA.items.length;
     if (metricSources) metricSources.textContent = uniqueSources;
     if (metricTopics) metricTopics.textContent = Math.max(0, DATA.categories.length - 1);
     if (metricUpdated) metricUpdated.textContent = latest ? fmtHHMM(latest) : "—";
@@ -1394,7 +1428,7 @@ ${restUrl}
               <a class="agt-linkbtn" href="${origin}/pvhot-skill/SKILL.md" download rel="noopener">⬇ 下载 SKILL.md</a>
               <a class="agt-linkbtn" href="${origin}/pvhot-skill/install.sh" target="_blank" rel="noopener">查看安装脚本</a>
               <a class="agt-linkbtn" href="${origin}/pvhot-skill/install.sh" download rel="noopener">⬇ 下载 install.sh</a>
-              <a class="agt-linkbtn" href="https://github.com/1919508399/add" target="_blank" rel="noopener">GitHub 来源</a>
+              <a class="agt-linkbtn" href="https://github.com/1919508399/PVHOT" target="_blank" rel="noopener">GitHub 来源</a>
             </div>
           </div>
 
@@ -1943,6 +1977,22 @@ ${restUrl}
       console.warn("[PV-HOT] 已回退到内嵌数据（fetch 失败）");
     }
   };
+
+  const upgradeToFullData = (json) => {
+    DATA = json;
+    preprocessData(DATA);
+    ensureDerived(DATA.items);
+    document.documentElement.dataset.fullData = "ready";
+    renderMeta();
+    renderHero();
+    // 精选首屏已经包含完整当天数据，不重复重绘，避免用户阅读时页面跳动。
+    // 其它数据型视图若已被打开，则就地补齐近 7 天数据。
+    if (["all", "daily", "fav"].includes(state.view)) {
+      renderCatnav();
+      renderFeed();
+    }
+  };
+
   function loadFallbackData() {
     if (window.__PV_FALLBACK_DATA) return Promise.resolve(window.__PV_FALLBACK_DATA);
     return new Promise((resolve, reject) => {
@@ -1954,15 +2004,45 @@ ${restUrl}
     });
   }
 
+  const DATA_CACHE_TAG = "20260727-v55";
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  const slowConnection = Boolean(
+    connection && (connection.saveData || /(^|-)2g$/.test(connection.effectiveType || ""))
+  );
+  const preferBootstrap = window.matchMedia("(max-width: 900px)").matches || slowConnection;
+  const bootstrapUrl = `data_bootstrap.json?v=${DATA_CACHE_TAG}`;
+
+  const fetchJson = (url, priority = "auto") => fetch(url, {
+    cache: "default",
+    credentials: "same-origin",
+    priority,
+  }).then(r => {
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return r.json();
+  });
+
   const liveData = location.protocol === "file:"
     ? Promise.reject(new Error("file 协议使用兜底数据"))
-    : fetch("data.json").then(r => {
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        return r.json();
-      });
+    : (preferBootstrap
+      ? fetchJson(bootstrapUrl, "high")
+          .then(json => ({ json, bootstrap: true }))
+          .catch(() => fetchJson("data.json", "high").then(json => ({ json, bootstrap: false })))
+      : fetchJson("data.json", "high").then(json => ({ json, bootstrap: false })));
 
   liveData
-    .then(json => useData(json, false))
+    .then(({ json, bootstrap }) => {
+      useData(json, false);
+      if (!bootstrap) {
+        document.documentElement.dataset.fullData = "ready";
+        return;
+      }
+      // 首屏完成后在后台拉取完整近 7 天数据，切换“全部/日报”时无需再次等待。
+      setTimeout(() => {
+        fetchJson("data.json", "low")
+          .then(upgradeToFullData)
+          .catch(err => console.warn("[PV-HOT] 完整数据后台加载失败：", err.message));
+      }, 0);
+    })
     .catch(err => loadFallbackData()
       .then(json => {
         console.warn("[PV-HOT] 实时数据不可用，已加载兜底数据：", err.message);
@@ -1982,7 +2062,7 @@ ${restUrl}
       }
     };
     if (window.__PV_FALLBACK_TEXTS) { apply(window.__PV_FALLBACK_TEXTS); return; }
-    fetch("site_texts.json?v=20260726-v52", { cache:"no-store" })
+    fetch(`site_texts.json?v=${DATA_CACHE_TAG}`, { cache:"default" })
       .then(r => { if (!r.ok) throw 0; return r.json(); })
       .then(t => apply(t))
       .catch(() => apply(DEFAULT_TEXTS));

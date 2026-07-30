@@ -17,6 +17,8 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { atomicWriteJsonSync, atomicWriteUtf8Sync } = require('./lib/safe_io');
+const { withProcessLock, withProcessLockSync } = require('./lib/process_lock');
 const {
   REGISTRY_VERSION,
   TOPIC_QUERIES,
@@ -35,6 +37,18 @@ const CACHE_FILE = path.join(ROOT, 'translate_cache.json');
 const ARTICLE_CACHE_FILE = path.join(ROOT, 'article_cache.json');
 const SOURCE_HEALTH_FILE = path.join(ROOT, 'source_health.json');
 const RSSHUB_BASE = 'http://127.0.0.1:1200';
+const NEWS_LOCK_OPTIONS = {
+  root: ROOT,
+  name: 'pvhot-news-fetch',
+  timeoutMs: Number(process.env.PVHOT_NEWS_LOCK_TIMEOUT_MS || 30_000),
+  staleMs: Number(process.env.PVHOT_NEWS_LOCK_STALE_MS || 45 * 60_000),
+};
+const DATA_LOCK_OPTIONS = {
+  root: ROOT,
+  name: 'pvhot-data-write',
+  timeoutMs: Number(process.env.PVHOT_DATA_LOCK_TIMEOUT_MS || 60_000),
+  staleMs: Number(process.env.PVHOT_DATA_LOCK_STALE_MS || 15 * 60_000),
+};
 
 // 分类 -> 关键词（中英文，命中即归此类）
 // 顺序敏感：优先匹配「政策」「价格」等跨产业链维度，再匹配具体环节。
@@ -362,6 +376,8 @@ function stripHtml(s) {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&apos;/g, "'")
+    .replace(/&mdash;/gi, '—')
+    .replace(/&ndash;/gi, '–')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -380,7 +396,11 @@ function loadCache() {
   try { return JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8')); } catch (e) { return {}; }
 }
 function saveCache() {
-  try { fs.writeFileSync(CACHE_FILE, JSON.stringify(CACHE)); } catch (e) {}
+  try {
+    atomicWriteJsonSync(CACHE_FILE, CACHE, {
+      validate: (value) => value && typeof value === 'object' && !Array.isArray(value),
+    });
+  } catch (e) {}
 }
 
 /* ---------- 翻译：Google gtx（无限额）+ MyMemory 兜底 ---------- */
@@ -429,7 +449,42 @@ function translate(text) {
   });
 }
 
-/* ---------- 通用 URL 抓取（跟随 30x 重定向，返回 body 字符串）---------- */
+function isMojibake(value) {
+  const text = String(value || '');
+  if (!text) return false;
+  const replacements = (text.match(/\uFFFD/g) || []).length;
+  if (replacements >= 2 || replacements / text.length > 0.015) return true;
+  if (/(?:锟斤拷|烫烫烫|屯屯屯|Ã.|Â.|â€|ï¿½){2,}/.test(text)) return true;
+  return false;
+}
+
+function decodeResponseBuffer(buffer, headers) {
+  if (!buffer || !buffer.length) return '';
+  const contentType = String(headers?.['content-type'] || '');
+  const headAscii = buffer.subarray(0, Math.min(buffer.length, 8192)).toString('ascii');
+  const charsetMatch = contentType.match(/charset\s*=\s*["']?([\w-]+)/i)
+    || headAscii.match(/<meta[^>]+charset\s*=\s*["']?([\w-]+)/i)
+    || headAscii.match(/<meta[^>]+content=["'][^"']*charset=([\w-]+)/i);
+  const declared = String(charsetMatch?.[1] || '').toLowerCase();
+  const isChineseLegacy = /^(?:gbk|gb2312|gb18030|cp936)$/.test(declared);
+  const encoding = isChineseLegacy ? 'gb18030' : (declared || 'utf-8');
+  try {
+    const decoded = new TextDecoder(encoding).decode(buffer);
+    if (!isMojibake(decoded) || isChineseLegacy) return decoded;
+  } catch (e) {}
+  const utf8 = new TextDecoder('utf-8').decode(buffer);
+  if (!isMojibake(utf8)) return utf8;
+  try {
+    const gb = new TextDecoder('gb18030').decode(buffer);
+    return (gb.match(/[\u4e00-\u9fff]/g) || []).length > (utf8.match(/[\u4e00-\u9fff]/g) || []).length
+      ? gb
+      : utf8;
+  } catch (e) {
+    return utf8;
+  }
+}
+
+/* ---------- 通用 URL 抓取（跟随 30x 重定向，按声明字符集解码）---------- */
 function fetchURL(url, useHTTP, timeout) {
   const reqTimeout = timeout || 15000;
   function tryGet(u, redirects) {
@@ -450,10 +505,9 @@ function fetchURL(url, useHTTP, timeout) {
           return resolve(tryGet(next, redirects + 1));
         }
         if (res.statusCode !== 200) { res.resume(); return resolve(''); }
-        let buf = '';
-        res.setEncoding('utf8');
-        res.on('data', (c) => (buf += c));
-        res.on('end', () => resolve(buf));
+        const chunks = [];
+        res.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+        res.on('end', () => resolve(decodeResponseBuffer(Buffer.concat(chunks), res.headers)));
       });
       req.on('error', (e) => { console.error('fetchURL error: ' + u.slice(0,60) + ' -> ' + (e.message||e)); resolve(''); });
       req.setTimeout(reqTimeout, () => { req.destroy(); resolve(''); });
@@ -468,7 +522,11 @@ let ARTICLE_CACHE = (() => {
 })();
 
 function saveArticleCache() {
-  try { fs.writeFileSync(ARTICLE_CACHE_FILE, JSON.stringify(ARTICLE_CACHE), 'utf8'); } catch (e) {}
+  try {
+    atomicWriteJsonSync(ARTICLE_CACHE_FILE, ARTICLE_CACHE, {
+      validate: (value) => value && typeof value === 'object' && !Array.isArray(value),
+    });
+  } catch (e) {}
 }
 
 function decodeHtmlText(value) {
@@ -616,7 +674,8 @@ function extractArticleDetails(html, url, title, fallbackSummary) {
     extractMetaContent(html, ['og:image:secure_url', 'og:image', 'twitter:image', 'twitter:image:src']),
     url
   );
-  const summary = summarizeArticleText(body, description || fallbackSummary, title, detectLang(title) === 'zh' ? 300 : 650);
+  const summaryCandidate = summarizeArticleText(body, description || fallbackSummary, title, detectLang(title) === 'zh' ? 300 : 650);
+  const summary = isMojibake(summaryCandidate) ? '' : summaryCandidate;
   if (!summary && !image) return null;
   return { articleUrl: url, summary, image, fetchedAt: new Date().toISOString() };
 }
@@ -720,7 +779,11 @@ async function enrichArticleCandidates(items, log) {
   let detailed = 0;
   await mapLimit(candidates, 4, async (it) => {
     const key = crypto.createHash('sha1').update(it.link || it.title).digest('hex');
-    const cached = ARTICLE_CACHE[key];
+    let cached = ARTICLE_CACHE[key];
+    if (cached && isMojibake(cached.summary)) {
+      delete ARTICLE_CACHE[key];
+      cached = null;
+    }
     if (cached && now - new Date(cached.fetchedAt || 0).getTime() < 7 * 86400000) {
       if (cached.summary && cached.summary.length > (it.summary || '').length) it.summary = cached.summary;
       if (cached.image) it.image = cached.image;
@@ -981,7 +1044,10 @@ function stripTrailingSource(s) {
 
 /* ---------- 卡片短总结：正文级、完整句、约 120-300 字 ---------- */
 function buildBody(it) {
-  let real = stripTrailingSource(((it && (it.summary_cn || (it.lang === 'zh' ? it.summary : ''))) || '').replace(/\s+/g, ' ').trim());
+  const rawSummary = ((it && (it.summary_cn || (it.lang === 'zh' ? it.summary : ''))) || '');
+  let real = isMojibake(rawSummary)
+    ? ''
+    : stripTrailingSource(rawSummary.replace(/\s+/g, ' ').trim());
   const category = (it && (it.cat || it.category)) || '光伏行业';
   const contextClose = `该进展涉及${category}领域，后续仍需关注项目规模、执行时间与官方披露。`;
   // 清理可能残留的 [YYYY-MM-DD] 日期前缀
@@ -1023,7 +1089,8 @@ const REASON_CAT_MAP = {
   '储能': '光储耦合', '电站': '电站 EPC 与招标', '行情': '市场行情与产能',
 };
 function buildReason(it) {
-  const sum = ((it && it.summary_cn) || '').replace(/\s+/g, ' ').trim();
+  const rawSummary = ((it && it.summary_cn) || '');
+  const sum = isMojibake(rawSummary) ? '' : rawSummary.replace(/\s+/g, ' ').trim();
   const title = ((it && (it.title_cn || it.title)) || '').replace(/\s+/g, ' ').trim();
   const cat = (it && (it.cat || it.category)) || '行情';
   const text = title + ' ' + sum;
@@ -1243,14 +1310,17 @@ function writeSourceHealth({ gnewsResults, rssResults, scrapeResults, rsshubResu
     },
   };
   try {
-    fs.writeFileSync(SOURCE_HEALTH_FILE, JSON.stringify(report, null, 2));
+    atomicWriteJsonSync(SOURCE_HEALTH_FILE, report, {
+      space: 2,
+      validate: (value) => value && Array.isArray(value.sources),
+    });
   } catch (e) {
     console.error('source health write error:', e.message);
   }
   return report;
 }
 
-async function main() {
+async function runMain() {
   const log = (msg) => {
     const line = '[' + new Date().toISOString() + '] ' + msg;
     console.log(line); fs.appendFileSync(LOG, line + '\n');
@@ -1450,7 +1520,7 @@ async function main() {
       link: it.link,
       googleNewsUrl: it.googleNewsUrl || '',
       summary: buildBody(it),
-      summary_cn: it.summary_cn || '',
+      summary_cn: isMojibake(it.summary_cn) ? '' : (it.summary_cn || ''),
       reason: buildReason(it),
       category: cat,
       lang: it.lang || 'zh',
@@ -1467,7 +1537,10 @@ async function main() {
       author: it.author || "",
       avatar: it.avatar || "",
       image: normalizeArticleImage(it.image, it.link),
-      summaryMode: ((it.summary_cn || (it.lang === 'zh' ? it.summary : '') || '').length >= 45) ? 'article' : 'headline',
+      summaryMode: (
+        !isMojibake(it.summary_cn || (it.lang === 'zh' ? it.summary : ''))
+        && (it.summary_cn || (it.lang === 'zh' ? it.summary : '') || '').length >= 45
+      ) ? 'article' : 'headline',
       related: [],
     };
     const scoreDetails = computeScoreDetails({ ...obj, _sourceCount: sourceCount });
@@ -1512,15 +1585,20 @@ async function main() {
   // 价格抓取已独立到 fetch_prices.js（每天 7am cron），fetch_pv_news.js 不再抓取价格
   // 但需要保留 data_raw.json 中已有的 prices 字段（由 fetch_prices.js 每日 7am 更新）
   // 否则每次覆盖 data_raw.json 时会丢掉 prices，导致前端价格面板空白
-  let existingPrices = null;
-  try {
-    const oldRaw = JSON.parse(fs.readFileSync(OUT, 'utf8'));
-    if (oldRaw && oldRaw.prices) existingPrices = oldRaw.prices;
-  } catch (e) { /* 首次运行无旧文件 */ }
+  withProcessLockSync(DATA_LOCK_OPTIONS, () => {
+    let existingPrices = null;
+    try {
+      const oldRaw = JSON.parse(fs.readFileSync(OUT, 'utf8'));
+      if (oldRaw && oldRaw.prices) existingPrices = oldRaw.prices;
+    } catch (e) { /* 首次运行无旧文件 */ }
 
-  const out = { meta, categories, items, prices: existingPrices };
-  fs.writeFileSync(OUT, JSON.stringify(out, null, 2), 'utf8');
-  log('OK wrote ' + items.length + ' items' + (existingPrices ? ' + existing prices' : ' (no prices yet)') + ' -> ' + OUT + ' (merge.js 将生成 data.json)');
+    const out = { meta, categories, items, prices: existingPrices };
+    atomicWriteJsonSync(OUT, out, {
+      space: 2,
+      validate: (value) => value && Array.isArray(value.items) && Array.isArray(value.categories),
+    });
+    log('OK wrote ' + items.length + ' items' + (existingPrices ? ' + existing prices' : ' (no prices yet)') + ' -> ' + OUT + ' (merge.js 将生成 data.json)');
+  });
 
   // 同步把 site_texts.json 包成 site_texts_fallback.js
   try {
@@ -1529,12 +1607,16 @@ async function main() {
       const t = JSON.parse(fs.readFileSync(TEXTS, 'utf8'));
       const fb = '// 由 fetch_pv_news.js 自动生成，与 site_texts.json 同步\n'
         + 'window.SITE_TEXTS = ' + JSON.stringify(t, null, 2) + ';\n';
-      fs.writeFileSync(path.join(ROOT, 'site_texts_fallback.js'), fb, 'utf8');
+      atomicWriteUtf8Sync(path.join(ROOT, 'site_texts_fallback.js'), fb);
       log('OK wrote site_texts_fallback.js');
     } else {
       log('WARN: site_texts.json 不存在，跳过 fallback 写入');
     }
   } catch (e) { log('WARN site_texts_fallback: ' + e.message); }
+}
+
+async function main() {
+  return withProcessLock(NEWS_LOCK_OPTIONS, runMain);
 }
 
 if (require.main === module) {
@@ -1552,4 +1634,6 @@ module.exports = {
   buildBody,
   computeScoreDetails,
   beijingDateKey,
+  decodeResponseBuffer,
+  isMojibake,
 };

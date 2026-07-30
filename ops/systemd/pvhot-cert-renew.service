@@ -1,0 +1,18 @@
+[Unit]
+Description=Renew PVHOT TLS certificate and reload Nginx when changed
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/certbot renew --quiet --webroot --webroot-path /var/www/pvhot/shared/acme --deploy-hook "/usr/bin/systemctl reload nginx"
+TimeoutStartSec=30min
+Nice=10
+
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths=/etc/letsencrypt /var/lib/letsencrypt /var/log/letsencrypt /var/www/pvhot/shared/acme

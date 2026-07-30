@@ -1,0 +1,12 @@
+[Unit]
+Description=Run the PVHOT news pipeline hourly
+
+[Timer]
+OnCalendar=*-*-* *:05:00 Asia/Shanghai
+Persistent=true
+RandomizedDelaySec=2min
+AccuracySec=30s
+Unit=pvhot-fetch.service
+
+[Install]
+WantedBy=timers.target

@@ -1599,6 +1599,13 @@ button, a { -webkit-tap-highlight-color: transparent; }
   color: var(--ink-2);
   font-size: 12px;
 }
+.il-head small {
+  display: none;
+  margin-left: auto;
+  color: var(--emerald);
+  font-size: 10.5px;
+  font-weight: 700;
+}
 .il-head span {
   width: 7px; height: 7px; border-radius: 50%;
   background: var(--emerald);
@@ -1622,6 +1629,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .il-row em { width: 82px; }
 @keyframes pvhot-loading { to { background-position: -220% 0; } }
 @media (prefers-reduced-motion: reduce) { .il-row i, .il-row span, .il-row em { animation: none; } }
+@media (max-width: 900px) { .il-head small { display: inline; } }
 
 /* 热点榜与区块标题 */
 .block { margin-top: 8px; }

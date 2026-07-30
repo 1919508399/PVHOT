@@ -1,0 +1,30 @@
+* text=auto
+
+*.js text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.xml text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+*.conf text eol=lf
+*.service text eol=lf
+*.timer text eol=lf
+*.env.example text eol=lf
+ops/sudoers/* text eol=lf
+ops/logrotate/* text eol=lf
+*.bat text eol=crlf
+.editorconfig text eol=lf
+.gitignore text eol=lf
+.nvmrc text eol=lf
+robots.txt text eol=lf
+
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.gif binary
+*.webp binary
+*.ico binary

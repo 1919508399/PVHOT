@@ -1,0 +1,45 @@
+[Unit]
+Description=PVHOT admin and public API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pvhot
+Group=pvhot
+WorkingDirectory=/var/www/pvhot/current
+Environment=NODE_ENV=production
+Environment=PVHOT_ROOT=/var/www/pvhot/current
+Environment=PVHOT_LOCK_DIR=/var/www/pvhot/shared/run/locks
+Environment=PVHOT_ADMIN_HOST=127.0.0.1
+Environment=PVHOT_ADMIN_PORT=8777
+Environment=PVHOT_NODE=/usr/bin/node
+EnvironmentFile=-/etc/pvhot/pvhot-common.env
+EnvironmentFile=-/etc/pvhot/pvhot-admin.env
+ExecStartPre=/usr/bin/test -L /var/www/pvhot/current
+ExecStartPre=/usr/bin/test -r /var/www/pvhot/current/admin_server.js
+ExecStart=/usr/bin/node /var/www/pvhot/current/admin_server.js
+Restart=on-failure
+RestartSec=3s
+TimeoutStartSec=30s
+TimeoutStopSec=20s
+KillSignal=SIGTERM
+UMask=0007
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/www/pvhot/shared
+
+[Install]
+WantedBy=multi-user.target

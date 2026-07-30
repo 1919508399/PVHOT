@@ -11,11 +11,25 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
+const { atomicWriteJsonSync } = require('./lib/safe_io');
+const { withProcessLock, withProcessLockSync } = require('./lib/process_lock');
 
-const ROOT = '/var/www/pvhot';
+const ROOT = process.env.PVHOT_ROOT || '/var/www/pvhot';
 const RAW = path.join(ROOT, 'data_raw.json');
 const LOG = path.join(ROOT, 'fetch.log');
+const PRICE_LOCK_OPTIONS = {
+  root: ROOT,
+  name: 'pvhot-price-fetch',
+  timeoutMs: Number(process.env.PVHOT_PRICE_LOCK_TIMEOUT_MS || 30_000),
+  staleMs: Number(process.env.PVHOT_PRICE_LOCK_STALE_MS || 20 * 60_000),
+};
+const DATA_LOCK_OPTIONS = {
+  root: ROOT,
+  name: 'pvhot-data-write',
+  timeoutMs: Number(process.env.PVHOT_DATA_LOCK_TIMEOUT_MS || 60_000),
+  staleMs: Number(process.env.PVHOT_DATA_LOCK_STALE_MS || 15 * 60_000),
+};
 const INFOLINK_PV_URL = 'https://www.infolink-group.com/spot-price/cn/';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
@@ -218,7 +232,7 @@ async function fetchInfolinkPrices() {
 }
 
 /* ---------- 主流程 ---------- */
-async function main() {
+async function runMain() {
   log('START fetch_prices.js (InfoLink spot prices, daily 7am)');
 
   // 1. 抓取 InfoLink 价格
@@ -231,28 +245,41 @@ async function main() {
     return;
   }
 
-  // 2. 读取现有 data_raw.json，更新 prices 字段
-  let raw = {};
-  try {
-    raw = JSON.parse(fs.readFileSync(RAW, 'utf8'));
-  } catch (e) {
-    log('WARN cannot read data_raw.json: ' + e.message + ' (will create minimal structure)');
-    raw = { meta: {}, categories: [], items: [] };
-  }
+  // 2-3. 锁住 read-modify-write，避免与新闻抓取互相覆盖 data_raw.json。
+  // 写完立即释放；merge.js 会自行获取同一把锁，避免父子进程嵌套死锁。
+  withProcessLockSync(DATA_LOCK_OPTIONS, () => {
+    let raw = {};
+    try {
+      raw = JSON.parse(fs.readFileSync(RAW, 'utf8'));
+    } catch (e) {
+      log('WARN cannot read data_raw.json: ' + e.message + ' (will create minimal structure)');
+      raw = { meta: {}, categories: [], items: [] };
+    }
 
-  raw.prices = prices;
-
-  // 3. 写回 data_raw.json
-  fs.writeFileSync(RAW, JSON.stringify(raw, null, 2), 'utf8');
-  log('OK updated prices in data_raw.json');
+    raw.prices = prices;
+    atomicWriteJsonSync(RAW, raw, {
+      space: 2,
+      validate: (value) => value && Array.isArray(value.items) && Array.isArray(value.categories),
+    });
+    log('OK updated prices in data_raw.json');
+  });
 
   // 4. 运行 merge.js 重新生成 data.json + data_fallback.js
   try {
-    execSync('node ' + path.join(ROOT, 'merge.js'), { cwd: ROOT, stdio: 'pipe', timeout: 30000 });
+    execFileSync(process.execPath, [path.join(ROOT, 'merge.js')], {
+      cwd: ROOT,
+      env: { ...process.env, PVHOT_ROOT: ROOT },
+      stdio: 'pipe',
+      timeout: 30000,
+    });
     log('OK merge.js completed (data.json + data_fallback.js updated with prices)');
   } catch (e) {
     log('ERR merge.js: ' + e.message);
   }
+}
+
+async function main() {
+  return withProcessLock(PRICE_LOCK_OPTIONS, runMain);
 }
 
 main().catch((e) => {

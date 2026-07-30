@@ -1,0 +1,12 @@
+[Unit]
+Description=Check PVHOT TLS renewal twice daily
+
+[Timer]
+OnCalendar=*-*-* 00,12:00:00
+Persistent=true
+RandomizedDelaySec=30min
+AccuracySec=5min
+Unit=pvhot-cert-renew.service
+
+[Install]
+WantedBy=timers.target

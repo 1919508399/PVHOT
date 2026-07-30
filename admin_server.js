@@ -8,6 +8,11 @@ const path = require('path');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { merge } = require('./merge.js');
+const {
+  atomicWriteBufferSync,
+  atomicWriteJsonSync,
+  atomicWriteUtf8Sync,
+} = require('./lib/safe_io');
 
 const ROOT = process.env.PVHOT_ROOT || '/var/www/pvhot';
 const PORT = Number(process.env.PVHOT_ADMIN_PORT || 8777);
@@ -35,7 +40,10 @@ function loadStats() {
   try { return JSON.parse(fs.readFileSync(STATS_FILE, 'utf8')); }
   catch (e) { return { days: {}, total: { pv: 0, uv: 0, ips: [] } }; }
 }
-function saveStats(s) { try { fs.writeFileSync(STATS_FILE, JSON.stringify(s)); } catch (e) { console.error('[stats] save error', e); } }
+function saveStats(s) {
+  try { atomicWriteJsonSync(STATS_FILE, s); }
+  catch (e) { console.error('[stats] save error', e); }
+}
 function recordVisit(ip, path, referrer) {
   const s = loadStats();
   const dk = todayKey();
@@ -150,6 +158,46 @@ function getSystemStatus() {
   status.refreshStartedAt = refreshStartedAt;
   return status;
 }
+
+function getPublicHealth() {
+  const now = Date.now();
+  let data = null;
+  let dataStat = null;
+  let dataError = null;
+  try {
+    data = JSON.parse(fs.readFileSync(DATA, 'utf8'));
+    dataStat = fs.statSync(DATA);
+    if (!data || !Array.isArray(data.items)) throw new TypeError('data.items must be an array');
+  } catch (error) {
+    dataError = error.message;
+  }
+
+  let release = {};
+  try {
+    release = JSON.parse(fs.readFileSync(path.join(ROOT, 'release.json'), 'utf8'));
+  } catch (error) {}
+
+  const dataAgeSeconds = dataStat
+    ? Math.max(0, Math.round((now - dataStat.mtimeMs) / 1000))
+    : null;
+  return {
+    ok: !dataError,
+    status: dataError ? 'unhealthy' : (dataAgeSeconds > 2 * 3600 ? 'degraded' : 'ok'),
+    service: 'pvhot-admin',
+    release: release.gitSha || release.sha || process.env.PVHOT_RELEASE_SHA || 'unversioned',
+    startedAt: new Date(now - process.uptime() * 1000).toISOString(),
+    uptimeSeconds: Math.round(process.uptime()),
+    data: {
+      items: data && data.items.length || 0,
+      updatedAt: data && (data.updated || data.meta?.updated) || null,
+      fileModifiedAt: dataStat ? dataStat.mtime.toISOString() : null,
+      ageSeconds: dataAgeSeconds,
+      fresh: dataAgeSeconds !== null && dataAgeSeconds <= 2 * 3600,
+    },
+    error: dataError,
+    checkedAt: new Date(now).toISOString(),
+  };
+}
 const COOKIE = 'pvhot_sid';
 const TTL = 3600 * 1000 * 8; // 8h
 
@@ -252,7 +300,7 @@ async function getBodyOrReject(req, res) {
 function loadEdits() {
   try { return JSON.parse(fs.readFileSync(EDITS, 'utf8')); } catch (e) { return { deleted: [], overrides: {}, added: [] }; }
 }
-function saveEdits(e) { fs.writeFileSync(EDITS, JSON.stringify(e, null, 2)); }
+function saveEdits(e) { atomicWriteJsonSync(EDITS, e, { space: 2, trailingNewline: true }); }
 function loadData() {
   try { return JSON.parse(fs.readFileSync(DATA, 'utf8')); } catch (e) { return { meta: {}, categories: [], items: [] }; }
 }
@@ -385,8 +433,24 @@ const server = http.createServer(async (req, res) => {
   }
 
   /* ---------- 公共：健康检查（部署脚本使用，无副作用，不写文件） ---------- */
-  if ((p === '/api/ping' || p === '/api/healthz') && (method === 'GET' || method === 'HEAD')) {
-    send(res, 200, { ok: true, ts: Date.now(), svc: "pvhot-admin" });
+  if (p === '/api/ping' && (method === 'GET' || method === 'HEAD')) {
+    if (method === 'HEAD') {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end();
+      return;
+    }
+    send(res, 200, { ok: true, ts: Date.now(), service: 'pvhot-admin' }, { 'Cache-Control': 'no-store' });
+    return;
+  }
+  if (p === '/api/healthz' && (method === 'GET' || method === 'HEAD')) {
+    const health = getPublicHealth();
+    const statusCode = health.ok ? 200 : 503;
+    if (method === 'HEAD') {
+      res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end();
+      return;
+    }
+    send(res, statusCode, health, { 'Cache-Control': 'no-store' });
     return;
   }
 
@@ -524,7 +588,8 @@ const server = http.createServer(async (req, res) => {
     list.unshift(item);
     // 最多保留 1000 条
     if (list.length > 1000) list = list.slice(0, 1000);
-    try { fs.writeFileSync(FEEDBACK_FILE, JSON.stringify(list, null, 2)); } catch (e) { send(res, 500, { error: '写入失败' }); return; }
+    try { atomicWriteJsonSync(FEEDBACK_FILE, list, { space: 2, trailingNewline: true }); }
+    catch (e) { send(res, 500, { error: '写入失败' }); return; }
     console.log('[fb] from', ip, 'len', msg.length, 'email?', !!email);
     send(res, 200, { ok: true, id: item.id });
     return;
@@ -585,18 +650,18 @@ const server = http.createServer(async (req, res) => {
     let t;
     try { t = JSON.parse(fs.readFileSync(TEXTS_FILE, 'utf8')); } catch (e) { t = { about: {}, agent: {}, changelog: { items: [] } }; }
     t[key] = body.value !== undefined ? body.value : body;
-    try { fs.writeFileSync(TEXTS_FILE, JSON.stringify(t, null, 2)); }
+    try { atomicWriteJsonSync(TEXTS_FILE, t, { space: 2, trailingNewline: true }); }
     catch (e) { send(res, 500, { error: '写入失败：' + e.message }); return; }
     // 同步重写 fallback（供 file:// 打开）
     try {
       const fb = '// 由 admin_server.js 同步自 site_texts.json\nwindow.SITE_TEXTS = ' + JSON.stringify(t, null, 2) + ';\n';
-      fs.writeFileSync(path.join(ROOT, 'site_texts_fallback.js'), fb, 'utf8');
+      atomicWriteUtf8Sync(path.join(ROOT, 'site_texts_fallback.js'), fb);
     } catch (e) {}
     // agent 保存时，若有 skill_md 则同步重写线上 SKILL.md（让其他 Agent 能装）
     if (key === 'agent' && body.value && typeof body.value.skill_md === 'string') {
       try {
         fs.mkdirSync(path.join(ROOT, 'pvhot-skill'), { recursive: true });
-        fs.writeFileSync(path.join(ROOT, 'pvhot-skill', 'SKILL.md'), body.value.skill_md, 'utf8');
+        atomicWriteUtf8Sync(path.join(ROOT, 'pvhot-skill', 'SKILL.md'), body.value.skill_md);
       } catch (e) { /* 不影响主保存 */ }
     }
     send(res, 200, { ok: true, key });
@@ -620,7 +685,8 @@ const server = http.createServer(async (req, res) => {
     if (idx < 0) { send(res, 404, { error: 'not found' }); return; }
     if (method === 'DELETE') {
       list.splice(idx, 1);
-      try { fs.writeFileSync(FEEDBACK_FILE, JSON.stringify(list, null, 2)); } catch (e) { send(res, 500, { error: '写入失败' }); return; }
+      try { atomicWriteJsonSync(FEEDBACK_FILE, list, { space: 2, trailingNewline: true }); }
+      catch (e) { send(res, 500, { error: '写入失败' }); return; }
       send(res, 200, { ok: true, deleted: id });
       return;
     }
@@ -628,7 +694,8 @@ const server = http.createServer(async (req, res) => {
     const body = await getBodyOrReject(req, res); if (!body) return;
     if (typeof body.read === 'boolean') list[idx].read = body.read;
     if (typeof body.note === 'string') list[idx].note = body.note.slice(0, 2000);
-    try { fs.writeFileSync(FEEDBACK_FILE, JSON.stringify(list, null, 2)); } catch (e) { send(res, 500, { error: '写入失败' }); return; }
+    try { atomicWriteJsonSync(FEEDBACK_FILE, list, { space: 2, trailingNewline: true }); }
+    catch (e) { send(res, 500, { error: '写入失败' }); return; }
     send(res, 200, { ok: true, item: list[idx] });
     return;
   }
@@ -644,7 +711,7 @@ const server = http.createServer(async (req, res) => {
     const buf = Buffer.from(m[2], 'base64');
     if (buf.length === 0) { send(res, 400, { error: '内容为空' }); return; }
     if (buf.length > 3 * 1024 * 1024) { send(res, 400, { error: '图片不能超过 3MB' }); return; }
-    try { fs.writeFileSync(QRCODE_FILE, buf); }
+    try { atomicWriteBufferSync(QRCODE_FILE, buf); }
     catch (e) { send(res, 500, { error: '写入失败：' + e.message }); return; }
     const st = fs.statSync(QRCODE_FILE);
     send(res, 200, { ok: true, size: st.size, mtime: st.mtimeMs, file: 'qrcode.png' });

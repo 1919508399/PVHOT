@@ -10,6 +10,8 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 const crypto = require('crypto');
+const { atomicWriteJsonSync } = require('./lib/safe_io');
+const { withProcessLock } = require('./lib/process_lock');
 const {
   REGISTRY_VERSION,
   WECHAT_ACCOUNTS,
@@ -20,6 +22,12 @@ const ROOT = process.env.PVHOT_ROOT || '/var/www/pvhot';
 const MAX_PER_QUERY = 12;
 const OUTPUT_PATH = `${ROOT}/wechat_items.json`;
 const FRESH_DAYS = 7;
+const WECHAT_LOCK_OPTIONS = {
+  root: ROOT,
+  name: 'pvhot-wechat-fetch',
+  timeoutMs: Number(process.env.PVHOT_WECHAT_LOCK_TIMEOUT_MS || 30_000),
+  staleMs: Number(process.env.PVHOT_WECHAT_LOCK_STALE_MS || 45 * 60_000),
+};
 const ACCOUNT_BATCH_SIZE = Math.max(1, Math.min(16, Number(process.env.PVHOT_WECHAT_ACCOUNT_BATCH || 8)));
 const TOPIC_BATCH_SIZE = Math.max(1, Math.min(WECHAT_TOPIC_QUERIES.length, Number(process.env.PVHOT_WECHAT_TOPIC_BATCH || 4)));
 
@@ -214,7 +222,7 @@ async function searchWechat(keyword, page, targetAccount = null) {
   };
 }
 
-async function main() {
+async function runMain() {
   console.log('[wechat] START Puppeteer WeChat search');
   
   const browser = await puppeteer.launch({
@@ -367,8 +375,18 @@ async function main() {
     items: deduped
   };
   
-  fs.writeFileSync(OUTPUT_PATH, JSON.stringify(output, null, 2));
+  atomicWriteJsonSync(OUTPUT_PATH, output, {
+    space: 2,
+    validate: (value) =>
+      value
+      && Array.isArray(value.items)
+      && Number(value.count) === value.items.length,
+  });
   console.log(`[wechat] OK registry=${REGISTRY_VERSION} monitored=${WECHAT_ACCOUNTS.length} queried=${queriedAccounts.length} wrote=${deduped.length} -> ${OUTPUT_PATH}`);
+}
+
+async function main() {
+  return withProcessLock(WECHAT_LOCK_OPTIONS, runMain);
 }
 
 main().catch(e => {

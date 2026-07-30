@@ -1,0 +1,11 @@
+[Unit]
+Description=Submit PVHOT URLs to Baidu every morning
+
+[Timer]
+OnCalendar=*-*-* 06:00:00 Asia/Shanghai
+Persistent=true
+AccuracySec=1min
+Unit=pvhot-baidu-push.service
+
+[Install]
+WantedBy=timers.target

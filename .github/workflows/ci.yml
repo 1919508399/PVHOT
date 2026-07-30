@@ -1,0 +1,231 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PUPPETEER_SKIP_DOWNLOAD: "true"
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Validate repository
+        run: npm run check
+      - name: Validate deployment shell
+        run: bash -n ops/deploy.sh ops/rollback.sh scripts/remote-deploy.sh
+      - name: Validate Baidu submission runtime
+        run: python3 -m py_compile bd_push.py
+      - name: Validate production artifact allowlist
+        run: node scripts/build-release.js "${GITHUB_SHA}" "${RUNNER_TEMP}/release-validation"
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run unit tests
+        run: npm test
+
+  smoke:
+    name: Smoke test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run local smoke test
+        run: npm run smoke
+
+  security:
+    name: Secret scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Scan all reachable Git history
+        run: npm run security:history
+
+  deploy:
+    name: Deploy production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - validate
+      - unit
+      - smoke
+      - security
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: https://pvhot.bbroot.com
+    concurrency:
+      group: pvhot-production-${{ github.repository }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      deployments: write
+    env:
+      DEPLOY_HOST: ${{ vars.PVHOT_DEPLOY_HOST }}
+      DEPLOY_PORT: ${{ vars.PVHOT_DEPLOY_PORT || '22' }}
+      DEPLOY_USER: pvhot-deploy
+    steps:
+      - name: Check out exact tested commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+      - name: Build allowlisted release
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          resolved_sha="$(git rev-parse HEAD)"
+          test "${resolved_sha}" = "${GITHUB_SHA}"
+          output_dir="${RUNNER_TEMP}/pvhot-release"
+          node scripts/build-release.js "${GITHUB_SHA}" "${output_dir}"
+          artifact="${output_dir}/pvhot-${GITHUB_SHA}.tar.gz"
+          checksum="${artifact}.sha256"
+          (
+            cd "${output_dir}"
+            sha256sum --check "$(basename "${checksum}")"
+          )
+          printf 'artifact=%s\n' "${artifact}" >>"${GITHUB_OUTPUT}"
+          printf 'checksum=%s\n' "${checksum}" >>"${GITHUB_OUTPUT}"
+      - name: Configure restricted SSH identity
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PVHOT_DEPLOY_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PVHOT_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY}"
+          test -n "${SSH_KNOWN_HOSTS}"
+          test -n "${DEPLOY_HOST}"
+          [[ "${DEPLOY_HOST}" =~ ^[A-Za-z0-9.-]+$ ]]
+          [[ "${DEPLOY_PORT}" =~ ^[0-9]+$ ]]
+          test "${DEPLOY_PORT}" -ge 1
+          test "${DEPLOY_PORT}" -le 65535
+          umask 077
+          mkdir -p "${HOME}/.ssh"
+          printf '%s\n' "${SSH_PRIVATE_KEY}" >"${HOME}/.ssh/pvhot_deploy"
+          printf '%s\n' "${SSH_KNOWN_HOSTS}" >"${HOME}/.ssh/known_hosts"
+          chmod 600 "${HOME}/.ssh/pvhot_deploy" "${HOME}/.ssh/known_hosts"
+          ssh-keygen -y -f "${HOME}/.ssh/pvhot_deploy" >/dev/null
+      - name: Upload, verify and activate release
+        shell: bash
+        env:
+          ARTIFACT: ${{ steps.release.outputs.artifact }}
+          CHECKSUM: ${{ steps.release.outputs.checksum }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current_main_sha="$(
+            gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" \
+              --jq '.object.sha'
+          )"
+          if [[ "${current_main_sha}" != "${GITHUB_SHA}" ]]; then
+            printf 'Refusing stale deployment: main=%s, run=%s\n' \
+              "${current_main_sha}" "${GITHUB_SHA}" >&2
+            exit 1
+          fi
+          destination="${DEPLOY_USER}@${DEPLOY_HOST}"
+          remote_stem="/var/www/pvhot/incoming/.pvhot-${GITHUB_SHA}.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+          ssh_options=(
+            -i "${HOME}/.ssh/pvhot_deploy"
+            -p "${DEPLOY_PORT}"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o ConnectTimeout=15
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=3
+          )
+          scp_options=(
+            -i "${HOME}/.ssh/pvhot_deploy"
+            -P "${DEPLOY_PORT}"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o ConnectTimeout=15
+          )
+          cleanup_remote() {
+            ssh "${ssh_options[@]}" "${destination}" \
+              "rm -f -- '${remote_stem}.tar.gz.part' '${remote_stem}.sha256.part'" \
+              >/dev/null 2>&1 || true
+          }
+          trap cleanup_remote EXIT
+          scp "${scp_options[@]}" \
+            "${ARTIFACT}" "${destination}:${remote_stem}.tar.gz.part"
+          scp "${scp_options[@]}" \
+            "${CHECKSUM}" "${destination}:${remote_stem}.sha256.part"
+          ssh "${ssh_options[@]}" "${destination}" \
+            bash -s -- "${GITHUB_SHA}" "${GITHUB_RUN_ID}" "${GITHUB_RUN_ATTEMPT}" \
+            < scripts/remote-deploy.sh
+          trap - EXIT
+      - name: Remove SSH identity
+        if: always()
+        shell: bash
+        run: rm -f -- "${HOME}/.ssh/pvhot_deploy"
