@@ -34,6 +34,10 @@ class BaiduQuotaExhausted(BaiduPushError):
     """The daily submission quota was already consumed."""
 
 
+class BaiduSiteUnavailable(BaiduPushError):
+    """The configured site is not currently verified by Baidu."""
+
+
 def load_data(root):
     """Load and validate PVHOT data.json from *root*."""
     data_path = Path(root) / "data.json"
@@ -141,6 +145,13 @@ def submit_urls(token, urls, opener=None):
                 raise BaiduQuotaExhausted(
                     "Baidu daily submission quota is already exhausted"
                 ) from None
+            if upstream_code == 400 and upstream_message in {
+                "site error",
+                "site init fail",
+            }:
+                raise BaiduSiteUnavailable(
+                    "Baidu site verification is unavailable"
+                ) from None
             if isinstance(upstream_code, int):
                 raise BaiduPushError(
                     "Baidu API returned HTTP status {} (error code {})".format(
@@ -230,6 +241,9 @@ def run(environ=None, stdout=None, stderr=None, opener=None):
             file=output,
         )
         return 0
+    except BaiduSiteUnavailable as error:
+        print("[bd_push] configuration error: {}".format(error), file=errors)
+        return 2
     except BaiduPushError as error:
         print("[bd_push] push failed: {}".format(error), file=errors)
         return 1

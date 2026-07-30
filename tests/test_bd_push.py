@@ -219,6 +219,42 @@ class BaiduPushTests(unittest.TestCase):
         self.assertEqual(stderr.getvalue(), "")
         self.assertNotIn(token, stdout.getvalue() + stderr.getvalue())
 
+    def test_unverified_site_is_a_sanitized_configuration_error(self):
+        token = "test_unverified_site_token_value"
+        self.write_data([])
+
+        def site_unavailable(request, timeout):
+            self.assertEqual(timeout, bd_push.REQUEST_TIMEOUT_SECONDS)
+            response = io.BytesIO(
+                json.dumps({"error": 400, "message": "site init fail"}).encode(
+                    "utf-8"
+                )
+            )
+            raise urllib.error.HTTPError(
+                request.full_url,
+                400,
+                "Bad Request",
+                {},
+                response,
+            )
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        status = bd_push.run(
+            environ={
+                "PVHOT_ROOT": str(self.root),
+                "PVHOT_BAIDU_TOKEN": token,
+            },
+            stdout=stdout,
+            stderr=stderr,
+            opener=site_unavailable,
+        )
+
+        self.assertEqual(status, 2)
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertIn("site verification is unavailable", stderr.getvalue())
+        self.assertNotIn(token, stdout.getvalue() + stderr.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()
