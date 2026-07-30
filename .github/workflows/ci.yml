@@ -16,7 +16,7 @@ env:
   PUPPETEER_SKIP_DOWNLOAD: "true"
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -39,7 +39,7 @@ jobs:
       - name: Validate repository
         run: npm run check
       - name: Validate deployment shell
-        run: bash -n scripts/remote-deploy.sh
+        run: bash -n ops/deploy.sh ops/rollback.sh scripts/remote-deploy.sh
       - name: Validate Baidu submission runtime
         run: python3 -m py_compile bd_push.py
       - name: Validate production artifact allowlist
@@ -179,8 +179,18 @@ jobs:
         env:
           ARTIFACT: ${{ steps.release.outputs.artifact }}
           CHECKSUM: ${{ steps.release.outputs.checksum }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          current_main_sha="$(
+            gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" \
+              --jq '.object.sha'
+          )"
+          if [[ "${current_main_sha}" != "${GITHUB_SHA}" ]]; then
+            printf 'Refusing stale deployment: main=%s, run=%s\n' \
+              "${current_main_sha}" "${GITHUB_SHA}" >&2
+            exit 1
+          fi
           destination="${DEPLOY_USER}@${DEPLOY_HOST}"
           remote_stem="/var/www/pvhot/incoming/.pvhot-${GITHUB_SHA}.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
           ssh_options=(
