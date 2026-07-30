@@ -30,6 +30,10 @@ class BaiduPushError(RuntimeError):
     """A sanitized failure that is safe to display in service logs."""
 
 
+class BaiduQuotaExhausted(BaiduPushError):
+    """The daily submission quota was already consumed."""
+
+
 def load_data(root):
     """Load and validate PVHOT data.json from *root*."""
     data_path = Path(root) / "data.json"
@@ -125,6 +129,25 @@ def submit_urls(token, urls, opener=None):
         with open_request(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
             body = response.read(MAX_RESPONSE_BYTES + 1)
     except urllib.error.HTTPError as error:
+        try:
+            body = error.read(MAX_RESPONSE_BYTES + 1)
+            result = json.loads(body.decode("utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            result = None
+        if isinstance(result, dict):
+            upstream_code = result.get("error")
+            upstream_message = str(result.get("message") or "").strip().lower()
+            if upstream_code == 400 and upstream_message == "over quota":
+                raise BaiduQuotaExhausted(
+                    "Baidu daily submission quota is already exhausted"
+                ) from None
+            if isinstance(upstream_code, int):
+                raise BaiduPushError(
+                    "Baidu API returned HTTP status {} (error code {})".format(
+                        error.code,
+                        upstream_code,
+                    )
+                ) from None
         raise BaiduPushError(
             "Baidu API returned HTTP status {}".format(error.code)
         ) from None
@@ -201,6 +224,12 @@ def run(environ=None, stdout=None, stderr=None, opener=None):
 
     try:
         result = submit_urls(token, urls, opener=opener)
+    except BaiduQuotaExhausted:
+        print(
+            "[bd_push] quota already exhausted; no additional URLs submitted",
+            file=output,
+        )
+        return 0
     except BaiduPushError as error:
         print("[bd_push] push failed: {}".format(error), file=errors)
         return 1

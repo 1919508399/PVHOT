@@ -2,6 +2,7 @@ import io
 import json
 import tempfile
 import unittest
+import urllib.error
 import urllib.parse
 from pathlib import Path
 
@@ -182,6 +183,40 @@ class BaiduPushTests(unittest.TestCase):
 
         self.assertEqual(status, 1)
         self.assertIn("request failed unexpectedly", stderr.getvalue())
+        self.assertNotIn(token, stdout.getvalue() + stderr.getvalue())
+
+    def test_over_quota_is_a_successful_sanitized_no_op(self):
+        token = "test_over_quota_token_value"
+        self.write_data([])
+
+        def quota_exhausted(request, timeout):
+            self.assertEqual(timeout, bd_push.REQUEST_TIMEOUT_SECONDS)
+            response = io.BytesIO(
+                json.dumps({"error": 400, "message": "over quota"}).encode("utf-8")
+            )
+            raise urllib.error.HTTPError(
+                request.full_url,
+                400,
+                "Bad Request",
+                {},
+                response,
+            )
+
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        status = bd_push.run(
+            environ={
+                "PVHOT_ROOT": str(self.root),
+                "PVHOT_BAIDU_TOKEN": token,
+            },
+            stdout=stdout,
+            stderr=stderr,
+            opener=quota_exhausted,
+        )
+
+        self.assertEqual(status, 0)
+        self.assertIn("quota already exhausted", stdout.getvalue())
+        self.assertEqual(stderr.getvalue(), "")
         self.assertNotIn(token, stdout.getvalue() + stderr.getvalue())
 
 
