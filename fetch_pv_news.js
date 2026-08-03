@@ -26,7 +26,7 @@ const {
   isSafeCustomArticleUrl,
 } = require('./lib/custom_sources');
 const { safeFetch } = require('./lib/safe_remote_fetch');
-const { fetchXSources } = require('./lib/x_sources');
+const { fetchXSources, normalizeExternalArticleUrl } = require('./lib/x_sources');
 const {
   advanceHealthEntry,
   buildHealthEntry,
@@ -174,7 +174,7 @@ function dedupeXArticleSignals(items) {
       continue;
     }
     const existing = output[index];
-    if (!existing.xPostUrl && !item.xPostUrl) {
+    if (!existing.xPostUrl && !item.xPostUrl && !existing._xSourceId && !item._xSourceId) {
       output.push(item);
       continue;
     }
@@ -192,6 +192,16 @@ function dedupeXArticleSignals(items) {
     primary.xSignalCount = samePost
       ? Math.max(Number(primary.xSignalCount) || 0, Number(secondary.xSignalCount) || 0, 1)
       : (Number(primary.xSignalCount) || 0) + (Number(secondary.xSignalCount) || 0);
+    const indirectAccounts = [...new Set([
+      ...(Array.isArray(primary.xIndirectAccounts) ? primary.xIndirectAccounts : []),
+      ...(Array.isArray(secondary.xIndirectAccounts) ? secondary.xIndirectAccounts : []),
+      primary._xIndirect && primary._xAccountHandle ? primary._xAccountHandle : '',
+      secondary._xIndirect && secondary._xAccountHandle ? secondary._xAccountHandle : '',
+    ].filter(Boolean))];
+    if (indirectAccounts.length) {
+      primary.xIndirectAccounts = indirectAccounts;
+      primary.xIndirectSignalCount = indirectAccounts.length;
+    }
     if (!primary.image && secondary.image) primary.image = secondary.image;
     if ((secondary.summary || '').length > (primary.summary || '').length) {
       primary.summary = secondary.summary;
@@ -993,6 +1003,11 @@ async function enrichArticleCandidates(items, log) {
   await mapLimit(candidates, 4, async (it) => {
     const key = crypto.createHash('sha1').update(it.link || it.title).digest('hex');
     let cached = ARTICLE_CACHE[key];
+    if (cached && it._xIndirect && cached.articleUrl
+        && !normalizeExternalArticleUrl(cached.articleUrl, it._xAllowedDomains)) {
+      delete ARTICLE_CACHE[key];
+      cached = null;
+    }
     if (cached && isMojibake(cached.summary)) {
       delete ARTICLE_CACHE[key];
       cached = null;
@@ -1020,6 +1035,15 @@ async function enrichArticleCandidates(items, log) {
       if (!articleUrl) return;
       it.googleNewsUrl = it.link;
       it.link = articleUrl;
+    }
+    if (it._xIndirect) {
+      const officialArticleUrl = normalizeExternalArticleUrl(articleUrl, it._xAllowedDomains);
+      if (!officialArticleUrl) {
+        log(`x-indirect skipped: source=${it._xSourceId} reason=official-domain-mismatch`);
+        return;
+      }
+      articleUrl = officialArticleUrl;
+      it.link = officialArticleUrl;
     }
     let html = '';
     if (it._customSourceId) {
@@ -1534,6 +1558,15 @@ function aggregateMultiSource(items) {
       if (!rep.xMetrics && signal.xMetrics) rep.xMetrics = signal.xMetrics;
       rep.xSignalCount = Math.max(Number(rep.xSignalCount) || 0, xMembers.length);
     }
+    const indirectMembers = c.members.filter((member) => member._xIndirect || Number(member.xIndirectSignalCount) > 0);
+    if (indirectMembers.length) {
+      const accounts = [...new Set(indirectMembers.flatMap((member) => [
+        ...(Array.isArray(member.xIndirectAccounts) ? member.xIndirectAccounts : []),
+        member._xAccountHandle || '',
+      ]).filter(Boolean))];
+      rep.xIndirectAccounts = accounts;
+      rep.xIndirectSignalCount = Math.max(Number(rep.xIndirectSignalCount) || 0, accounts.length || indirectMembers.length);
+    }
     // 代表条目可能来自另一家信源；保留同事件中已成功提取的正文主图与最长摘要。
     if (!rep.image) {
       const withImage = c.members.find((m) => m.image);
@@ -1667,10 +1700,13 @@ function writeSourceHealthUnlocked({
         lastPostId: diagnostics.lastPostId || '',
         itemsSeen: Number.isFinite(Number(diagnostics.postsSeen))
           ? Number(diagnostics.postsSeen)
-          : source.itemsSeen,
+          : (Number.isFinite(Number(diagnostics.searchResultsSeen))
+            ? Number(diagnostics.searchResultsSeen)
+            : source.itemsSeen),
         articlesAccepted: Number.isFinite(Number(diagnostics.articlesAccepted))
           ? Number(diagnostics.articlesAccepted)
           : normalizedItems.length,
+        monitorMode: diagnostics.mode || 'official-api',
       } : {}),
     };
   };
@@ -1985,7 +2021,10 @@ async function runMain() {
       : fetchDirectRSS(s.url)),
     Promise.all(SCRAPE_SOURCES.map(s => fetchScrape(s))),
     batchFetch(RSSHUB_ROUTES, 8, (s) => fetchRSSHub(s.route)),
-    fetchXSources(runtimeXAccounts, previousHealthReport),
+    fetchXSources(runtimeXAccounts, previousHealthReport, {
+      indirectSearch: (_account, query) => fetchRSS({ q: query, locale: 'en' }),
+      indirectConcurrency: 2,
+    }),
   ]);
 
   // === 合并 + 跨源去重（link 去重）===
@@ -2269,6 +2308,11 @@ async function runMain() {
       xHandle: it.xHandle || '',
       xSignalCount: Number(it.xSignalCount) || 0,
       xMetrics: it.xMetrics || null,
+      xDiscoveryMode: Number(it.xIndirectSignalCount) > 0 || it._xIndirect ? 'search-indirect' : '',
+      xIndirectSignalCount: Number(it.xIndirectSignalCount) || (it._xIndirect ? 1 : 0),
+      xIndirectAccounts: Array.isArray(it.xIndirectAccounts)
+        ? it.xIndirectAccounts.slice(0, 8)
+        : (it._xAccountHandle ? [it._xAccountHandle] : []),
       summaryMode: (
         !isMojibake(it.summary_cn || (it.lang === 'zh' ? it.summary : ''))
         && (it.summary_cn || (it.lang === 'zh' ? it.summary : '') || '').length >= 45

@@ -64,6 +64,30 @@ test('canonical article dedupe ignores tracking and query parameter order', () =
   assert.equal(result[0].xPostUrl, xSignal.xPostUrl);
 });
 
+test('indirect X discovery deduplicates against the same official article without inventing a post signal', () => {
+  const article = {
+    title: 'Official solar article',
+    link: 'https://example.com/solar-story/',
+    source: 'official-rss',
+  };
+  const indirect = {
+    title: 'Official solar article',
+    link: 'https://www.example.com/solar-story/?utm_source=search',
+    source: 'X account owner',
+    _xSourceId: 'x-example',
+    _xIndirect: true,
+    _xAccountHandle: 'example',
+  };
+
+  const result = dedupeXArticleSignals([article, indirect]);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].source, 'official-rss');
+  assert.equal(result[0].xPostUrl || '', '');
+  assert.equal(result[0].xSignalCount, 0);
+  assert.equal(result[0].xIndirectSignalCount, 1);
+  assert.deepEqual(result[0].xIndirectAccounts, ['example']);
+});
+
 test('post-enrichment freshness requires X articles to confirm the official publication date', () => {
   const now = new Date('2026-08-03T08:00:00Z');
   const today = '2026-08-03T03:00:00Z';

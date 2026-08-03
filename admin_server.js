@@ -604,6 +604,7 @@ function sourceHealthPayload() {
       tier: source.tier || 1,
       category: source.cat || 'ALL',
       staleAfterHours: source.staleAfterHours || 168,
+      domains: Array.isArray(source.domains) ? source.domains : [],
     })),
     ...WECHAT_ACCOUNTS.map((source) => ({
       id: `wechat:${source.name}`,
@@ -621,12 +622,22 @@ function sourceHealthPayload() {
         existing.name = source.name;
         existing.kind = source.kind;
         existing.type = source.type;
+        if (source.type === 'x' && !xApiConfigured() && Array.isArray(source.domains) && source.domains.length) {
+          existing.monitorMode = 'search-indirect';
+          if (existing.reasonCode === 'X_API_NOT_CONFIGURED' || existing.errorCode === 'x_api_not_configured') {
+            existing.status = 'no_new';
+            existing.errorCode = null;
+            existing.reasonCode = null;
+            existing.detail = '无 Token 间接监控已启用，等待下一轮搜索官网文章线索';
+          }
+        }
       }
       continue;
     }
     seen.add(source.id);
     const awaitingXApi = source.type === 'x';
-    const missingXApi = awaitingXApi && !xApiConfigured();
+    const indirectX = awaitingXApi && !xApiConfigured() && Array.isArray(source.domains) && source.domains.length > 0;
+    const missingXApi = awaitingXApi && !xApiConfigured() && !indirectX;
     sources.push({
       ...source,
       status: missingXApi ? 'blocked' : 'no_new',
@@ -646,7 +657,10 @@ function sourceHealthPayload() {
       reasonCode: missingXApi ? 'X_API_NOT_CONFIGURED' : null,
       detail: missingXApi
         ? '服务器尚未配置 X 官方 API，账号已登记并等待配置'
-        : (awaitingXApi ? '等待正式抓取任务首次检查 X 账号' : '等待首次健康检查'),
+        : (indirectX
+          ? '无 Token 间接监控已启用，等待下一轮搜索官网文章线索'
+          : (awaitingXApi ? '等待正式抓取任务首次检查 X 账号' : '等待首次健康检查')),
+      monitorMode: indirectX ? 'search-indirect' : (awaitingXApi ? 'official-api' : null),
       custom: false,
       origin: 'built-in',
       enabled: true,
@@ -688,7 +702,7 @@ function sourceHealthPayload() {
     checkedAt: report.checkedAt || null,
     registryVersion: report.registryVersion || null,
     customRevision: customRegistry.revision || 0,
-    integrations: { xApiConfigured: xApiConfigured() },
+    integrations: { xApiConfigured: xApiConfigured(), xIndirectEnabled: true },
     configError,
     summary: {
       checked: counts.checked,
@@ -1446,7 +1460,9 @@ const server = http.createServer(async (req, res) => {
         message: source.type === 'wechat'
           ? '已加入公众号轮询队列'
           : (source.type === 'x'
-            ? '已加入 X 官方 API 监控队列'
+            ? (xApiConfigured()
+              ? '已加入 X 官方 API 监控队列'
+              : 'X 账号已保存；自定义账号需配置官方 API 后才能直接抓取')
             : '已保存，将在下一轮抓取中持续监控'),
       });
     } catch (error) {

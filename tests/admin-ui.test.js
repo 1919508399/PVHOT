@@ -56,6 +56,9 @@ test('three core admin views use friendly labels and hide raw technical details'
   assert.match(html, /data-tab="feedback"[\s\S]*?<span>反馈收件箱<\/span>/);
 
   assert.match(stats, /今日浏览次数/);
+  assert.match(stats, /总访问用户数/);
+  assert.match(stats, /id="sTotalUV"/);
+  assert.doesNotMatch(stats, /站内资讯|id="sContentTotal"/);
   assert.match(stats, /访客从哪里来/);
   assert.doesNotMatch(stats, /\(PV\)|\(UV\)|data_raw\.json|data\.json|fetch\.log|RSSHub|Heap/);
 
@@ -72,6 +75,8 @@ test('three core admin views use friendly labels and hide raw technical details'
   assert.match(html, /if \(bad >= 1/);
   assert.match(html, /标题编码异常，已隐藏/);
   assert.match(html, /信源名称编码异常/);
+  assert.match(html, /X 无 Token 间接监控已启用/);
+  assert.match(html, /X 间接监控/);
   assert.match(html, /skill_md:\s*\(TEXTS_DATA/);
   assert.doesNotMatch(html, /\$\{esc\(it\.id\)\}<\/span>/);
   assert.doesNotMatch(html, /UA：\$\{esc\(it\.ua/);

@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
+  buildXIndirectQuery,
   extractXArticleUrl,
   fetchXSources,
   normalizeExternalArticleUrl,
@@ -119,6 +120,54 @@ test('missing X API credentials report blocked without making a network request'
   assert.equal(results[0].length, 0);
   assert.equal(results[0]._health.blocked, true);
   assert.equal(results[0]._health.errorCode, 'x_api_not_configured');
+});
+
+test('no-token indirect mode searches only registered official domains', async () => {
+  const query = buildXIndirectQuery(ACCOUNT);
+  assert.match(query, /site:pv-magazine\.com/);
+  assert.doesNotMatch(query, /x\.com|twitter\.com/);
+
+  let requestJsonCalled = false;
+  let receivedQuery = '';
+  const results = await fetchXSources([ACCOUNT], { sources: [] }, {
+    token: '',
+    requestJson: async () => { requestJsonCalled = true; },
+    indirectSearch: async (_account, value) => {
+      receivedQuery = value;
+      return [{
+        title: 'Official solar article',
+        summary: 'A search-engine discovery that still requires official-page verification.',
+        link: 'https://news.google.com/rss/articles/example',
+        pubDate: '2026-08-03T04:00:00.000Z',
+      }];
+    },
+  });
+
+  assert.equal(requestJsonCalled, false);
+  assert.equal(receivedQuery, query);
+  assert.equal(results[0].length, 1);
+  assert.equal(results[0][0]._xIndirect, true);
+  assert.deepEqual(results[0][0]._xAllowedDomains, ['pv-magazine.com']);
+  assert.equal(results[0][0]._xArticleDateConfirmed, false);
+  assert.equal(results[0][0].xPostUrl, undefined);
+  assert.equal(results[0]._health.blocked, false);
+  assert.equal(results[0]._health.mode, 'search-indirect');
+  assert.match(results[0]._health.detail, /未使用 X 官方 API/);
+});
+
+test('no-token indirect mode refuses an X account without a verified official domain', async () => {
+  let searched = false;
+  const results = await fetchXSources([{
+    id:'custom-x', name:'Custom X', handle:'custom_x', domains:[], custom:true,
+  }], { sources: [] }, {
+    token: '',
+    indirectSearch: async () => { searched = true; return []; },
+  });
+
+  assert.equal(searched, false);
+  assert.equal(results[0].length, 0);
+  assert.equal(results[0]._health.blocked, true);
+  assert.equal(results[0]._health.errorCode, 'x_indirect_official_domain_missing');
 });
 
 test('manual X account probe verifies the handle through the official API', async () => {

@@ -413,7 +413,8 @@
   .list{gap:8px;}
   .item{position:relative;border-radius:14px;padding:15px 16px;box-shadow:none;background:var(--card);transition:.18s;}
   .item:hover{border-color:#cbd9d1;box-shadow:0 10px 28px rgba(30,67,57,.065);transform:translateY(-1px);}
-  .item-layout{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:start;}
+  .item-layout{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:start;min-width:0;}
+  .item-layout.has-thumb{grid-template-columns:auto minmax(0,1fr) auto;}
   .item-thumb{width:92px;height:72px;border-radius:11px;overflow:hidden;background:var(--mint);border:1px solid var(--border-soft);}
   .item-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
   .item-main{min-width:0;}
@@ -425,7 +426,7 @@
   .badge.feat{background:#f4e9cc;color:#8b651a;}
   .metric-chip{border:1px solid var(--border-soft);border-radius:999px;padding:2px 7px;color:var(--ink-3);background:#fafbf8;}
   .reason{margin:10px 0 0;background:#f1f7f4;border-left:2px solid #57a993;padding:8px 10px;color:#5b716b;}
-  .ops{gap:5px;}
+  .ops{gap:5px;justify-self:end;align-self:start;}
   .iconbtn{width:32px;height:32px;border-radius:9px;box-shadow:none;}
   .pager{padding-top:18px;border-top:1px solid var(--border-soft);}
 
@@ -492,7 +493,7 @@
     .overview-card span{font-size:22px;}
     .workspace-card{padding:5px 12px 16px;}
     .toolbar .btn{flex:1;}
-    .item-layout{grid-template-columns:minmax(0,1fr) auto;}
+    .item-layout,.item-layout.has-thumb{grid-template-columns:minmax(0,1fr) auto;}
     .item-thumb{display:none;}
     .item-summary{-webkit-line-clamp:3;}
     .row2{flex-direction:column;gap:0;}
@@ -928,7 +929,7 @@
           <article class="stat-card"><span class="metric-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-5 9.5-5 9.5 5 9.5 5-3.5 5-9.5 5-9.5-5-9.5-5Z"/><circle cx="12" cy="12" r="2.5"/></svg></span><div><div class="val" id="sTodayPV">—</div><div class="lbl">今日浏览次数</div><small>页面被打开的总次数</small></div></article>
           <article class="stat-card alt"><span class="metric-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.7-4.2 3-6.2 7-6.2s6.3 2 7 6.2"/></svg></span><div><div class="val" id="sTodayUV">—</div><div class="lbl">今日访客人数</div><small>去重后的访问人数</small></div></article>
           <article class="stat-card alt2"><span class="metric-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18V9M10 18V5M16 18v-6M22 18H2"/></svg></span><div><div class="val" id="sWeekPV">—</div><div class="lbl">近 7 天浏览</div><small>最近一周累计次数</small></div></article>
-          <article class="stat-card alt3"><span class="metric-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg></span><div><div class="val" id="sContentTotal">—</div><div class="lbl">站内资讯</div><small>当前可管理的内容总量</small></div></article>
+          <article class="stat-card alt3"><span class="metric-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3 20c.6-4 2.6-6 6-6s5.4 2 6 6M14 15.5c3.7-.8 6.2.8 7 4.5"/></svg></span><div><div class="val" id="sTotalUV">—</div><div class="lbl">总访问用户数</div><small>网站上线以来的去重访客</small></div></article>
         </div>
 
         <div class="stat-section">
@@ -1368,7 +1369,7 @@
     const sourceCount = Number(it.sourceCount || 1);
     const score = Number(it.score || 0);
     return `<article class="item" data-id="${esc(it.id)}">
-      <div class="item-layout">
+      <div class="item-layout${thumb ? ' has-thumb' : ''}">
         ${thumb}
         <div class="item-main">
           <div class="title">${esc(title)}</div>
@@ -1576,8 +1577,9 @@
     return 'other';
   }
 
-  function sourceKindLabel(value){
+  function sourceKindLabel(value, source){
     const group = sourceKindGroup(value);
+    if (group === 'x' && source && source.monitorMode === 'search-indirect') return 'X 间接监控';
     const labels = { google:'新闻搜索', website:'网站直抓', rss:'RSS', x:'X（Twitter）', wechat:'微信公众号', other:'其他' };
     return labels[group];
   }
@@ -1636,7 +1638,9 @@
     $('#sourceCheckedText').textContent = checked ? `已检查 ${checked} 个信源` : '尚无检查结果';
     const xApiText = data.integrations && data.integrations.xApiConfigured
       ? 'X 官方 API 已配置'
-      : 'X 官方 API 未配置';
+      : (data.integrations && data.integrations.xIndirectEnabled
+        ? 'X 无 Token 间接监控已启用'
+        : 'X 官方 API 未配置');
     $('#sourceHealthMeta').textContent = (data.checkedAt ? '最近检查 ' + formatSourceTime(data.checkedAt) : '尚未生成健康检查')
       + ` · 共 ${items.length} 个信源 · ${xApiText} · 点击上方状态卡可快速筛选`;
     $$('.source-summary-card').forEach(card => {
@@ -1696,9 +1700,10 @@
       ? cleanDisplayText(source.origin, '来源说明编码异常')
       : '';
     const xHandle = cleanDisplayText(sourceXHandle(source), '');
-    const isX = String(source.kind || source.type || '').toLowerCase() === 'x';
+    const isX = sourceKindGroup(source.kind || source.type) === 'x';
+    const isIndirectX = isX && source.monitorMode === 'search-indirect';
     const newLabel = isX ? '采用' : '新增';
-    const scanLabel = isX ? '新帖' : '扫描';
+    const scanLabel = isIndirectX ? '搜索线索' : (isX ? '新帖' : '扫描');
     const latest = source.latestPublishedAt || source.lastItemAt || source.lastNewAt;
     const checked = source.lastCheckedAt || source.checkedAt;
     const http = source.httpStatus ? `HTTP ${source.httpStatus}` : '';
@@ -1719,7 +1724,7 @@
         </div>
       </td>
       <td>
-        <div class="source-name" style="font-size:11.5px">${esc(sourceKindLabel(source.kind || source.type))}</div>
+        <div class="source-name" style="font-size:11.5px">${esc(sourceKindLabel(source.kind || source.type, source))}</div>
         ${originDetail ? `<div class="source-subline">${esc(originDetail)}</div>` : ''}
       </td>
       <td>
@@ -1745,18 +1750,19 @@
     const http = source.httpStatus ? `HTTP ${source.httpStatus}` : '未记录';
     const duration = source.durationMs != null ? `${sourceNumber(source.durationMs)}ms` : '—';
     const xHandle = cleanDisplayText(sourceXHandle(source), '');
-    const isX = String(source.kind || source.type || '').toLowerCase() === 'x';
+    const isX = sourceKindGroup(source.kind || source.type) === 'x';
+    const isIndirectX = isX && source.monitorMode === 'search-indirect';
     const metricText = isX
-      ? `采用 ${sourceMetric(source.newItems)} · 今日文章 ${sourceMetric(source.todayItems)} · 新帖 ${sourceMetric(source.itemsSeen, source.items)}`
+      ? `采用 ${sourceMetric(source.newItems)} · 今日文章 ${sourceMetric(source.todayItems)} · ${isIndirectX ? '搜索线索' : '新帖'} ${sourceMetric(source.itemsSeen, source.items)}`
       : `新增 ${sourceMetric(source.newItems)} · 今日 ${sourceMetric(source.todayItems)} · 扫描 ${sourceMetric(source.itemsSeen, source.items)}`;
-    const latestLabel = isX ? '最近动态' : '最近文章';
+    const latestLabel = isIndirectX ? '最近官网文章' : (isX ? '最近动态' : '最近文章');
     return `<article class="source-health-card ${source.enabled === false ? 'source-disabled' : ''}">
       <div class="source-card-head">
         <div>
           <div class="source-name">${esc(sourceName)}</div>
           <div class="source-subline">
             <span class="source-origin-chip ${source.custom === true ? 'custom' : ''}">${source.custom === true ? '后台添加' : '系统内置'}</span>
-            <span>${esc(sourceKindLabel(source.kind || source.type))}</span>
+            <span>${esc(sourceKindLabel(source.kind || source.type, source))}</span>
             ${xHandle ? `<span>@${esc(xHandle)}</span>` : ''}
             ${source.enabled === false ? '<span class="source-enabled-chip off">已停用</span>' : ''}
           </div>
@@ -2551,7 +2557,7 @@
     $('#sTodayPV').textContent = (s.today && s.today.pv) || 0;
     $('#sTodayUV').textContent = (s.today && s.today.uv) || 0;
     $('#sWeekPV').textContent = weekViews;
-    $('#sContentTotal').textContent = st.items || 0;
+    $('#sTotalUV').textContent = (s.total && s.total.uv) || 0;
 
     const maxPV = Math.max(1, ...last7.map(d => d.pv));
     $('#trendChart').innerHTML = last7.length ? last7.map(d => {
