@@ -14,7 +14,7 @@
   }
   body.dark{
     --bg:#0f141b; --card:#161d27; --border:#243040; --border-soft:#1d2733;
-    --ink:#e6ebf2; --ink-2:#aab4c4; --ink-3:#6b7policy;
+    --ink:#e6ebf2; --ink-2:#aab4c4; --ink-3:#6f7b8e;
     --emerald:#1fd1a0; --cyan:#22c3d6; --amber:#e6a93a;
     --shadow-1:0 1px 3px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);
   }
@@ -92,6 +92,9 @@
   .check{display:flex; align-items:center; gap:8px; font-size:14px; color:var(--ink-2); cursor:pointer; user-select:none;}
   .check input{width:17px; height:17px; accent-color:var(--amber);}
   .modal .foot{display:flex; justify-content:flex-end; gap:10px; margin-top:18px;}
+  #sourceAddMask .modal .foot{position:sticky;bottom:-24px;z-index:2;margin:14px -24px -24px;
+    padding:14px 24px 20px;background:linear-gradient(180deg,color-mix(in srgb,var(--card) 92%,transparent),var(--card) 28%);
+    border-top:1px solid var(--border-soft);}
 
   /* 登录 */
   .login{max-width:380px; margin:9vh auto 0; background:var(--card); border:1px solid var(--border);
@@ -206,6 +209,79 @@
     background:var(--bg); border-radius:8px; padding:10px 12px; border:1px solid var(--border-soft);}
   .fb-meta{font-size:11.5px; color:var(--ink-3); margin-top:8px; word-break:break-all;}
   .fb-foot{display:flex; gap:6px; margin-top:10px; flex-wrap:wrap;}
+
+  /* 信源健康中心 */
+  .source-summary-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:16px;}
+  .source-summary-card{--source-tone:var(--ink-3);appearance:none;text-align:left;border:1px solid var(--border);
+    border-radius:16px;background:var(--card);color:var(--ink);padding:15px 16px;box-shadow:var(--shadow-1);
+    transition:.16s;min-width:0;}
+  .source-summary-card:hover,.source-summary-card.on{border-color:var(--source-tone);transform:translateY(-1px);}
+  .source-summary-card.on{box-shadow:0 0 0 3px color-mix(in srgb,var(--source-tone) 12%,transparent);}
+  .source-summary-card[data-tone="normal"]{--source-tone:#168b69;}
+  .source-summary-card[data-tone="no-new"]{--source-tone:#71847d;}
+  .source-summary-card[data-tone="blocked"]{--source-tone:#c56642;}
+  .source-summary-card[data-tone="parse-error"]{--source-tone:#c64d54;}
+  .source-summary-card[data-tone="stale"]{--source-tone:#ae7b26;}
+  .source-summary-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .source-summary-dot{width:9px;height:9px;border-radius:50%;background:var(--source-tone);
+    box-shadow:0 0 0 5px color-mix(in srgb,var(--source-tone) 12%,transparent);}
+  .source-summary-card strong{display:block;font-size:27px;line-height:1.15;letter-spacing:-.035em;margin-top:15px;}
+  .source-summary-card small{display:block;color:var(--ink-3);font-size:11px;margin-top:5px;}
+  .source-summary-label{font-size:12px;font-weight:750;color:var(--ink-2);}
+  .source-toolbar{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin:0 0 14px;}
+  .source-toolbar .search{min-width:240px;}
+  .source-toolbar select{min-height:42px;}
+  .source-table-shell{background:var(--card);border:1px solid var(--border);border-radius:18px;
+    box-shadow:var(--shadow-1);overflow:hidden;}
+  .source-table-wrap{overflow-x:auto;}
+  .source-table{width:100%;border-collapse:collapse;font-size:12px;min-width:1040px;}
+  .source-table th{padding:11px 12px;text-align:left;color:var(--ink-3);font-size:10.5px;letter-spacing:.04em;
+    font-weight:750;border-bottom:1px solid var(--border);background:#f8faf7;white-space:nowrap;}
+  .source-table td{padding:13px 12px;border-bottom:1px solid var(--border-soft);vertical-align:top;color:var(--ink-2);}
+  .source-table tr:last-child td{border-bottom:0;}
+  .source-table tr:hover td{background:color-mix(in srgb,var(--mint) 48%,transparent);}
+  .source-table tr.source-disabled td{opacity:.58;}
+  .source-name{font-weight:750;color:var(--ink);font-size:12.5px;line-height:1.45;word-break:break-word;}
+  .source-subline{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:5px;color:var(--ink-3);font-size:10.5px;}
+  .source-origin-chip,.source-enabled-chip{display:inline-flex;align-items:center;border:1px solid var(--border-soft);
+    border-radius:999px;padding:2px 7px;background:var(--bg);white-space:nowrap;}
+  .source-origin-chip.custom{color:var(--emerald);border-color:color-mix(in srgb,var(--emerald) 24%,var(--border));}
+  .source-enabled-chip.off{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 24%,var(--border));}
+  .source-status-badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 9px;
+    font-size:11px;font-weight:750;white-space:nowrap;border:1px solid transparent;}
+  .source-status-badge:before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;}
+  .source-status-badge.normal{color:#13795b;background:#eaf6f1;border-color:#d1ebe1;}
+  .source-status-badge.no-new{color:#657a73;background:#f0f4f2;border-color:#e0e8e4;}
+  .source-status-badge.blocked{color:#ad532f;background:#fbf0e9;border-color:#f3dacb;}
+  .source-status-badge.parse-error{color:#b53f47;background:#faecee;border-color:#f1d2d5;}
+  .source-status-badge.stale{color:#95681d;background:#f8f1df;border-color:#ecdfbc;}
+  .source-metrics{display:grid;grid-template-columns:repeat(3,max-content);gap:2px 10px;white-space:nowrap;}
+  .source-metrics span{display:flex;flex-direction:column;color:var(--ink-3);font-size:9.5px;}
+  .source-metrics b{color:var(--ink);font-size:12px;margin-top:2px;}
+  .source-time{line-height:1.55;white-space:nowrap;}
+  .source-time small{display:block;color:var(--ink-3);font-size:10px;}
+  .source-detail{max-width:240px;line-height:1.55;word-break:break-word;}
+  .source-detail small{display:block;color:var(--ink-3);margin-top:4px;}
+  .source-actions{display:flex;gap:5px;justify-content:flex-end;flex-wrap:wrap;min-width:112px;}
+  .source-action{border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--ink-2);
+    padding:5px 8px;font-size:10.5px;font-weight:700;white-space:nowrap;}
+  .source-action:hover{border-color:var(--emerald);color:var(--emerald);}
+  .source-action.danger:hover{border-color:var(--danger);color:var(--danger);}
+  .source-card-list{display:none;padding:10px;}
+  .source-health-card{border:1px solid var(--border-soft);border-radius:14px;padding:14px;background:var(--card);margin-bottom:9px;}
+  .source-health-card:last-child{margin-bottom:0;}
+  .source-health-card.source-disabled{opacity:.62;}
+  .source-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+  .source-card-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:13px;padding-top:12px;border-top:1px solid var(--border-soft);}
+  .source-card-grid div{min-width:0;}
+  .source-card-grid small{display:block;color:var(--ink-3);font-size:10px;margin-bottom:3px;}
+  .source-card-grid span{font-size:11.5px;line-height:1.5;color:var(--ink-2);word-break:break-word;}
+  .source-card-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;}
+  .source-loading,.source-empty{padding:58px 20px;text-align:center;color:var(--ink-3);font-size:13px;}
+  .source-form-note{font-size:12px;color:var(--ink-3);line-height:1.7;margin:-7px 0 18px;padding:10px 12px;
+    border-radius:10px;background:var(--mint);border:1px solid var(--border-soft);}
+  .source-type-help{font-size:11px;color:var(--ink-3);line-height:1.55;margin-top:6px;}
+  .source-form-error{min-height:18px;color:var(--danger);font-size:12px;margin-top:4px;}
 
   @media (max-width:560px){
     .toolbar{gap:8px;}
@@ -382,6 +458,7 @@
     .admin-shell{grid-template-columns:210px minmax(0,1fr);}
     .item-thumb{width:78px;height:64px;}
     .overview-grid,.stat-cards{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .source-summary-grid{grid-template-columns:repeat(3,minmax(0,1fr));}
   }
   @media(max-width:780px){
     .login-page{grid-template-columns:1fr;}
@@ -404,6 +481,9 @@
     .hero-note{display:none;}
     #panelContent>.toolbar{top:0;}
     .stat-row2{grid-template-columns:1fr;}
+    .source-table-wrap{display:none;}
+    .source-card-list{display:block;}
+    .source-toolbar .search{min-width:100%;order:-1;}
   }
   @media(max-width:560px){
     .login{padding:28px 22px;}
@@ -419,6 +499,11 @@
     .topbar-actions .compact{display:none;}
     .compact-hero,.panel-hero{padding:18px;}
     .panel-hero h2{font-size:21px;}
+    .source-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+    .source-summary-card{padding:13px 14px;}
+    .source-summary-card strong{font-size:23px;margin-top:12px;}
+    .source-toolbar .btn{flex:1;}
+    .source-card-grid{grid-template-columns:1fr;}
   }
 </style>
 </head>
@@ -461,6 +546,7 @@
         <div class="side-label">工作台</div>
         <nav class="tabs" aria-label="后台功能">
           <button class="tab on" data-tab="news" type="button"><span class="nav-icon">N</span><span>新闻管理</span></button>
+          <button class="tab" data-tab="sources" type="button"><span class="nav-icon">S</span><span>信源健康</span></button>
           <button class="tab" data-tab="stats" type="button"><span class="nav-icon">D</span><span>数据状态</span></button>
           <button class="tab" data-tab="content" type="button"><span class="nav-icon">C</span><span>内容管理</span></button>
           <button class="tab" data-tab="feedback" type="button"><span class="nav-icon">F</span><span>用户反馈</span><span class="badge-unread" id="fbUnreadBadge" style="display:none">0</span></button>
@@ -517,6 +603,98 @@
         <div class="list" id="list"></div>
         <div class="pager" id="pager"></div>
         </section>
+      </div>
+
+      <!-- 信源健康 panel -->
+      <div id="panelSources" style="display:none">
+        <section class="panel-hero compact-hero">
+          <div>
+            <span class="eyebrow">SOURCE OPERATIONS</span>
+            <h2>信源健康中心</h2>
+            <p>看清每个信源是否正常，也可以添加希望系统持续监控的网站、RSS 或微信公众号。</p>
+          </div>
+          <div class="hero-note"><span class="service-dot"></span><span id="sourceCheckedText">等待健康检查</span></div>
+        </section>
+
+        <div class="source-summary-grid" aria-label="信源状态汇总">
+          <button class="source-summary-card" data-source-summary="normal" data-tone="normal" type="button">
+            <span class="source-summary-top"><span class="source-summary-label">正常</span><i class="source-summary-dot"></i></span>
+            <strong id="sourceCountNormal">—</strong><small>本轮发现了新稿</small>
+          </button>
+          <button class="source-summary-card" data-source-summary="noNew" data-tone="no-new" type="button">
+            <span class="source-summary-top"><span class="source-summary-label">无新稿</span><i class="source-summary-dot"></i></span>
+            <strong id="sourceCountNoNew">—</strong><small>连接正常，暂时没有新内容</small>
+          </button>
+          <button class="source-summary-card" data-source-summary="blocked" data-tone="blocked" type="button">
+            <span class="source-summary-top"><span class="source-summary-label">被拦截</span><i class="source-summary-dot"></i></span>
+            <strong id="sourceCountBlocked">—</strong><small>网站拒绝或限制了抓取</small>
+          </button>
+          <button class="source-summary-card" data-source-summary="parseError" data-tone="parse-error" type="button">
+            <span class="source-summary-top"><span class="source-summary-label">解析失败</span><i class="source-summary-dot"></i></span>
+            <strong id="sourceCountParseError">—</strong><small>网络或页面格式需要处理</small>
+          </button>
+          <button class="source-summary-card" data-source-summary="stale" data-tone="stale" type="button">
+            <span class="source-summary-top"><span class="source-summary-label">长期未更新</span><i class="source-summary-dot"></i></span>
+            <strong id="sourceCountStale">—</strong><small>超过设定时间没有新文章</small>
+          </button>
+        </div>
+
+        <div class="source-toolbar">
+          <div class="search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input id="sourceSearch" placeholder="搜索信源名称、类型或状态说明…" autocomplete="off" />
+          </div>
+          <select class="cat" id="sourceStatusFilter" aria-label="按健康状态筛选">
+            <option value="">全部状态</option>
+            <option value="normal">正常</option>
+            <option value="noNew">无新稿</option>
+            <option value="blocked">被拦截</option>
+            <option value="parseError">解析失败</option>
+            <option value="stale">长期未更新</option>
+          </select>
+          <select class="cat" id="sourceKindFilter" aria-label="按抓取方式筛选">
+            <option value="">全部类型</option>
+            <option value="google">新闻搜索</option>
+            <option value="website">网站直抓</option>
+            <option value="rss">RSS</option>
+            <option value="wechat">微信公众号</option>
+            <option value="other">其他</option>
+          </select>
+          <select class="cat" id="sourceOriginFilter" aria-label="按信源来源筛选">
+            <option value="">全部来源</option>
+            <option value="builtin">系统内置</option>
+            <option value="custom">后台添加</option>
+          </select>
+          <button class="btn" id="sourceRefreshBtn" type="button">↻ 刷新状态</button>
+          <button class="btn" id="sourceRunRefreshBtn" type="button">⟳ 抓取全部</button>
+          <button class="btn primary" id="sourceAddBtn" type="button">＋ 添加信源</button>
+        </div>
+        <div class="meta-line" id="sourceHealthMeta" style="margin:-5px 0 13px">加载中…</div>
+
+        <div class="source-table-shell">
+          <div class="source-table-wrap">
+            <table class="source-table">
+              <thead>
+                <tr>
+                  <th>状态</th>
+                  <th>信源</th>
+                  <th>抓取方式</th>
+                  <th>本轮内容</th>
+                  <th>最近文章</th>
+                  <th>最近检测</th>
+                  <th>状态说明</th>
+                  <th style="text-align:right">操作</th>
+                </tr>
+              </thead>
+              <tbody id="sourceHealthBody">
+                <tr><td colspan="8"><div class="source-loading">正在读取信源状态…</div></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="source-card-list" id="sourceHealthCards">
+            <div class="source-loading">正在读取信源状态…</div>
+          </div>
+        </div>
       </div>
 
       <!-- 状态面板 panel -->
@@ -720,6 +898,70 @@
     </div>
   </div>
 
+  <!-- 添加信源弹窗 -->
+  <div class="mask" id="sourceAddMask">
+    <div class="modal" style="max-width:620px">
+      <h3>添加指定信源</h3>
+      <div class="source-form-note">
+        不需要懂抓取技术：选择信源类型并填写公开地址或公众号名称，系统会按计划持续检查。添加后不会自动发布旧新闻。
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label for="sourceNewName">信源名称 *</label>
+          <input id="sourceNewName" maxlength="80" placeholder="例如：某光伏研究院" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="sourceNewType">信源类型 *</label>
+          <select id="sourceNewType">
+            <option value="website">网站</option>
+            <option value="rss">RSS 订阅</option>
+            <option value="wechat">微信公众号</option>
+          </select>
+          <div class="source-type-help" id="sourceTypeHelp">适合官网、新闻站或企业动态页面。</div>
+        </div>
+      </div>
+      <div class="field" id="sourceUrlField">
+        <label for="sourceNewUrl" id="sourceUrlLabel">网站公开地址 *</label>
+        <input id="sourceNewUrl" type="url" maxlength="500" placeholder="https://example.com/news" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="sourceNewKeywords" id="sourceKeywordsLabel">监控关键词（选填）</label>
+        <input id="sourceNewKeywords" maxlength="300" placeholder="例如：光伏、组件、储能（用逗号分隔）" autocomplete="off" />
+        <div class="source-type-help" id="sourceKeywordsHelp">不填写时，系统会根据网站名称和光伏行业词自动判断。</div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label for="sourceNewCategory">主要分类</label>
+          <select id="sourceNewCategory">
+            <option value="ALL">自动判断</option>
+            <option>政策</option><option>价格</option><option>硅料</option><option>硅片</option><option>电池片</option><option>组件</option>
+            <option>逆变器</option><option>支架BOS</option><option>储能</option><option>电站</option><option>行情</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="sourceNewStale">多久没新稿算“长期未更新”</label>
+          <select id="sourceNewStale">
+            <option value="24">1 天</option>
+            <option value="72">3 天</option>
+            <option value="168" selected>7 天（推荐）</option>
+            <option value="336">14 天</option>
+            <option value="720">30 天</option>
+          </select>
+        </div>
+      </div>
+      <label class="check">
+        <input type="checkbox" id="sourceRunAfterAdd" />
+        保存后同时启动一次全部信源抓取（可能需要几分钟）
+      </label>
+      <div class="source-form-error" id="sourceFormError" role="alert"></div>
+      <div class="foot">
+        <button class="btn ghost" type="button" data-close>取消</button>
+        <button class="btn" type="button" id="sourceSaveOnlyBtn">仅保存</button>
+        <button class="btn primary" type="button" id="sourceSaveBtn">保存并检测</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 日志弹窗 -->
   <div class="mask" id="logMask">
     <div class="modal">
@@ -739,6 +981,8 @@
   'use strict';
   const API = '/admin/api';
   let state = { q:'', cat:'', page:1, pageSize:20, total:0, tab: 'news' };
+  let sourceState = { items:[], q:'', status:'', kind:'', origin:'', loaded:false };
+  let sourceSearchTimer = null;
   let editingId = null;
   let TEXTS_DATA = null; // 内容管理加载到的整组数据
 
@@ -981,6 +1225,7 @@
     state.tab = name;
     const pageMeta = {
       news:['新闻管理','审核资讯、维护精选并管理信源内容'],
+      sources:['信源健康','查看每个信源的状态，并添加希望系统持续抓取的来源'],
       stats:['数据状态','查看访问表现、信源健康与系统运行情况'],
       content:['内容管理','维护站点文案、二维码与更新日志'],
       feedback:['用户反馈','处理意见、问题报告与用户联系信息'],
@@ -993,14 +1238,574 @@
     $('#pageTitle').textContent = pageMeta[name][0];
     $('#pageDesc').textContent = pageMeta[name][1];
     $('#panelNews').style.display = name === 'news' ? '' : 'none';
+    $('#panelSources').style.display = name === 'sources' ? '' : 'none';
     $('#panelStats').style.display = name === 'stats' ? '' : 'none';
     $('#panelContent').style.display = name === 'content' ? '' : 'none';
     $('#panelFeedback').style.display = name === 'feedback' ? '' : 'none';
     if (name === 'content' && !TEXTS_DATA) loadContent();
     if (name === 'feedback') loadFeedback();
     if (name === 'stats') loadStats();
+    if (name === 'sources') loadSourceHealth();
   }
   $$('.tab').forEach(t => t.onclick = () => switchTab(t.dataset.tab));
+
+  /* ============== 信源健康中心 ============== */
+  const SOURCE_STATUS_INFO = {
+    normal: { label:'正常', cls:'normal', help:'本轮发现了新稿' },
+    noNew: { label:'无新稿', cls:'no-new', help:'连接正常，暂时没有新内容' },
+    blocked: { label:'被拦截', cls:'blocked', help:'网站拒绝或限制了抓取' },
+    parseError: { label:'解析失败', cls:'parse-error', help:'网络或页面格式需要处理' },
+    stale: { label:'长期未更新', cls:'stale', help:'超过设定时间没有新文章' },
+  };
+
+  function normalizeSourceStatus(value){
+    const compact = String(value || '').trim().toLowerCase().replace(/[\s_-]/g, '');
+    if (['normal','healthy','ok','success'].includes(compact)) return 'normal';
+    if (['nonew','empty','none','noitem','noitems'].includes(compact)) return 'noNew';
+    if (['blocked','captcha','forbidden','ratelimited','denied'].includes(compact)) return 'blocked';
+    if (['stale','outdated','longinactive'].includes(compact)) return 'stale';
+    if (['parseerror','error','failed','failure','timeout','unhealthy'].includes(compact)) return 'parseError';
+    return 'parseError';
+  }
+
+  function sourceKindGroup(value){
+    const kind = String(value || '').toLowerCase();
+    if (/wechat|weixin|公众号|freewechat|rsshub/.test(kind)) return 'wechat';
+    if (/google|gnews|query|search|搜索/.test(kind)) return 'google';
+    if (/rss|feed/.test(kind)) return 'rss';
+    if (/website|scrape|site|html|网页|网站/.test(kind)) return 'website';
+    return 'other';
+  }
+
+  function sourceKindLabel(value){
+    const group = sourceKindGroup(value);
+    const labels = { google:'新闻搜索', website:'网站直抓', rss:'RSS', wechat:'微信公众号', other:'其他' };
+    return labels[group];
+  }
+
+  function formatSourceTime(value){
+    if (!value) return '—';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value).slice(0, 19).replace('T', ' ');
+    try {
+      return d.toLocaleString('zh-CN', {
+        timeZone:'Asia/Shanghai', month:'2-digit', day:'2-digit',
+        hour:'2-digit', minute:'2-digit', hour12:false,
+      });
+    } catch(e) {
+      return d.toLocaleString('zh-CN');
+    }
+  }
+
+  function sourceNumber(value){
+    const n = Number(value);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  }
+
+  function sourceMetric(value, fallback){
+    const actual = value == null ? fallback : value;
+    return actual == null ? '—' : sourceNumber(actual);
+  }
+
+  function sourceStatusCounts(items){
+    const counts = { normal:0, noNew:0, blocked:0, parseError:0, stale:0 };
+    items.forEach(source => { counts[normalizeSourceStatus(source.status)]++; });
+    return counts;
+  }
+
+  function updateSourceSummary(data){
+    const items = Array.isArray(data.sources) ? data.sources : [];
+    const computed = sourceStatusCounts(items);
+    const summary = data.summary || {};
+    const count = (key) => summary[key] == null ? computed[key] : sourceNumber(summary[key]);
+    $('#sourceCountNormal').textContent = count('normal');
+    $('#sourceCountNoNew').textContent = count('noNew');
+    $('#sourceCountBlocked').textContent = count('blocked');
+    $('#sourceCountParseError').textContent = count('parseError');
+    $('#sourceCountStale').textContent = count('stale');
+    const checked = summary.checked == null ? items.length : sourceNumber(summary.checked);
+    $('#sourceCheckedText').textContent = checked ? `已检查 ${checked} 个信源` : '尚无检查结果';
+    $('#sourceHealthMeta').textContent = (data.checkedAt ? '最近检查 ' + formatSourceTime(data.checkedAt) : '尚未生成健康检查')
+      + ` · 共 ${items.length} 个信源 · 点击上方状态卡可快速筛选`;
+    $$('.source-summary-card').forEach(card => {
+      const active = sourceState.status === card.dataset.sourceSummary;
+      card.classList.toggle('on', active);
+      card.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+  }
+
+  function filteredSources(){
+    const q = sourceState.q.trim().toLowerCase();
+    const status = sourceState.status;
+    const kind = sourceState.kind;
+    const origin = sourceState.origin;
+    const statusOrder = { blocked:0, parseError:1, stale:2, noNew:3, normal:4 };
+    return sourceState.items.filter(source => {
+      const currentStatus = normalizeSourceStatus(source.status);
+      if (status && currentStatus !== status) return false;
+      if (kind && sourceKindGroup(source.kind || source.type) !== kind) return false;
+      if (origin === 'custom' && source.custom !== true) return false;
+      if (origin === 'builtin' && source.custom === true) return false;
+      if (q) {
+        const haystack = [
+          source.name, source.kind, source.type, source.origin, source.detail,
+          SOURCE_STATUS_INFO[currentStatus].label,
+        ].filter(Boolean).join(' ').toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    }).slice().sort((a, b) => {
+      const aDisabled = a.enabled === false ? 1 : 0;
+      const bDisabled = b.enabled === false ? 1 : 0;
+      if (aDisabled !== bDisabled) return aDisabled - bDisabled;
+      const sd = statusOrder[normalizeSourceStatus(a.status)] - statusOrder[normalizeSourceStatus(b.status)];
+      if (sd) return sd;
+      if (a.custom !== b.custom) return a.custom ? -1 : 1;
+      return String(a.name || '').localeCompare(String(b.name || ''), 'zh-CN');
+    });
+  }
+
+  function sourceActionButtons(source){
+    const id = String(source.id || '');
+    if (!id) return '<span style="color:var(--ink-3)">—</span>';
+    if (source.custom !== true) return '<span style="color:var(--ink-3)">—</span>';
+    const check = `<button class="source-action" type="button" data-source-act="check" data-source-id="${esc(id)}">检测</button>`;
+    const toggleText = source.enabled === false ? '启用' : '停用';
+    return check
+      + `<button class="source-action" type="button" data-source-act="toggle" data-source-id="${esc(id)}">${toggleText}</button>`
+      + `<button class="source-action danger" type="button" data-source-act="delete" data-source-id="${esc(id)}">删除</button>`;
+  }
+
+  function sourceRow(source){
+    const statusKey = normalizeSourceStatus(source.status);
+    const info = SOURCE_STATUS_INFO[statusKey];
+    const origin = source.custom === true ? '后台添加' : '系统内置';
+    const originDetail = source.origin && !/^(custom|built-?in|registry)$/i.test(String(source.origin))
+      ? String(source.origin)
+      : '';
+    const latest = source.latestPublishedAt || source.lastItemAt || source.lastNewAt;
+    const checked = source.lastCheckedAt || source.checkedAt;
+    const http = source.httpStatus ? `HTTP ${source.httpStatus}` : '';
+    const duration = source.durationMs != null ? `${sourceNumber(source.durationMs)}ms` : '';
+    const failures = sourceNumber(source.consecutiveFailures);
+    const statusMeta = [http, duration, failures ? `连续失败 ${failures} 次` : ''].filter(Boolean).join(' · ');
+    const detail = source.detail || info.help;
+    const disabledClass = source.enabled === false ? ' class="source-disabled"' : '';
+    return `<tr${disabledClass}>
+      <td><span class="source-status-badge ${info.cls}">${info.label}</span></td>
+      <td>
+        <div class="source-name">${esc(source.name || '未命名信源')}</div>
+        <div class="source-subline">
+          <span class="source-origin-chip ${source.custom === true ? 'custom' : ''}">${origin}</span>
+          ${source.enabled === false ? '<span class="source-enabled-chip off">已停用</span>' : ''}
+        </div>
+      </td>
+      <td>
+        <div class="source-name" style="font-size:11.5px">${esc(sourceKindLabel(source.kind || source.type))}</div>
+        ${originDetail ? `<div class="source-subline">${esc(originDetail)}</div>` : ''}
+      </td>
+      <td>
+        <div class="source-metrics">
+          <span>新增<b>${sourceMetric(source.newItems)}</b></span>
+          <span>今日<b>${sourceMetric(source.todayItems)}</b></span>
+          <span>扫描<b>${sourceMetric(source.itemsSeen, source.items)}</b></span>
+        </div>
+      </td>
+      <td><div class="source-time">${esc(formatSourceTime(latest))}<small>最后成功 ${esc(formatSourceTime(source.lastSuccessAt))}</small></div></td>
+      <td><div class="source-time">${esc(formatSourceTime(checked))}${statusMeta ? `<small>${esc(statusMeta)}</small>` : ''}</div></td>
+      <td><div class="source-detail">${esc(detail)}</div></td>
+      <td><div class="source-actions">${sourceActionButtons(source)}</div></td>
+    </tr>`;
+  }
+
+  function sourceCard(source){
+    const statusKey = normalizeSourceStatus(source.status);
+    const info = SOURCE_STATUS_INFO[statusKey];
+    const latest = source.latestPublishedAt || source.lastItemAt || source.lastNewAt;
+    const details = source.detail || info.help;
+    const http = source.httpStatus ? `HTTP ${source.httpStatus}` : '未记录';
+    const duration = source.durationMs != null ? `${sourceNumber(source.durationMs)}ms` : '—';
+    return `<article class="source-health-card ${source.enabled === false ? 'source-disabled' : ''}">
+      <div class="source-card-head">
+        <div>
+          <div class="source-name">${esc(source.name || '未命名信源')}</div>
+          <div class="source-subline">
+            <span class="source-origin-chip ${source.custom === true ? 'custom' : ''}">${source.custom === true ? '后台添加' : '系统内置'}</span>
+            <span>${esc(sourceKindLabel(source.kind || source.type))}</span>
+            ${source.enabled === false ? '<span class="source-enabled-chip off">已停用</span>' : ''}
+          </div>
+        </div>
+        <span class="source-status-badge ${info.cls}">${info.label}</span>
+      </div>
+      <div class="source-card-grid">
+        <div><small>本轮内容</small><span>新增 ${sourceMetric(source.newItems)} · 今日 ${sourceMetric(source.todayItems)} · 扫描 ${sourceMetric(source.itemsSeen, source.items)}</span></div>
+        <div><small>最近文章</small><span>${esc(formatSourceTime(latest))}</span></div>
+        <div><small>最近检测</small><span>${esc(formatSourceTime(source.lastCheckedAt || source.checkedAt))} · ${esc(http)} · ${esc(duration)}</span></div>
+        <div><small>状态说明</small><span>${esc(details)}</span></div>
+      </div>
+      <div class="source-card-actions">${sourceActionButtons(source)}</div>
+    </article>`;
+  }
+
+  function renderSourceList(){
+    const items = filteredSources();
+    const body = $('#sourceHealthBody');
+    const cards = $('#sourceHealthCards');
+    if (!items.length) {
+      const message = sourceState.items.length ? '没有符合当前筛选条件的信源' : '暂无信源健康数据';
+      body.innerHTML = `<tr><td colspan="8"><div class="source-empty">${message}</div></td></tr>`;
+      cards.innerHTML = `<div class="source-empty">${message}</div>`;
+      return;
+    }
+    body.innerHTML = items.map(sourceRow).join('');
+    cards.innerHTML = items.map(sourceCard).join('');
+  }
+
+  async function loadSourceHealth(){
+    const btn = $('#sourceRefreshBtn');
+    btn.disabled = true;
+    btn.textContent = '刷新中…';
+    if (!sourceState.loaded) {
+      $('#sourceHealthBody').innerHTML = '<tr><td colspan="8"><div class="source-loading">正在读取信源状态…</div></td></tr>';
+      $('#sourceHealthCards').innerHTML = '<div class="source-loading">正在读取信源状态…</div>';
+      $('#sourceHealthMeta').textContent = '加载中…';
+    }
+    const r = await api('/source-health');
+    btn.disabled = false;
+    btn.textContent = '↻ 刷新状态';
+    if (!r.ok) {
+      $('#sourceHealthMeta').textContent = (r.data && r.data.error) || '信源状态加载失败，请稍后重试';
+      if (!sourceState.loaded) {
+        $('#sourceHealthBody').innerHTML = '<tr><td colspan="8"><div class="source-empty">信源状态加载失败</div></td></tr>';
+        $('#sourceHealthCards').innerHTML = '<div class="source-empty">信源状态加载失败</div>';
+      }
+      return;
+    }
+    sourceState.items = Array.isArray(r.data.sources) ? r.data.sources : [];
+    sourceState.loaded = true;
+    updateSourceSummary(r.data);
+    renderSourceList();
+  }
+
+  async function handleSourceAction(event){
+    const button = event.target.closest('[data-source-act]');
+    if (!button || button.disabled) return;
+    const id = button.dataset.sourceId;
+    const source = sourceState.items.find(item => String(item.id || '') === id);
+    if (!source) return;
+    const action = button.dataset.sourceAct;
+    const originalText = button.textContent;
+    button.disabled = true;
+
+    if (action === 'delete') {
+      button.disabled = false;
+      if (!confirm(`确定停止监控“${source.name || '这个信源'}”？历史新闻不会被删除。`)) return;
+      button.disabled = true;
+      button.textContent = '删除中…';
+      const r = await api('/sources/' + encodeURIComponent(id), { method:'DELETE' });
+      if (r.ok) {
+        toast('已停止监控该信源');
+        await loadSourceHealth();
+      } else {
+        toast((r.data && r.data.error) || '删除失败');
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+      return;
+    }
+
+    if (action === 'toggle') {
+      const nextEnabled = source.enabled === false;
+      button.textContent = nextEnabled ? '启用中…' : '停用中…';
+      const r = await api('/sources/' + encodeURIComponent(id), {
+        method:'PUT', body:JSON.stringify({ enabled:nextEnabled }),
+      });
+      if (r.ok) {
+        toast(nextEnabled ? '已启用，后续会继续抓取' : '已停用，不再继续抓取');
+        await loadSourceHealth();
+      } else {
+        toast((r.data && r.data.error) || '操作失败');
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+      return;
+    }
+
+    if (action === 'check') {
+      button.textContent = '检测中…';
+      const r = await api('/sources/' + encodeURIComponent(id) + '/check', { method:'POST' });
+      button.disabled = false;
+      button.textContent = originalText;
+      if (!r.ok) {
+        toast((r.data && r.data.error) || '检测失败');
+        return;
+      }
+      const probe = (r.data && r.data.probe) || {};
+      const health = (r.data && r.data.health) || {};
+      const statusKey = normalizeSourceStatus(probe.status || health.status);
+      const probeOk = r.data && r.data.ok !== false
+        && probe.ok !== false
+        && statusKey !== 'blocked'
+        && statusKey !== 'parseError';
+      const detail = probe.detail || health.detail || '';
+      await loadSourceHealth();
+      if (!probeOk) {
+        const fallback = statusKey === 'blocked' ? '目标网站拒绝或限制了抓取' : '暂时无法解析该信源';
+        toast('检测失败：' + (detail || fallback));
+      } else if (statusKey === 'noNew') {
+        toast(detail || '检测完成：连接正常，暂未发现新稿');
+      } else if (statusKey === 'stale') {
+        toast(detail || '检测完成：连接正常，但该信源已较久没有更新');
+      } else {
+        toast(detail || '检测完成：信源连接正常');
+      }
+    }
+  }
+
+  $('#sourceHealthBody').addEventListener('click', handleSourceAction);
+  $('#sourceHealthCards').addEventListener('click', handleSourceAction);
+  $('#sourceRefreshBtn').onclick = loadSourceHealth;
+  $('#sourceSearch').addEventListener('input', (event) => {
+    clearTimeout(sourceSearchTimer);
+    sourceSearchTimer = setTimeout(() => { sourceState.q = event.target.value; renderSourceList(); }, 220);
+  });
+  $('#sourceStatusFilter').onchange = (event) => {
+    sourceState.status = event.target.value;
+    $$('.source-summary-card').forEach(card => {
+      const active = card.dataset.sourceSummary === sourceState.status;
+      card.classList.toggle('on', active);
+      card.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+    renderSourceList();
+  };
+  $('#sourceKindFilter').onchange = (event) => { sourceState.kind = event.target.value; renderSourceList(); };
+  $('#sourceOriginFilter').onchange = (event) => { sourceState.origin = event.target.value; renderSourceList(); };
+  $$('.source-summary-card').forEach(card => {
+    card.onclick = () => {
+      const next = card.dataset.sourceSummary;
+      sourceState.status = sourceState.status === next ? '' : next;
+      $('#sourceStatusFilter').value = sourceState.status;
+      $$('.source-summary-card').forEach(item => {
+        const active = item.dataset.sourceSummary === sourceState.status;
+        item.classList.toggle('on', active);
+        item.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+      renderSourceList();
+    };
+  });
+
+  const sourceRefreshSleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+  let sourceRefreshMonitor = null;
+
+  async function monitorSourceRefresh(expectedStartedAt){
+    const btn = $('#sourceRunRefreshBtn');
+    btn.disabled = true;
+    if (sourceRefreshMonitor) return sourceRefreshMonitor;
+    sourceRefreshMonitor = (async () => {
+      const started = Date.now();
+      const timeoutMs = 8 * 60 * 1000;
+      let statusFailures = 0;
+      await sourceRefreshSleep(1200);
+      while (Date.now() - started < timeoutMs) {
+        let statusR;
+        try {
+          statusR = await api('/status');
+        } catch (e) {
+          return;
+        }
+        if (!statusR.ok) {
+          statusFailures++;
+          btn.textContent = '等待任务状态…';
+          if (statusFailures >= 3) {
+            toast('暂时无法读取抓取进度，请稍后手动刷新状态');
+            return;
+          }
+          await sourceRefreshSleep(3000);
+          continue;
+        }
+        statusFailures = 0;
+        const status = statusR.data || {};
+        if (status.refreshRunning) {
+          const elapsedMinutes = Math.max(1, Math.ceil((Date.now() - started) / 60000));
+          btn.textContent = `抓取中… ${elapsedMinutes} 分钟`;
+          await sourceRefreshSleep(3000);
+          continue;
+        }
+
+        const result = status.refreshLastResult || null;
+        const matchesCurrentRun = !expectedStartedAt || !result || !result.startedAt
+          || result.startedAt === expectedStartedAt;
+        await loadSourceHealth();
+        if (!matchesCurrentRun) {
+          toast('抓取任务已结束，信源状态已刷新');
+        } else if (result && result.ok === false) {
+          toast('抓取失败：' + (result.error || '请查看抓取日志'));
+        } else if (result && result.ok === true) {
+          toast('全部信源抓取完成，状态已更新');
+        } else {
+          toast('抓取任务已结束，信源状态已刷新');
+        }
+        return;
+      }
+      await loadSourceHealth();
+      toast('抓取时间较长，任务可能仍在后台运行，请稍后再刷新');
+    })().finally(() => {
+      btn.disabled = false;
+      btn.textContent = '⟳ 抓取全部';
+      sourceRefreshMonitor = null;
+    });
+    return sourceRefreshMonitor;
+  }
+
+  $('#sourceRunRefreshBtn').onclick = async () => {
+    if (sourceRefreshMonitor) {
+      toast('全部信源正在抓取，请耐心等待');
+      return;
+    }
+    const btn = $('#sourceRunRefreshBtn');
+    btn.disabled = true;
+    btn.textContent = '正在启动…';
+    const r = await api('/refresh', { method:'POST' });
+    if (!r.ok && r.status !== 409) {
+      btn.disabled = false;
+      btn.textContent = '⟳ 抓取全部';
+      toast((r.data && r.data.error) || '启动失败');
+      return;
+    }
+    toast(r.ok ? '已启动全部信源抓取，完成后会自动刷新' : '已有抓取任务正在运行，正在等待完成');
+    await monitorSourceRefresh(r.data && r.data.startedAt);
+  };
+
+  function updateSourceTypeForm(){
+    const type = $('#sourceNewType').value;
+    const urlField = $('#sourceUrlField');
+    const urlLabel = $('#sourceUrlLabel');
+    const urlInput = $('#sourceNewUrl');
+    const help = $('#sourceTypeHelp');
+    const keywordsLabel = $('#sourceKeywordsLabel');
+    const keywordsHelp = $('#sourceKeywordsHelp');
+    if (type === 'wechat') {
+      urlField.style.display = 'none';
+      urlInput.value = '';
+      help.textContent = '填写公众号的准确名称，系统会通过公众号监控通道轮流查询。';
+      keywordsLabel.textContent = '公众号别名（选填）';
+      keywordsHelp.textContent = '如果公众号还有常用简称，可用逗号分隔填写，帮助系统准确识别。';
+    } else if (type === 'rss') {
+      urlField.style.display = '';
+      urlLabel.textContent = 'RSS 订阅地址 *';
+      urlInput.placeholder = 'https://example.com/feed.xml';
+      help.textContent = '适合已经提供 RSS、Atom 或 Feed 地址的网站。';
+      keywordsLabel.textContent = '监控关键词（选填）';
+      keywordsHelp.textContent = '可以填写希望保留的行业关键词，用逗号分隔。';
+    } else {
+      urlField.style.display = '';
+      urlLabel.textContent = '网站公开地址 *';
+      urlInput.placeholder = 'https://example.com/news';
+      help.textContent = '适合官网、新闻站或企业动态页面。';
+      keywordsLabel.textContent = '监控关键词（选填）';
+      keywordsHelp.textContent = '不填写时，系统会根据网站名称和光伏行业词自动判断。';
+    }
+  }
+
+  function resetSourceForm(){
+    $('#sourceNewName').value = '';
+    $('#sourceNewType').value = 'website';
+    $('#sourceNewUrl').value = '';
+    $('#sourceNewKeywords').value = '';
+    $('#sourceNewCategory').value = 'ALL';
+    $('#sourceNewStale').value = '168';
+    $('#sourceRunAfterAdd').checked = false;
+    $('#sourceFormError').textContent = '';
+    updateSourceTypeForm();
+  }
+
+  $('#sourceNewType').onchange = updateSourceTypeForm;
+  $('#sourceAddBtn').onclick = () => {
+    resetSourceForm();
+    $('#sourceAddMask').classList.add('show');
+    $('#sourceNewName').focus();
+  };
+
+  async function saveNewSource(checkNow){
+    const name = $('#sourceNewName').value.trim();
+    const type = $('#sourceNewType').value;
+    const url = $('#sourceNewUrl').value.trim();
+    const keywords = $('#sourceNewKeywords').value.trim();
+    const errorBox = $('#sourceFormError');
+    errorBox.textContent = '';
+    if (!name) {
+      errorBox.textContent = type === 'wechat' ? '请填写公众号名称' : '请填写信源名称';
+      $('#sourceNewName').focus();
+      return;
+    }
+    if (type !== 'wechat') {
+      if (!url) {
+        errorBox.textContent = type === 'rss' ? '请填写 RSS 订阅地址' : '请填写网站公开地址';
+        $('#sourceNewUrl').focus();
+        return;
+      }
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== 'https:') throw new Error('protocol');
+      } catch(e) {
+        errorBox.textContent = '地址格式不正确，请填写以 https:// 开头的公开地址';
+        $('#sourceNewUrl').focus();
+        return;
+      }
+    }
+
+    const payload = {
+      name,
+      type,
+      url: type === 'wechat' ? '' : url,
+      keywords,
+      category: $('#sourceNewCategory').value,
+      staleAfterHours: Number($('#sourceNewStale').value) || 168,
+    };
+    if (!checkNow) payload.probe = false;
+    const buttons = [$('#sourceSaveOnlyBtn'), $('#sourceSaveBtn')];
+    buttons.forEach(button => { button.disabled = true; });
+    const activeButton = checkNow ? $('#sourceSaveBtn') : $('#sourceSaveOnlyBtn');
+    const originalText = activeButton.textContent;
+    activeButton.textContent = '保存中…';
+    const r = await api('/sources', { method:'POST', body:JSON.stringify(payload) });
+    if (!r.ok) {
+      buttons.forEach(button => { button.disabled = false; });
+      activeButton.textContent = originalText;
+      errorBox.textContent = (r.data && r.data.error) || '保存失败，请稍后重试';
+      return;
+    }
+
+    const probe = checkNow && r.data ? r.data.probe : null;
+    const probeStatus = normalizeSourceStatus(probe && probe.status);
+    const checkOk = Boolean(checkNow && probe)
+      && r.data.ok !== false
+      && probe.ok !== false
+      && probeStatus !== 'blocked'
+      && probeStatus !== 'parseError';
+    let refreshStarted = false;
+    let refreshStartedAt = null;
+    if ($('#sourceRunAfterAdd').checked) {
+      activeButton.textContent = '正在启动抓取…';
+      const refreshR = await api('/refresh', { method:'POST' });
+      refreshStarted = refreshR.ok || refreshR.status === 409;
+      refreshStartedAt = refreshR.data && refreshR.data.startedAt;
+    }
+
+    buttons.forEach(button => { button.disabled = false; });
+    activeButton.textContent = originalText;
+    $('#sourceAddMask').classList.remove('show');
+    resetSourceForm();
+    if (refreshStarted) toast('信源已添加，并已启动全部抓取');
+    else if (checkNow && checkOk) toast((probe && probe.detail) || '信源已添加并完成检测');
+    else if (checkNow && probe) toast('信源已添加，但检测发现问题：' + (probe.detail || '请查看信源状态'));
+    else toast('信源已添加，将在下一轮自动抓取');
+    await loadSourceHealth();
+    if (refreshStarted) monitorSourceRefresh(refreshStartedAt);
+  }
+
+  $('#sourceSaveOnlyBtn').onclick = () => saveNewSource(false);
+  $('#sourceSaveBtn').onclick = () => saveNewSource(true);
 
   /* ============== 内容管理 ============== */
   async function loadContent(){

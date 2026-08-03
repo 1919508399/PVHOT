@@ -3,6 +3,7 @@
 // 光伏 HOT 后台系统：管理 data.json 内容（增/删/改/标记精选/手动添加/触发抓取）
 // 监听 127.0.0.1:8777，由 nginx /admin/ 反代。读写 admin_edits.json 后自动跑 merge.js。
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -13,6 +14,25 @@ const {
   atomicWriteJsonSync,
   atomicWriteUtf8Sync,
 } = require('./lib/safe_io');
+const {
+  CustomSourceError,
+  addCustomSource,
+  buildGoogleNewsSiteQuery,
+  loadCustomSources,
+  normalizeSourceInput,
+  removeCustomSource,
+  updateCustomSource,
+} = require('./lib/custom_sources');
+const { parseRss, probeRss } = require('./lib/safe_remote_fetch');
+const { buildHealthEntry, normalizeStatus, summarizeHealth } = require('./lib/source_health');
+const { withProcessLockSync } = require('./lib/process_lock');
+const {
+  TOPIC_QUERIES,
+  CURATED_SEARCH_QUERIES,
+  RSS_FEEDS,
+  SCRAPE_SOURCES,
+  WECHAT_ACCOUNTS,
+} = require('./source_registry');
 
 const ROOT = process.env.PVHOT_ROOT || '/var/www/pvhot';
 const PORT = Number(process.env.PVHOT_ADMIN_PORT || 8777);
@@ -30,8 +50,16 @@ const UPLOAD_DIR = path.join(ROOT, 'uploads');
 const QRCODE_FILE = path.join(UPLOAD_DIR, 'qrcode.png');
 const STATS_FILE = path.join(ROOT, 'stats.json');
 const SOURCE_HEALTH_FILE = path.join(ROOT, 'source_health.json');
+const CUSTOM_SOURCES_FILE = path.join(ROOT, 'custom_sources.json');
+const SOURCE_HEALTH_LOCK_OPTIONS = {
+  root: ROOT,
+  name: 'pvhot-source-health-write',
+  timeoutMs: Number(process.env.PVHOT_SOURCE_HEALTH_LOCK_TIMEOUT_MS || 30_000),
+  staleMs: Number(process.env.PVHOT_SOURCE_HEALTH_LOCK_STALE_MS || 15 * 60_000),
+};
 // 允许 3MB 图片经过 base64 膨胀后的 JSON 请求，同时拦截异常大请求。
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
+const MAX_SOURCE_BODY_BYTES = 32 * 1024;
 try { fs.mkdirSync(UPLOAD_DIR, { recursive: true }); } catch (e) {}
 
 /* ---------------- 访问统计 ---------------- */
@@ -156,6 +184,7 @@ function getSystemStatus() {
   status.uptime = Math.round(process.uptime()) + 's';
   status.refreshRunning = !!refreshJob;
   status.refreshStartedAt = refreshStartedAt;
+  status.refreshLastResult = refreshLastResult;
   return status;
 }
 
@@ -297,6 +326,480 @@ async function getBodyOrReject(req, res) {
   if (body === null) { send(res, 413, { error: '请求内容过大' }); return null; }
   return body;
 }
+
+function readStrictJson(req, limit = MAX_SOURCE_BODY_BYTES) {
+  return new Promise((resolve) => {
+    const chunks = [];
+    let size = 0;
+    let tooLarge = false;
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > limit) {
+        tooLarge = true;
+        return;
+      }
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    });
+    req.on('end', () => {
+      if (tooLarge) return resolve({ error: 'too_large' });
+      const text = Buffer.concat(chunks).toString('utf8').trim();
+      if (!text) return resolve({ error: 'invalid_json' });
+      try {
+        const value = JSON.parse(text);
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return resolve({ error: 'invalid_json' });
+        }
+        return resolve({ value });
+      } catch (error) {
+        return resolve({ error: 'invalid_json' });
+      }
+    });
+    req.on('error', () => resolve({ error: 'read_error' }));
+  });
+}
+
+async function getSourceBodyOrReject(req, res) {
+  const result = await readStrictJson(req);
+  if (result.error === 'too_large') {
+    send(res, 413, { error: '信源设置内容过大' });
+    return null;
+  }
+  if (result.error) {
+    send(res, 400, { error: '请求内容不是有效的 JSON' });
+    return null;
+  }
+  return result.value;
+}
+
+function mutationOriginAllowed(req) {
+  const origin = String(req.headers.origin || '').trim();
+  if (!origin) return true;
+  try {
+    const parsed = new URL(origin);
+    const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
+    const expectedHost = forwardedHost || String(req.headers.host || '').trim();
+    return ['http:', 'https:'].includes(parsed.protocol) && parsed.host === expectedHost;
+  } catch (error) {
+    return false;
+  }
+}
+
+function customSourceErrorResponse(res, error) {
+  const code = error && error.code;
+  if (code === 'SOURCE_NOT_FOUND') {
+    send(res, 404, { error: '没有找到这个自定义信源', code });
+    return;
+  }
+  if (['DUPLICATE_URL', 'DUPLICATE_ID', 'DUPLICATE_NAME', 'SOURCE_LIMIT'].includes(code)) {
+    send(res, 409, { error: code === 'SOURCE_LIMIT' ? '自定义信源已达到 100 个上限' : '这个信源已经添加过了', code });
+    return;
+  }
+  if (error instanceof CustomSourceError) {
+    send(res, 400, { error: '信源设置不符合要求：' + error.message, code: code || 'INVALID_SOURCE' });
+    return;
+  }
+  console.error('[sources] error', error);
+  send(res, 500, { error: '信源设置保存失败，请稍后重试' });
+}
+
+function loadSourceHealthReport() {
+  try {
+    const report = JSON.parse(fs.readFileSync(SOURCE_HEALTH_FILE, 'utf8'));
+    return report && typeof report === 'object' ? report : { sources: [] };
+  } catch (error) {
+    return { schemaVersion: 2, checkedAt: null, sources: [] };
+  }
+}
+
+function sourceHealthPayload() {
+  const report = loadSourceHealthReport();
+  let customRegistry;
+  let configError = null;
+  try {
+    customRegistry = loadCustomSources(CUSTOM_SOURCES_FILE);
+  } catch (error) {
+    configError = '自定义信源配置文件损坏或无法读取，请检查服务器日志';
+    console.error('[sources] registry read error', error);
+    customRegistry = { revision: 0, updatedAt: null, sources: [] };
+  }
+  const customById = new Map(customRegistry.sources.map((source) => [source.id, source]));
+  const seen = new Set();
+  const sources = (Array.isArray(report.sources) ? report.sources : []).map((source) => {
+    const custom = customById.get(source.id);
+    seen.add(source.id);
+    return {
+      ...source,
+      status: normalizeStatus(source.status) || 'parse_error',
+      itemsSeen: source.itemsSeen == null ? Number(source.items) || 0 : source.itemsSeen,
+      todayItems: source.todayItems == null ? null : source.todayItems,
+      latestPublishedAt: source.latestPublishedAt || source.lastItemAt || null,
+      lastCheckedAt: source.lastCheckedAt || source.checkedAt || null,
+      reasonCode: source.reasonCode || source.errorCode || null,
+      ...(custom || {}),
+      custom: !!custom || source.custom === true,
+      origin: custom ? 'custom' : (source.origin || 'built-in'),
+      enabled: custom ? custom.enabled : source.enabled !== false,
+    };
+  });
+  const healthLabels = {
+    'pv-magazine': 'PV Magazine',
+    'pv-tech': 'PV Tech',
+    cleantechnica: 'CleanTechnica',
+    solarquarter: 'SolarQuarter',
+    solarbe: '索比光伏网',
+    'bjx-guangfu': '北极星太阳能光伏网',
+    ne21: '世纪新能源网',
+    'nea-renewable': '国家能源局',
+    cpia: '中国光伏行业协会',
+  };
+  const builtInSources = [
+    ...[...TOPIC_QUERIES, ...CURATED_SEARCH_QUERIES].map((source) => ({
+      id: source.id,
+      name: source.label || source.name
+        || (String(source.id || '').startsWith('topic-')
+          ? (source.cat === 'ALL' ? '全行业主题搜索' : `${source.cat || '行业'}主题搜索`)
+          : source.id),
+      kind: 'google-news',
+      type: 'google-news',
+      tier: source.tier || 2,
+      category: source.cat || 'ALL',
+    })),
+    ...RSS_FEEDS.map((source) => ({
+      id: source.id,
+      name: healthLabels[source.id] || source.source || source.name || source.id,
+      kind: 'rss',
+      type: 'rss',
+      tier: source.tier || 2,
+      category: source.cat || 'ALL',
+    })),
+    ...SCRAPE_SOURCES.map((source) => ({
+      id: source.id,
+      name: healthLabels[source.id] || source.source || source.name || source.id,
+      kind: 'scrape',
+      type: 'website',
+      tier: source.tier || 2,
+      category: source.cat || 'ALL',
+    })),
+    ...WECHAT_ACCOUNTS.map((source) => ({
+      id: `wechat:${source.name}`,
+      name: source.name,
+      kind: 'wechat',
+      type: 'wechat',
+      tier: source.tier || 2,
+      category: 'ALL',
+    })),
+  ];
+  for (const source of builtInSources) {
+    if (seen.has(source.id)) {
+      const existing = sources.find((item) => item.id === source.id);
+      if (existing && existing.custom !== true) {
+        existing.name = source.name;
+        existing.kind = source.kind;
+        existing.type = source.type;
+      }
+      continue;
+    }
+    seen.add(source.id);
+    sources.push({
+      ...source,
+      status: 'no_new',
+      items: 0,
+      itemsSeen: 0,
+      todayItems: null,
+      newItems: 0,
+      checkedAt: null,
+      lastCheckedAt: null,
+      lastSuccessAt: null,
+      lastNewAt: null,
+      lastItemAt: null,
+      latestPublishedAt: null,
+      consecutiveFailures: 0,
+      consecutiveNoNew: 0,
+      detail: '等待首次健康检查',
+      custom: false,
+      origin: 'built-in',
+      enabled: true,
+    });
+  }
+  for (const source of customRegistry.sources) {
+    if (seen.has(source.id)) continue;
+    sources.push({
+      ...source,
+      kind: source.type === 'website' ? 'google-news' : source.type,
+      status: 'no_new',
+      items: 0,
+      itemsSeen: 0,
+      todayItems: null,
+      newItems: 0,
+      checkedAt: null,
+      lastCheckedAt: null,
+      lastSuccessAt: null,
+      lastNewAt: null,
+      lastItemAt: null,
+      latestPublishedAt: null,
+      consecutiveFailures: 0,
+      consecutiveNoNew: 0,
+      detail: source.enabled ? '已保存，等待下一轮抓取' : '当前已停用',
+      custom: true,
+      origin: 'custom',
+    });
+  }
+  const counts = summarizeHealth(sources);
+  return {
+    schemaVersion: 2,
+    checkedAt: report.checkedAt || null,
+    registryVersion: report.registryVersion || null,
+    customRevision: customRegistry.revision || 0,
+    configError,
+    summary: {
+      checked: counts.checked,
+      normal: counts.normal,
+      noNew: counts.no_new,
+      blocked: counts.blocked,
+      parseError: counts.parse_error,
+      stale: counts.stale,
+      healthy: counts.healthy,
+      issues: counts.issues,
+    },
+    sources,
+  };
+}
+
+function fixedHttpsText(url, timeoutMs = 12000, maxBytes = 1024 * 1024) {
+  return new Promise((resolve, reject) => {
+    const startedAt = Date.now();
+    const request = https.get(url, {
+      headers: {
+        'User-Agent': 'PVHOT-Source-Monitor/1.0 (+https://pvhot.bbroot.com)',
+        'Accept': 'application/rss+xml,application/xml,text/xml',
+        'Accept-Encoding': 'identity',
+      },
+    }, (response) => {
+      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        response.resume();
+        reject(Object.assign(new Error('unexpected redirect'), { code: 'GOOGLE_REDIRECT', statusCode: response.statusCode }));
+        return;
+      }
+      const chunks = [];
+      let bytes = 0;
+      response.on('data', (chunk) => {
+        bytes += chunk.length;
+        if (bytes > maxBytes) {
+          request.destroy(Object.assign(new Error('response too large'), { code: 'RESPONSE_TOO_LARGE' }));
+          return;
+        }
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      });
+      response.on('end', () => resolve({
+        statusCode: response.statusCode,
+        text: Buffer.concat(chunks).toString('utf8'),
+        durationMs: Date.now() - startedAt,
+      }));
+    });
+    request.setTimeout(timeoutMs, () => request.destroy(Object.assign(new Error('timeout'), { code: 'TIMEOUT' })));
+    request.on('error', reject);
+  });
+}
+
+async function probeCustomSource(sourceOrInput) {
+  const source = normalizeSourceInput({
+    name: sourceOrInput.name,
+    type: sourceOrInput.type,
+    url: sourceOrInput.url,
+    keywords: sourceOrInput.keywords,
+    category: sourceOrInput.category,
+    enabled: sourceOrInput.enabled,
+    staleAfterHours: sourceOrInput.staleAfterHours,
+  });
+  if (source.type === 'wechat') {
+    return {
+      ok: true,
+      status: 'no_new',
+      reasonCode: 'WAITING_FOR_WECHAT_ROTATION',
+      detail: '公众号已通过名称校验，保存后会进入轮询队列',
+      items: [],
+    };
+  }
+  if (source.type === 'website') {
+    const query = buildGoogleNewsSiteQuery(source);
+    const url = 'https://news.google.com/rss/search?q=' + encodeURIComponent(`(${query}) when:7d`)
+      + '&hl=zh-CN&gl=CN&ceid=CN:zh-Hans';
+    try {
+      const result = await fixedHttpsText(url);
+      const blocked = [401, 403, 407, 429, 451].includes(result.statusCode);
+      let items = [];
+      let parseError = null;
+      if (!blocked && result.statusCode === 200) {
+        try {
+          items = parseRss(result.text, url, { maxItems: 30 });
+        } catch (error) {
+          parseError = error;
+        }
+      }
+      const count = items.length;
+      const validEnvelope = /<(?:rss|feed|rdf:RDF)\b/i.test(result.text.slice(0, 4096));
+      const parsed = !parseError && validEnvelope;
+      return {
+        ok: !blocked && result.statusCode === 200 && parsed,
+        status: blocked ? 'blocked' : (parsed ? (count ? 'normal' : 'no_new') : 'parse_error'),
+        reasonCode: blocked
+          ? `HTTP_${result.statusCode}`
+          : (parsed ? 'GOOGLE_NEWS_READY' : (parseError ? 'INVALID_RSS' : `HTTP_${result.statusCode || 'NO_ITEMS'}`)),
+        detail: blocked
+          ? 'Google News 暂时限制了查询'
+          : (parsed
+              ? (count ? `定向监控可用，最近识别到 ${count} 条结果` : '定向监控可用，最近 7 天暂无结果')
+              : '暂时无法解析 Google News 定向监控结果'),
+        httpStatus: result.statusCode,
+        durationMs: result.durationMs,
+        items,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        status: 'parse_error',
+        reasonCode: error.code || 'GOOGLE_NEWS_ERROR',
+        detail: '暂时无法验证 Google News 定向监控',
+        items: [],
+      };
+    }
+  }
+  return probeRss(source.url, { maxItems: 30 });
+}
+
+function normalizedAccountKey(value) {
+  return String(value || '').normalize('NFKC').toLocaleLowerCase('zh-CN')
+    .replace(/[\s·\-—_（）()｜|]/g, '');
+}
+
+function duplicatesBuiltInWechat(source) {
+  if (!source || source.type !== 'wechat') return false;
+  const candidate = normalizedAccountKey(source.name);
+  return WECHAT_ACCOUNTS.some((account) =>
+    [account.name, ...(account.aliases || [])]
+      .map(normalizedAccountKey)
+      .some((existing) => candidate && candidate === existing)
+  );
+}
+
+const sourceProbeRate = new Map();
+let sourceProbeBusy = false;
+function sourceProbeAllowed(req) {
+  const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown')
+    .split(',')[0].trim().slice(0, 80);
+  const now = Date.now();
+  const recent = (sourceProbeRate.get(ip) || []).filter((time) => now - time < 60000);
+  if (recent.length >= 5) {
+    sourceProbeRate.set(ip, recent);
+    return false;
+  }
+  recent.push(now);
+  sourceProbeRate.set(ip, recent);
+  return true;
+}
+
+function probeDiagnostics(probe) {
+  const status = probe && probe.status;
+  return {
+    blocked: status === 'blocked',
+    parseError: status === 'parse_failed' || status === 'parse_error',
+    httpStatus: probe && probe.httpStatus,
+    durationMs: probe && probe.durationMs,
+    errorCode: probe && probe.ok ? null : (probe && probe.reasonCode),
+    detail: probe && probe.detail,
+  };
+}
+
+function persistCustomProbeUnlocked(source, probe) {
+  const report = loadSourceHealthReport();
+  const sources = Array.isArray(report.sources) ? report.sources.slice() : [];
+  const index = sources.findIndex((item) => item.id === source.id);
+  const previous = index >= 0 ? sources[index] : null;
+  const next = {
+    ...buildHealthEntry(
+      { ...source, kind: source.type === 'website' ? 'google-news' : source.type },
+      probe.items || [],
+      previous,
+      probeDiagnostics(probe),
+      new Date()
+    ),
+    ...source,
+    custom: true,
+    origin: 'custom',
+  };
+  if (index >= 0) sources[index] = next;
+  else sources.push(next);
+  const summary = summarizeHealth(sources);
+  const nextReport = {
+    ...report,
+    schemaVersion: 2,
+    checkedAt: new Date().toISOString(),
+    summary: { ...summary, wechatCachedItems: Number(report.summary && report.summary.wechatCachedItems) || 0 },
+    sources,
+  };
+  atomicWriteJsonSync(SOURCE_HEALTH_FILE, nextReport, {
+    space: 2,
+    trailingNewline: true,
+    validate: (value) => value && Array.isArray(value.sources),
+  });
+  return next;
+}
+
+function persistCustomProbe(source, probe) {
+  return withProcessLockSync(SOURCE_HEALTH_LOCK_OPTIONS, () => {
+    // A source may be deleted while its network probe is in flight. Re-read
+    // the registry while holding the health-file lock so a late response
+    // cannot recreate a deleted source's health row.
+    const registry = loadCustomSources(CUSTOM_SOURCES_FILE);
+    const registered = registry.sources.find((item) => item.id === source.id);
+    if (!registered) {
+      throw new CustomSourceError('SOURCE_NOT_FOUND', 'custom source no longer exists');
+    }
+    return persistCustomProbeUnlocked(registered, probe);
+  });
+}
+
+function removeCustomHealthUnlocked(id) {
+  const report = loadSourceHealthReport();
+  const sources = (Array.isArray(report.sources) ? report.sources : [])
+    .filter((source) => source.id !== id);
+  const summary = summarizeHealth(sources);
+  atomicWriteJsonSync(SOURCE_HEALTH_FILE, {
+    ...report,
+    schemaVersion: 2,
+    checkedAt: new Date().toISOString(),
+    summary: { ...summary, wechatCachedItems: Number(report.summary && report.summary.wechatCachedItems) || 0 },
+    sources,
+  }, {
+    space: 2,
+    trailingNewline: true,
+    validate: (value) => value && Array.isArray(value.sources),
+  });
+}
+
+function removeCustomHealth(id) {
+  return withProcessLockSync(
+    SOURCE_HEALTH_LOCK_OPTIONS,
+    () => removeCustomHealthUnlocked(id)
+  );
+}
+
+async function runRateLimitedSourceProbe(req, res, source) {
+  if (!sourceProbeAllowed(req)) {
+    send(res, 429, { error: '检测太频繁，请 1 分钟后再试' });
+    return null;
+  }
+  if (sourceProbeBusy) {
+    send(res, 409, { error: '已有一个信源正在检测，请稍后再试' });
+    return null;
+  }
+  sourceProbeBusy = true;
+  try {
+    return await probeCustomSource(source);
+  } finally {
+    sourceProbeBusy = false;
+  }
+}
 function loadEdits() {
   try { return JSON.parse(fs.readFileSync(EDITS, 'utf8')); } catch (e) { return { deleted: [], overrides: {}, added: [] }; }
 }
@@ -375,6 +878,65 @@ function cookieHeader(token) {
 
 let refreshJob = null;
 let refreshStartedAt = null;
+let refreshLastResult = null;
+
+function runNodeTask(filename, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(NODE, [path.join(ROOT, filename)], {
+      cwd: ROOT,
+      env: {
+        ...process.env,
+        HOME: process.env.HOME || '/var/lib/pvhot',
+        XDG_CACHE_HOME: process.env.XDG_CACHE_HOME || '/var/cache/pvhot',
+        PUPPETEER_EXECUTABLE_PATH: process.env.PUPPETEER_EXECUTABLE_PATH || '/opt/pvhot/chrome/chrome',
+        PVHOT_WECHAT_LOCK_TIMEOUT_MS: process.env.PVHOT_WECHAT_LOCK_TIMEOUT_MS || '120000',
+        PVHOT_NEWS_LOCK_TIMEOUT_MS: process.env.PVHOT_NEWS_LOCK_TIMEOUT_MS || '120000',
+      },
+      stdio: 'ignore',
+    });
+    child.once('error', reject);
+    child.once('close', (code, signal) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      const error = new Error(`${filename} exited with ${signal || code}`);
+      error.code = 'ECHILDTASK';
+      reject(error);
+    });
+  }).catch((error) => {
+    if (options.allowFailure) {
+      console.error(`[admin] ${filename} failed; continuing`, error.message);
+      return;
+    }
+    throw error;
+  });
+}
+
+async function runRefreshPipeline() {
+  const startedAt = refreshStartedAt || new Date().toISOString();
+  try {
+    await runNodeTask('fetch_wechat.js', { allowFailure: true });
+    await runNodeTask('fetch_pv_news.js');
+    merge();
+    refreshLastResult = {
+      ok: true,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error('[admin] refresh pipeline error', error);
+    refreshLastResult = {
+      ok: false,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      error: '抓取未完整完成，请查看运行日志',
+    };
+  } finally {
+    refreshJob = null;
+    refreshStartedAt = null;
+  }
+}
 
 /* ---------------- 路由 ---------------- */
 const server = http.createServer(async (req, res) => {
@@ -632,6 +1194,170 @@ const server = http.createServer(async (req, res) => {
   /* ---------- 鉴权：texts / feedback 管理 ---------- */
   if (!authed(req)) { send(res, 401, { error: '未登录' }); return; }
 
+  /* ---------- 信源健康与自定义信源（需登录） ---------- */
+  if (p === '/admin/api/source-health' && method === 'GET') {
+    send(res, 200, sourceHealthPayload());
+    return;
+  }
+
+  if (p === '/admin/api/sources' && method === 'GET') {
+    try {
+      const registry = loadCustomSources(CUSTOM_SOURCES_FILE);
+      send(res, 200, registry);
+    } catch (error) {
+      customSourceErrorResponse(res, error);
+    }
+    return;
+  }
+
+  if (p.startsWith('/admin/api/sources') && method !== 'GET' && !mutationOriginAllowed(req)) {
+    send(res, 403, { error: '请求来源校验失败，请刷新后台页面后重试' });
+    return;
+  }
+
+  if (p === '/admin/api/sources/probe' && method === 'POST') {
+    const body = await getSourceBodyOrReject(req, res); if (!body) return;
+    try {
+      const normalized = normalizeSourceInput(body);
+      if (duplicatesBuiltInWechat(normalized)) {
+        send(res, 409, { error: '这个公众号已经在内置信源名单中' });
+        return;
+      }
+      const probe = await runRateLimitedSourceProbe(req, res, normalized);
+      if (!probe) return;
+      send(res, 200, { ok: probe.ok, source: normalized, probe });
+    } catch (error) {
+      customSourceErrorResponse(res, error);
+    }
+    return;
+  }
+
+  if (p === '/admin/api/sources' && method === 'POST') {
+    const body = await getSourceBodyOrReject(req, res); if (!body) return;
+    try {
+      const shouldProbe = body.probe !== false;
+      const sourceInput = { ...body };
+      delete sourceInput.probe;
+      const normalized = normalizeSourceInput(sourceInput);
+      if (duplicatesBuiltInWechat(normalized)) {
+        send(res, 409, { error: '这个公众号已经在内置信源名单中' });
+        return;
+      }
+      const probe = shouldProbe
+        ? await runRateLimitedSourceProbe(req, res, normalized)
+        : {
+            ok: true,
+            status: 'no_new',
+            reasonCode: 'SAVED_WITHOUT_PROBE',
+            detail: normalized.enabled ? '已保存，等待下一轮抓取' : '信源已保存并停用',
+            items: [],
+          };
+      if (!probe) return;
+      if (shouldProbe && normalized.type === 'rss' && !probe.ok) {
+        send(res, 422, { error: probe.detail || 'RSS 地址暂时无法读取', probe });
+        return;
+      }
+      const { source, registry } = addCustomSource(CUSTOM_SOURCES_FILE, normalized);
+      let health = null;
+      try { health = persistCustomProbe(source, probe); } catch (error) {
+        console.error('[sources] health write error', error);
+      }
+      send(res, 201, {
+        ok: true,
+        source,
+        probe,
+        health,
+        revision: registry.revision,
+        message: source.type === 'wechat' ? '已加入公众号轮询队列' : '已保存，将在下一轮抓取中持续监控',
+      });
+    } catch (error) {
+      customSourceErrorResponse(res, error);
+    }
+    return;
+  }
+
+  const sourceMatch = p.match(/^\/admin\/api\/sources\/([^/]+)(?:\/(check|test))?$/);
+  if (sourceMatch) {
+    const id = decodeURIComponent(sourceMatch[1] || '');
+    const action = sourceMatch[2] || '';
+    if ((action === 'check' || action === 'test') && method === 'POST') {
+      try {
+        const registry = loadCustomSources(CUSTOM_SOURCES_FILE);
+        const source = registry.sources.find((item) => item.id === id);
+        if (!source) {
+          send(res, 404, { error: '没有找到这个自定义信源' });
+          return;
+        }
+        const probe = await runRateLimitedSourceProbe(req, res, source);
+        if (!probe) return;
+        const health = persistCustomProbe(source, probe);
+        send(res, 200, { ok: probe.ok, source, probe, health });
+      } catch (error) {
+        customSourceErrorResponse(res, error);
+      }
+      return;
+    }
+    if (!action && method === 'PUT') {
+      const body = await getSourceBodyOrReject(req, res); if (!body) return;
+      try {
+        const registry = loadCustomSources(CUSTOM_SOURCES_FILE);
+        const current = registry.sources.find((item) => item.id === id);
+        if (!current) {
+          send(res, 404, { error: '没有找到这个自定义信源' });
+          return;
+        }
+        const normalized = normalizeSourceInput({
+          name: current.name,
+          type: current.type,
+          url: current.url,
+          keywords: current.keywords,
+          category: current.category,
+          enabled: current.enabled,
+          staleAfterHours: current.staleAfterHours,
+          ...body,
+        });
+        if (duplicatesBuiltInWechat(normalized)) {
+          send(res, 409, { error: '这个公众号已经在内置信源名单中' });
+          return;
+        }
+        let probe = {
+          ok: true,
+          status: normalized.enabled ? 'no_new' : 'no_new',
+          reasonCode: normalized.enabled ? 'SETTINGS_UPDATED' : 'SOURCE_DISABLED',
+          detail: normalized.enabled ? '设置已更新，等待下一轮抓取' : '信源已停用',
+          items: [],
+        };
+        const connectionChanged = normalized.type !== current.type || normalized.url !== current.url;
+        if (normalized.enabled && connectionChanged) {
+          probe = await runRateLimitedSourceProbe(req, res, normalized);
+          if (!probe) return;
+          if (normalized.type === 'rss' && !probe.ok) {
+            send(res, 422, { error: probe.detail || 'RSS 地址暂时无法读取', probe });
+            return;
+          }
+        }
+        const result = updateCustomSource(CUSTOM_SOURCES_FILE, id, body);
+        const health = persistCustomProbe(result.source, probe);
+        send(res, 200, { ok: true, source: result.source, probe, health, revision: result.registry.revision });
+      } catch (error) {
+        customSourceErrorResponse(res, error);
+      }
+      return;
+    }
+    if (!action && method === 'DELETE') {
+      try {
+        const result = removeCustomSource(CUSTOM_SOURCES_FILE, id);
+        try { removeCustomHealth(id); } catch (error) {
+          console.error('[sources] health cleanup error', error);
+        }
+        send(res, 200, { ok: true, deleted: result.source, revision: result.registry.revision });
+      } catch (error) {
+        customSourceErrorResponse(res, error);
+      }
+      return;
+    }
+  }
+
   if (p === '/admin/api/texts' && method === 'GET') {
     let t;
     try { t = JSON.parse(fs.readFileSync(TEXTS_FILE, 'utf8')); } catch (e) { t = null; }
@@ -857,24 +1583,23 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // 触发抓取（异步，立即返回，稍后看日志）
+  // 触发完整抓取（公众号 → 网站/RSS → 合并），异步执行并立即返回。
   if (p === '/admin/api/refresh' && method === 'POST') {
     if (refreshJob) {
       send(res, 409, { error: '抓取任务正在运行，请勿重复触发', startedAt: refreshStartedAt });
       return;
     }
-    send(res, 200, { ok: true, msg: '已触发抓取，稍后点「查看日志」刷新' });
     refreshStartedAt = new Date().toISOString();
-    refreshJob = spawn(NODE, [path.join(ROOT, 'fetch_pv_news.js')], { cwd: ROOT });
-    refreshJob.on('error', (e) => {
-      console.error('[admin] refresh error', e);
-      refreshJob = null;
-      refreshStartedAt = null;
-    });
-    refreshJob.on('close', () => {
-      try { merge(); } catch (e) {}
-      refreshJob = null;
-      refreshStartedAt = null;
+    refreshLastResult = {
+      ok: null,
+      startedAt: refreshStartedAt,
+      finishedAt: null,
+    };
+    refreshJob = runRefreshPipeline();
+    send(res, 202, {
+      ok: true,
+      startedAt: refreshStartedAt,
+      msg: '已触发完整抓取：公众号、网站、RSS 会依次更新',
     });
     return;
   }

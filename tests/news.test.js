@@ -6,7 +6,9 @@ const {
   beijingDateKey,
   computeScoreDetails,
   decodeResponseBuffer,
+  inspectFeedStructure,
   isMojibake,
+  mapLimit,
 } = require('../fetch_pv_news');
 
 test('beijingDateKey changes day at UTC+8 midnight', () => {
@@ -40,4 +42,58 @@ test('computeScoreDetails returns a bounded score with an explainable breakdown'
   assert.ok(result.networkHeat >= 0 && result.networkHeat <= 100);
   assert.ok(result.breakdown.crossSource > 0);
   assert.ok(result.breakdown.recency > 0);
+});
+
+test('custom sources cannot inherit the built-in trusted-source score', () => {
+  const common = {
+    source: 'pv-magazine',
+    sourceCount: 1,
+    title: 'Solar market update',
+    summary: 'A detailed solar market update with policy and project information.',
+    pubDate: new Date().toISOString(),
+    dateKey: beijingDateKey(),
+  };
+  const builtIn = computeScoreDetails(common);
+  const custom = computeScoreDetails({ ...common, _customSourceId: 'custom-feed-id' });
+
+  assert.equal(builtIn.breakdown.authority, 12);
+  assert.equal(custom.breakdown.authority, 4);
+  assert.ok(custom.score < builtIn.score);
+});
+
+test('feed structure check separates a valid empty feed from broken parsing', () => {
+  const empty = inspectFeedStructure(
+    '<?xml version="1.0"?><rss><channel></channel></rss>',
+    []
+  );
+  assert.deepEqual(empty, { ok: true, declaredItems: 0 });
+
+  const truncated = inspectFeedStructure(
+    '<?xml version="1.0"?><rss><channel><item><title>News</title>',
+    []
+  );
+  assert.equal(truncated.ok, false);
+  assert.equal(truncated.errorCode, 'truncated_feed');
+
+  const changed = inspectFeedStructure(
+    '<rss><channel><item><title>News</title><link></link></item></channel></rss>',
+    []
+  );
+  assert.equal(changed.ok, false);
+  assert.equal(changed.errorCode, 'feed_items_unparsed');
+});
+
+test('mapLimit caps concurrent source requests and preserves result order', async () => {
+  let active = 0;
+  let peak = 0;
+  const result = await mapLimit([1, 2, 3, 4, 5], 2, async (value) => {
+    active += 1;
+    peak = Math.max(peak, active);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    active -= 1;
+    return value * 10;
+  });
+
+  assert.equal(peak, 2);
+  assert.deepEqual(result, [10, 20, 30, 40, 50]);
 });

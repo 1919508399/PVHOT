@@ -12,6 +12,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { atomicWriteJsonSync } = require('./lib/safe_io');
 const { withProcessLock } = require('./lib/process_lock');
+const { loadCustomSources } = require('./lib/custom_sources');
 const {
   REGISTRY_VERSION,
   WECHAT_ACCOUNTS,
@@ -21,6 +22,7 @@ const {
 const ROOT = process.env.PVHOT_ROOT || '/var/www/pvhot';
 const MAX_PER_QUERY = 12;
 const OUTPUT_PATH = `${ROOT}/wechat_items.json`;
+const CUSTOM_SOURCES_FILE = `${ROOT}/custom_sources.json`;
 const FRESH_DAYS = 7;
 const WECHAT_LOCK_OPTIONS = {
   root: ROOT,
@@ -29,7 +31,9 @@ const WECHAT_LOCK_OPTIONS = {
   staleMs: Number(process.env.PVHOT_WECHAT_LOCK_STALE_MS || 45 * 60_000),
 };
 const ACCOUNT_BATCH_SIZE = Math.max(1, Math.min(16, Number(process.env.PVHOT_WECHAT_ACCOUNT_BATCH || 8)));
+const CUSTOM_ACCOUNT_BATCH_SIZE = Math.max(1, Math.min(8, Number(process.env.PVHOT_WECHAT_CUSTOM_ACCOUNT_BATCH || 4)));
 const TOPIC_BATCH_SIZE = Math.max(1, Math.min(WECHAT_TOPIC_QUERIES.length, Number(process.env.PVHOT_WECHAT_TOPIC_BATCH || 4)));
+let MONITORED_WECHAT_ACCOUNTS = WECHAT_ACCOUNTS;
 
 const CHROME_PATH = process.env.PUPPETEER_EXECUTABLE_PATH
   || '/home/admin/.cache/puppeteer/chrome/linux-149.0.7827.22/chrome-linux64/chrome';
@@ -44,14 +48,18 @@ function normalizeAccountName(value) {
   return (value || '').toLowerCase().replace(/[\s·\-—_（）()｜|]/g, '');
 }
 
-function isRegistryAccount(value) {
+function findMonitoredAccount(value) {
   const actual = normalizeAccountName(value);
-  if (!actual) return false;
-  return WECHAT_ACCOUNTS.some((account) =>
+  if (!actual) return null;
+  return MONITORED_WECHAT_ACCOUNTS.find((account) =>
     [account.name, ...(account.aliases || [])]
       .map(normalizeAccountName)
       .some((alias) => actual.includes(alias) || alias.includes(actual))
-  );
+  ) || null;
+}
+
+function isRegistryAccount(value) {
+  return !!findMonitoredAccount(value);
 }
 
 /** Parse sogou's messy date format into ISO date string */
@@ -224,6 +232,25 @@ async function searchWechat(keyword, page, targetAccount = null) {
 
 async function runMain() {
   console.log('[wechat] START Puppeteer WeChat search');
+  let customAccounts = [];
+  try {
+    const registry = loadCustomSources(CUSTOM_SOURCES_FILE);
+    customAccounts = registry.sources
+      .filter((source) => source.enabled !== false && source.type === 'wechat')
+      .map((source) => ({
+        id: source.id,
+        name: source.name,
+        aliases: source.keywords || [source.name],
+        kind: '公众号',
+        tier: 2,
+        category: source.category || 'ALL',
+        staleAfterHours: source.staleAfterHours || 168,
+        custom: true,
+      }));
+  } catch (error) {
+    console.error('[wechat] custom source registry disabled for this run:', error.message);
+  }
+  MONITORED_WECHAT_ACCOUNTS = [...WECHAT_ACCOUNTS, ...customAccounts];
   
   const browser = await puppeteer.launch({
     executablePath: CHROME_PATH,
@@ -245,9 +272,16 @@ async function runMain() {
   const accountStart = Number.isInteger(configuredStart)
     ? ((configuredStart % WECHAT_ACCOUNTS.length) + WECHAT_ACCOUNTS.length) % WECHAT_ACCOUNTS.length
     : (hourSlot * ACCOUNT_BATCH_SIZE) % WECHAT_ACCOUNTS.length;
-  const queriedAccounts = Array.from({ length: Math.min(ACCOUNT_BATCH_SIZE, WECHAT_ACCOUNTS.length) }, (_, i) =>
+  const builtInAccounts = Array.from({ length: Math.min(ACCOUNT_BATCH_SIZE, WECHAT_ACCOUNTS.length) }, (_, i) =>
     WECHAT_ACCOUNTS[(accountStart + i) % WECHAT_ACCOUNTS.length]
   );
+  const customStart = customAccounts.length
+    ? (hourSlot * CUSTOM_ACCOUNT_BATCH_SIZE) % customAccounts.length
+    : 0;
+  const customQueriedAccounts = Array.from({
+    length: Math.min(CUSTOM_ACCOUNT_BATCH_SIZE, customAccounts.length),
+  }, (_, i) => customAccounts[(customStart + i) % customAccounts.length]);
+  const queriedAccounts = [...customQueriedAccounts, ...builtInAccounts];
   const topicStart = (hourSlot * TOPIC_BATCH_SIZE) % WECHAT_TOPIC_QUERIES.length;
   const topicQueries = Array.from({ length: TOPIC_BATCH_SIZE }, (_, i) =>
     WECHAT_TOPIC_QUERIES[(topicStart + i) % WECHAT_TOPIC_QUERIES.length]
@@ -266,12 +300,13 @@ async function runMain() {
           id: `topic:${kw}`,
           name: kw,
           kind: 'topic',
-          status: trustedItems.length ? 'ok' : 'empty',
+          status: result.status === 'captcha' ? 'captcha' : (trustedItems.length ? 'ok' : 'empty'),
           raw: result.rawCount,
           candidateFresh: result.items.length,
           fresh: trustedItems.length,
         });
         for (const it of trustedItems) {
+          const monitoredAccount = findMonitoredAccount(it.account);
           allItems.push({
             id: extractItemId(it.link),
             title: it.title,
@@ -289,7 +324,10 @@ async function runMain() {
             heat: 45,
             tags: [],
             score: 45,
-            avatar: it.avatar || ''
+            avatar: it.avatar || '',
+            ...(monitoredAccount && monitoredAccount.custom
+              ? { _customSourceId: monitoredAccount.id, _customSourceType: 'wechat' }
+              : {}),
           });
         }
       } catch (e) {
@@ -329,7 +367,8 @@ async function runMain() {
             heat: account.tier === 1 ? 55 : 48,
             tags: [],
             score: account.tier === 1 ? 55 : 48,
-            avatar: it.avatar || ''
+            avatar: it.avatar || '',
+            ...(account.custom ? { _customSourceId: account.id, _customSourceType: 'wechat' } : {}),
           });
         }
       } catch (e) {
@@ -367,7 +406,7 @@ async function runMain() {
   const output = {
     fetchedAt: new Date().toISOString(),
     registryVersion: REGISTRY_VERSION,
-    monitoredAccounts: WECHAT_ACCOUNTS.length,
+    monitoredAccounts: MONITORED_WECHAT_ACCOUNTS.length,
     queriedAccounts: queriedAccounts.map((account) => account.name),
     topicQueries,
     health,
@@ -382,7 +421,7 @@ async function runMain() {
       && Array.isArray(value.items)
       && Number(value.count) === value.items.length,
   });
-  console.log(`[wechat] OK registry=${REGISTRY_VERSION} monitored=${WECHAT_ACCOUNTS.length} queried=${queriedAccounts.length} wrote=${deduped.length} -> ${OUTPUT_PATH}`);
+  console.log(`[wechat] OK registry=${REGISTRY_VERSION} monitored=${MONITORED_WECHAT_ACCOUNTS.length} queried=${queriedAccounts.length} wrote=${deduped.length} -> ${OUTPUT_PATH}`);
 }
 
 async function main() {
