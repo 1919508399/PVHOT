@@ -120,7 +120,7 @@ function getStatsSummary() {
   // 最近7天
   const last7 = [];
   for (let i = 6; i >= 0; i--) {
-    const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    const d = new Date(Date.now() + 8 * 3600000 - i * 86400000).toISOString().slice(0, 10);
     const dd = s.days[d] || { pv: 0, uv: 0 };
     last7.push({ date: d, pv: dd.pv || 0, uv: dd.uv || 0 });
   }
@@ -317,27 +317,94 @@ function send(res, code, obj, extra) {
   }, extra || {}));
   res.end(obj === undefined ? '' : JSON.stringify(obj));
 }
+const INVALID_JSON_BODY = Symbol('invalid-json-body');
 function readBody(req, limit = MAX_BODY_BYTES) {
   return new Promise((resolve) => {
-    let b = '';
+    const chunks = [];
     let size = 0;
     let tooLarge = false;
     req.on('data', (c) => {
       if (tooLarge) return;
       size += c.length;
-      if (size > limit) { tooLarge = true; b = ''; return; }
-      b += c;
+      if (size > limit) { tooLarge = true; chunks.length = 0; return; }
+      chunks.push(Buffer.from(c));
     });
     req.on('end', () => {
       if (tooLarge) return resolve(null);
-      try { resolve(b ? JSON.parse(b) : {}); } catch (e) { resolve({}); }
+      const text = Buffer.concat(chunks).toString('utf8');
+      try { resolve(text ? JSON.parse(text) : {}); } catch (e) { resolve(INVALID_JSON_BODY); }
     });
   });
 }
 async function getBodyOrReject(req, res) {
   const body = await readBody(req);
   if (body === null) { send(res, 413, { error: '请求内容过大' }); return null; }
+  if (body === INVALID_JSON_BODY) { send(res, 400, { error: '内容格式不正确，请重新提交' }); return null; }
   return body;
+}
+
+function validateEditableString(value, label, maxLength, allowMarkup = false) {
+  if (typeof value !== 'string') return `${label}格式不正确`;
+  if (value.length > maxLength) return `${label}内容过长`;
+  if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\uFFFD]/.test(value) || /锟斤拷/.test(value)) {
+    return `${label}包含无法识别的字符，请重新输入`;
+  }
+  if (allowMarkup && (/<\s*(script|style|iframe|object|embed|svg|math|form|input|button)\b/i.test(value)
+    || /\bon\w+\s*=/i.test(value) || /javascript\s*:/i.test(value))) {
+    return `${label}包含不安全的格式`;
+  }
+  return null;
+}
+
+function validateEditableTextPayload(key, value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return '提交内容格式不正确';
+  const checkFields = (fields) => {
+    for (const [name, label, maxLength, allowMarkup] of fields) {
+      const error = validateEditableString(value[name] == null ? '' : value[name], label, maxLength, allowMarkup);
+      if (error) return error;
+    }
+    return null;
+  };
+  if (key === 'about') {
+    const fieldError = checkFields([
+      ['eyebrow','页面小标题',60,false], ['title_html','主标题',500,true], ['sub','一句话介绍',300,false],
+      ['fineprint_html','版权与联系说明',1200,true],
+    ]);
+    if (fieldError) return fieldError;
+    if (!Array.isArray(value.poem) || value.poem.length > 12) return '核心介绍格式不正确';
+    for (const line of value.poem) {
+      const error = validateEditableString(line, '核心介绍', 400, true);
+      if (error) return error;
+    }
+  }
+  if (key === 'agent') {
+    const fieldError = checkFields([
+      ['eyebrow','页面小标题',60,false], ['title_html','主标题',500,true], ['sub_html','页面说明',1200,true],
+      ['verify_q','示例问题',400,false], ['note_html','接入说明',1200,true], ['skill_md','接入配置',250000,false],
+    ]);
+    if (fieldError) return fieldError;
+  }
+  if (key === 'changelog') {
+    if (!Array.isArray(value.items) || value.items.length > 500) return '更新日志格式不正确';
+    for (const item of value.items) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return '更新记录格式不正确';
+      for (const [name, label, maxLength] of [
+        ['ver','版本标识',40], ['date','发布日期',20], ['time','发布时间',10], ['type','更新类型',30],
+        ['title','更新标题',160], ['text','更新说明',1200],
+      ]) {
+        const error = validateEditableString(item[name] == null ? '' : item[name], label, maxLength, false);
+        if (error) return error;
+      }
+      if (item.bullets != null) {
+        if (!Array.isArray(item.bullets) || item.bullets.length > 20) return '具体改动格式不正确';
+        for (const line of item.bullets) {
+          const error = validateEditableString(line, '具体改动', 500, false);
+          if (error) return error;
+        }
+      }
+    }
+  }
+  return null;
 }
 
 function readStrictJson(req, limit = MAX_SOURCE_BODY_BYTES) {
@@ -1457,7 +1524,10 @@ const server = http.createServer(async (req, res) => {
     const body = await getBodyOrReject(req, res); if (!body) return;
     let t;
     try { t = JSON.parse(fs.readFileSync(TEXTS_FILE, 'utf8')); } catch (e) { t = { about: {}, agent: {}, changelog: { items: [] } }; }
-    t[key] = body.value !== undefined ? body.value : body;
+    const nextValue = body.value !== undefined ? body.value : body;
+    const validationError = validateEditableTextPayload(key, nextValue);
+    if (validationError) { send(res, 400, { error: validationError }); return; }
+    t[key] = nextValue;
     try { atomicWriteJsonSync(TEXTS_FILE, t, { space: 2, trailingNewline: true }); }
     catch (e) { send(res, 500, { error: '写入失败：' + e.message }); return; }
     // 同步重写 fallback（供 file:// 打开）
@@ -1473,6 +1543,13 @@ const server = http.createServer(async (req, res) => {
       } catch (e) { /* 不影响主保存 */ }
     }
     send(res, 200, { ok: true, key });
+    return;
+  }
+
+  if (p === '/admin/api/feedback-summary' && method === 'GET') {
+    let list = [];
+    try { list = JSON.parse(fs.readFileSync(FEEDBACK_FILE, 'utf8')); if (!Array.isArray(list)) list = []; } catch (e) {}
+    send(res, 200, { total:list.length, unread:list.filter((item) => !item.read).length });
     return;
   }
 
@@ -1515,10 +1592,14 @@ const server = http.createServer(async (req, res) => {
     const m = /^data:([\w\/+\-.]+);base64,(.+)$/i.exec(data);
     if (!m) { send(res, 400, { error: 'data 字段格式不对（应是 data:image/...;base64,XXX）' }); return; }
     const mime = m[1].toLowerCase();
-    if (!/^image\/(png|jpe?g|webp|gif)$/.test(mime)) { send(res, 400, { error: '只支持 png/jpg/webp/gif' }); return; }
+    if (mime !== 'image/png') { send(res, 400, { error: '请选择 PNG 图片' }); return; }
     const buf = Buffer.from(m[2], 'base64');
     if (buf.length === 0) { send(res, 400, { error: '内容为空' }); return; }
-    if (buf.length > 3 * 1024 * 1024) { send(res, 400, { error: '图片不能超过 3MB' }); return; }
+    if (buf.length > 2 * 1024 * 1024) { send(res, 400, { error: '图片不能超过 2MB' }); return; }
+    const pngSignature = Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]);
+    if (buf.length < pngSignature.length || !buf.subarray(0, pngSignature.length).equals(pngSignature)) {
+      send(res, 400, { error: '图片内容不是有效的 PNG 文件' }); return;
+    }
     try { atomicWriteBufferSync(QRCODE_FILE, buf); }
     catch (e) { send(res, 500, { error: '写入失败：' + e.message }); return; }
     const st = fs.statSync(QRCODE_FILE);
@@ -1533,14 +1614,7 @@ const server = http.createServer(async (req, res) => {
 
   /* ---------- 统计面板（需登录） ---------- */
   if (p === '/admin/api/stats' && method === 'GET') {
-    const summary = getStatsSummary();
-    // 异步检查 RSSHub 健康（不阻塞响应）
-    let sent = false;
-    const done = (val) => { if (!sent) { sent = true; summary.rsshub = val; send(res, 200, summary); } };
-    http.get('http://127.0.0.1:1200/', { timeout: 3000 }, (r) => {
-      r.resume();
-      r.on('end', () => done(r.statusCode < 500 ? 'ok' : 'err:' + r.statusCode));
-    }).on('error', () => done('down')).on('timeout', function() { this.destroy(); done('timeout'); });
+    send(res, 200, getStatsSummary());
     return;
   }
 
