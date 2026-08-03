@@ -321,6 +321,10 @@ initialize_shared_state() {
     "${SHARED_DIR}/data/source_health.json" \
     "" \
     '{}'
+  seed_file "custom_sources.json" \
+    "${SHARED_DIR}/data/custom_sources.json" \
+    "" \
+    '{"schemaVersion":1,"revision":0,"updatedAt":null,"sources":[]}'
   seed_file "translate_cache.json" \
     "${SHARED_DIR}/data/translate_cache.json" \
     "" \
@@ -388,6 +392,7 @@ wire_shared_state() {
     feedback.json \
     stats.json \
     source_health.json \
+    custom_sources.json \
     translate_cache.json \
     article_cache.json \
     wechat_items.json \
@@ -443,6 +448,9 @@ preflight_release() {
     source_registry.js
     lib/safe_io.js
     lib/process_lock.js
+    lib/source_health.js
+    lib/custom_sources.js
+    lib/safe_remote_fetch.js
     site_texts.json
     site_texts_fallback.js
     data.json
@@ -472,7 +480,10 @@ preflight_release() {
     merge.js \
     source_registry.js \
     lib/safe_io.js \
-    lib/process_lock.js; do
+    lib/process_lock.js \
+    lib/source_health.js \
+    lib/custom_sources.js \
+    lib/safe_remote_fetch.js; do
     "${NODE_BIN}" --check "${release_dir}/${js_file}" >/dev/null
   done
 

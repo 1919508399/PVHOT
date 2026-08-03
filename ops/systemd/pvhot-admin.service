@@ -14,8 +14,11 @@ Environment=PVHOT_LOCK_DIR=/var/www/pvhot/shared/run/locks
 Environment=PVHOT_ADMIN_HOST=127.0.0.1
 Environment=PVHOT_ADMIN_PORT=8777
 Environment=PVHOT_NODE=/usr/bin/node
+Environment=HOME=/var/lib/pvhot
+Environment=XDG_CACHE_HOME=/var/cache/pvhot
 EnvironmentFile=-/etc/pvhot/pvhot-common.env
 EnvironmentFile=-/etc/pvhot/pvhot-admin.env
+EnvironmentFile=-/etc/pvhot/pvhot-fetch.env
 ExecStartPre=/usr/bin/test -L /var/www/pvhot/current
 ExecStartPre=/usr/bin/test -r /var/www/pvhot/current/admin_server.js
 ExecStart=/usr/bin/node /var/www/pvhot/current/admin_server.js
@@ -25,6 +28,8 @@ TimeoutStartSec=30s
 TimeoutStopSec=20s
 KillSignal=SIGTERM
 UMask=0007
+StateDirectory=pvhot
+CacheDirectory=pvhot
 
 NoNewPrivileges=true
 PrivateTmp=true
@@ -39,7 +44,7 @@ ProtectHostname=true
 RestrictSUIDSGID=true
 LockPersonality=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-ReadWritePaths=/var/www/pvhot/shared
+ReadWritePaths=/var/www/pvhot/shared /var/lib/pvhot /var/cache/pvhot
 
 [Install]
 WantedBy=multi-user.target
