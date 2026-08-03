@@ -10,7 +10,7 @@
  * 4. 微信账号按小时轮询，fetch_wechat.js 会保留 7 天历史，不会因轮换丢失文章。
  */
 
-const REGISTRY_VERSION = '2026.07.26-r1';
+const REGISTRY_VERSION = '2026.08.03-r2';
 
 const TOPIC_QUERIES = [
   { id: 'topic-all', cat: 'ALL', q: 'solar OR photovoltaic OR solar panel', locale: 'en' },
@@ -127,6 +127,59 @@ const SCRAPE_SOURCES = [
   },
 ];
 
+// 已核验的 X（Twitter）权威光伏媒体与机构账号。
+// X 仅作为新闻发现信号；正式抓取使用服务器端 X 官方 API，凭证不进入注册表。
+const X_ACCOUNTS = [
+  {
+    id: 'x-pvmagazine', name: 'PV Magazine Global', handle: 'pvmagazine',
+    domains: ['pv-magazine.com'], tier: 1, kind: '媒体', cat: 'ALL', staleAfterHours: 168,
+  },
+  {
+    id: 'x-pv-tech', name: 'PV Tech', handle: 'pv_tech',
+    domains: ['pv-tech.org'], tier: 1, kind: '媒体', cat: 'ALL', staleAfterHours: 168,
+  },
+  {
+    id: 'x-solarpowerworld', name: 'Solar Power World', handle: 'SolarPowerWorld',
+    domains: ['solarpowerworldonline.com'], tier: 1, kind: '媒体', cat: 'ALL', staleAfterHours: 168,
+  },
+  {
+    id: 'x-pvmagazineusa', name: 'pv magazine USA', handle: 'pvmagazineusa',
+    domains: ['pv-magazine-usa.com'], tier: 1, kind: '媒体', cat: 'ALL', staleAfterHours: 168,
+  },
+  {
+    id: 'x-mercomindia', name: 'Mercom India', handle: 'MercomIndia',
+    domains: ['mercomindia.com'], tier: 1, kind: '媒体', cat: 'ALL', staleAfterHours: 168,
+  },
+  {
+    id: 'x-saur-energy', name: 'Saur Energy', handle: 'Saur_energy',
+    domains: ['saurenergy.com'], tier: 1, kind: '媒体', cat: 'ALL', staleAfterHours: 168,
+  },
+  {
+    id: 'x-canarymedia', name: 'Canary Media', handle: 'CanaryMediaInc',
+    domains: ['canarymedia.com'], tier: 1, kind: '媒体', cat: 'ALL', staleAfterHours: 168,
+  },
+  {
+    id: 'x-renew-economy', name: 'RenewEconomy', handle: 'renew_economy',
+    domains: ['reneweconomy.com.au'], tier: 1, kind: '媒体', cat: 'ALL', staleAfterHours: 168,
+  },
+  {
+    id: 'x-solarpowerport', name: 'Solar Power Portal', handle: 'SolarPowerPort',
+    domains: ['solarpowerportal.co.uk'], tier: 1, kind: '媒体', cat: 'ALL', staleAfterHours: 168,
+  },
+  {
+    id: 'x-seia', name: 'SEIA', handle: 'SEIA',
+    domains: ['seia.org'], tier: 1, kind: '机构', cat: 'ALL', staleAfterHours: 168,
+  },
+  {
+    id: 'x-irena', name: 'IRENA', handle: 'IRENA',
+    domains: ['irena.org'], tier: 1, kind: '机构', cat: 'ALL', staleAfterHours: 168,
+  },
+  {
+    id: 'x-ember-energy', name: 'Ember', handle: 'ember_energy',
+    domains: ['ember-energy.org'], tier: 1, kind: '机构', cat: 'ALL', staleAfterHours: 168,
+  },
+];
+
 // freewechat profile ID 已验证的账号可走 RSSHub；其余账号由搜狗微信按小时轮询。
 const WECHAT_ACCOUNTS = [
   { name: '中国光伏行业协会CPIA', aliases: ['中国光伏行业协会', 'CPIA'], kind: '机构', tier: 1 },
@@ -192,6 +245,7 @@ const TRUSTED_SOURCE_TOKENS = [
   'bjx', '北极星', 'ne21', '世纪新能源', '维科网光伏', '国际能源网',
   '国家能源局', '中国光伏行业协会', 'cpia', 'reuters', 'cleantechnica',
   'solar power world', 'taiyangnews', 'solarquarter', 'mercom',
+  'saur energy', 'canary media', 'reneweconomy', 'solar power portal', 'ember',
   'energy-storage.news', 'ess news', 'iea', 'irena', 'iea pvps', 'nrel',
   'seia', 'solarpower europe', '公众号',
 ];
@@ -202,6 +256,7 @@ module.exports = {
   CURATED_SEARCH_QUERIES,
   RSS_FEEDS,
   SCRAPE_SOURCES,
+  X_ACCOUNTS,
   RSSHUB_ROUTES,
   WECHAT_ACCOUNTS,
   WECHAT_TOPIC_QUERIES,

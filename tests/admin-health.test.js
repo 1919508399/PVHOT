@@ -103,6 +103,7 @@ test('authenticated source health API manages a custom WeChat source safely', as
       PVHOT_ROOT: root,
       PVHOT_ADMIN_HOST: '127.0.0.1',
       PVHOT_ADMIN_PORT: String(port),
+      PVHOT_X_BEARER_TOKEN: '',
       PVHOT_ADMIN_PASSWORD_HASH: crypto.createHash('sha256').update(testLoginValue).digest('hex'),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -124,6 +125,80 @@ test('authenticated source health API manages a custom WeChat source safely', as
   });
   assert.equal(login.status, 200);
   const cookie = String(login.headers.get('set-cookie')).split(';')[0];
+
+  const initialHealthResponse = await fetch(`${baseUrl}/admin/api/source-health`, {
+    headers: { Cookie: cookie },
+  });
+  const initialHealth = await initialHealthResponse.json();
+  assert.equal(initialHealthResponse.status, 200);
+  assert.equal(initialHealth.integrations.xApiConfigured, false);
+  const builtInX = initialHealth.sources.filter((source) =>
+    source.type === 'x' && source.custom !== true
+  );
+  assert.equal(builtInX.length, 12);
+  assert.ok(builtInX.every((source) => source.status === 'blocked'));
+  assert.ok(builtInX.every((source) => source.reasonCode === 'X_API_NOT_CONFIGURED'));
+  assert.ok(builtInX.some((source) => source.handle === 'pvmagazine'));
+
+  const duplicateBuiltInX = await fetch(`${baseUrl}/admin/api/sources`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({
+      name: '重复 PV Magazine',
+      type: 'x',
+      url: '@pvmagazine',
+      category: 'ALL',
+    }),
+  });
+  assert.equal(duplicateBuiltInX.status, 409);
+
+  const invalidXPost = await fetch(`${baseUrl}/admin/api/sources`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({
+      name: '错误帖子地址',
+      type: 'x',
+      url: 'https://x.com/SolarSignalHQ/status/123456789',
+      category: 'ALL',
+    }),
+  });
+  assert.equal(invalidXPost.status, 400);
+
+  const forbiddenValue = 'must-not-appear-in-any-response';
+  const secretFieldX = await fetch(`${baseUrl}/admin/api/sources`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({
+      name: '不应接收凭证',
+      type: 'x',
+      url: '@SolarSignalHQ',
+      category: 'ALL',
+      ['bearer' + 'Token']: forbiddenValue,
+    }),
+  });
+  const secretFieldBody = await secretFieldX.text();
+  assert.equal(secretFieldX.status, 400);
+  assert.doesNotMatch(secretFieldBody, new RegExp(forbiddenValue));
+
+  const createX = await fetch(`${baseUrl}/admin/api/sources`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({
+      name: 'Solar Signal on X',
+      type: 'x',
+      url: '@SolarSignalHQ',
+      category: 'ALL',
+      staleAfterHours: 168,
+    }),
+  });
+  const createdX = await createX.json();
+  assert.equal(createX.status, 201);
+  assert.equal(createdX.source.type, 'x');
+  assert.equal(createdX.source.url, 'https://x.com/solarsignalhq');
+  assert.equal(createdX.probe.ok, false);
+  assert.equal(createdX.probe.status, 'blocked');
+  assert.equal(createdX.probe.reasonCode, 'X_API_NOT_CONFIGURED');
+  assert.match(createdX.probe.detail, /尚未配置 X 官方 API/);
 
   const create = await fetch(`${baseUrl}/admin/api/sources`, {
     method: 'POST',
@@ -152,6 +227,10 @@ test('authenticated source health API manages a custom WeChat source safely', as
   const customHealth = health.sources.find((source) => source.id === created.source.id);
   assert.equal(customHealth.custom, true);
   assert.equal(customHealth.name, '测试光伏观察');
+  const customXHealth = health.sources.find((source) => source.id === createdX.source.id);
+  assert.equal(customXHealth.custom, true);
+  assert.equal(customXHealth.type, 'x');
+  assert.equal(customXHealth.status, 'blocked');
 
   const disable = await fetch(`${baseUrl}/admin/api/sources/${encodeURIComponent(created.source.id)}`, {
     method: 'PUT',
@@ -201,11 +280,16 @@ test('authenticated source health API manages a custom WeChat source safely', as
     headers: { Cookie: cookie },
   });
   assert.equal(remove.status, 200);
+  const removeX = await fetch(`${baseUrl}/admin/api/sources/${encodeURIComponent(createdX.source.id)}`, {
+    method: 'DELETE',
+    headers: { Cookie: cookie },
+  });
+  assert.equal(removeX.status, 200);
   const registry = JSON.parse(fs.readFileSync(
     path.join(shared, 'data', 'custom_sources.json'),
     'utf8'
   ));
   assert.equal(registry.sources.length, 0);
-  assert.equal(registry.revision, 5);
+  assert.equal(registry.revision, 7);
   assert.equal(fs.existsSync(path.join(root, 'custom_sources.json')), false);
 });

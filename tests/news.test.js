@@ -6,14 +6,116 @@ const {
   beijingDateKey,
   computeScoreDetails,
   decodeResponseBuffer,
+  dedupeXArticleSignals,
+  extractArticleDetails,
+  filterPostEnrichmentFresh,
   inspectFeedStructure,
   isMojibake,
   mapLimit,
+  selectArticleEnrichmentCandidates,
 } = require('../fetch_pv_news');
 
 test('beijingDateKey changes day at UTC+8 midnight', () => {
   assert.equal(beijingDateKey(new Date('2026-07-28T15:59:59Z')), '2026-07-28');
   assert.equal(beijingDateKey(new Date('2026-07-28T16:00:00Z')), '2026-07-29');
+});
+
+test('an X discovery signal does not count the same canonical article twice', () => {
+  const article = {
+    title: 'Solar record',
+    link: 'https://www.example.com/story/?utm_source=x',
+    source: 'official-rss',
+    summary: 'Official article summary.',
+  };
+  const xSignal = {
+    title: 'Solar record https://t.co/a',
+    link: 'https://example.com/story/',
+    source: 'X account',
+    summary: '',
+    xPostUrl: 'https://x.com/example/status/123',
+    xHandle: 'example',
+    xSignalCount: 1,
+    _xSourceId: 'x-example',
+  };
+
+  const result = dedupeXArticleSignals([article, xSignal]);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].source, 'official-rss');
+  assert.equal(result[0].xPostUrl, xSignal.xPostUrl);
+  assert.equal(result[0].xSignalCount, 1);
+});
+
+test('canonical article dedupe ignores tracking and query parameter order', () => {
+  const article = {
+    title: 'Solar record',
+    link: 'https://example.com/story/?b=2&a=1&utm_medium=social',
+    source: 'official-rss',
+  };
+  const xSignal = {
+    title: 'Solar record',
+    link: 'https://www.example.com/story?a=1&b=2',
+    source: 'X account',
+    xPostUrl: 'https://x.com/example/status/124',
+    _xSourceId: 'x-example',
+  };
+
+  const result = dedupeXArticleSignals([article, xSignal]);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].xPostUrl, xSignal.xPostUrl);
+});
+
+test('post-enrichment freshness requires X articles to confirm the official publication date', () => {
+  const now = new Date('2026-08-03T08:00:00Z');
+  const today = '2026-08-03T03:00:00Z';
+  const old = '2026-07-20T03:00:00Z';
+  const common = {
+    title: 'Solar module market update',
+    summary: 'Solar module manufacturing and project news.',
+    source: 'industry source',
+  };
+  const items = [
+    { ...common, id: 'x-unconfirmed', pubDate: today, _xSourceId: 'x-one', _xArticleDateConfirmed: false },
+    { ...common, id: 'x-confirmed', pubDate: today, _xSourceId: 'x-two', _xArticleDateConfirmed: true },
+    { ...common, id: 'x-old', pubDate: old, _xSourceId: 'x-three', _xArticleDateConfirmed: true },
+    { ...common, id: 'rss-today', pubDate: today },
+  ];
+
+  assert.deepEqual(
+    filterPostEnrichmentFresh(items, now).map((item) => item.id),
+    ['x-confirmed', 'rss-today']
+  );
+});
+
+test('article detail extraction keeps an official publication date even without a long body', () => {
+  const html = '<!doctype html><html><head>'
+    + '<meta property="og:title" content="Solar project reaches operation">'
+    + '<meta property="article:published_time" content="2026-08-03T03:00:00Z">'
+    + '</head><body>' + ' '.repeat(600) + '</body></html>';
+  const details = extractArticleDetails(html, 'https://example.com/story', 'Fallback solar title', '');
+
+  assert.equal(details.headline, 'Solar project reaches operation');
+  assert.equal(details.publishedAt, '2026-08-03T03:00:00.000Z');
+});
+
+test('article enrichment reserves capacity for X discoveries that need date confirmation', () => {
+  const now = new Date().toISOString();
+  const regular = Array.from({ length: 40 }, (_, index) => ({
+    title: `Solar regular ${index}`,
+    summary: '',
+    pubDate: now,
+    link: `https://regular.example/${index}`,
+  }));
+  const xItems = Array.from({ length: 12 }, (_, index) => ({
+    title: `Solar X ${index}`,
+    summary: '',
+    pubDate: now,
+    link: `https://x-source.example/${index}`,
+    _xSourceId: `x-${index}`,
+  }));
+
+  const selected = selectArticleEnrichmentCandidates([...regular, ...xItems], 20);
+  assert.equal(selected.length, 20);
+  assert.ok(selected.filter((item) => item._xSourceId).length >= 5);
 });
 
 test('decodeResponseBuffer preserves valid UTF-8 Chinese text', () => {

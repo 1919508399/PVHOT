@@ -110,7 +110,7 @@ sudo -u pvhot timeout 15 /opt/pvhot/chrome/chrome \
 PUPPETEER_EXECUTABLE_PATH=/opt/pvhot/chrome/chrome
 ```
 
-### 3. 安装非秘密配置
+### 3. 安装运行配置与服务器秘密
 
 在仓库根目录执行：
 
@@ -120,12 +120,12 @@ sudo install -o root -g root -m 0755 ops/rollback.sh /usr/local/bin/pvhot-rollba
 
 sudo install -d -o root -g root -m 0755 /etc/pvhot
 sudo install -o root -g root -m 0644 ops/config/pvhot-common.env.example /etc/pvhot/pvhot-common.env
-sudo install -o root -g root -m 0644 ops/config/pvhot-fetch.env.example /etc/pvhot/pvhot-fetch.env
+sudo install -o root -g root -m 0600 ops/config/pvhot-fetch.env.example /etc/pvhot/pvhot-fetch.env
 sudo install -o root -g root -m 0600 ops/config/pvhot-admin.env.example /etc/pvhot/pvhot-admin.env
 sudo install -o root -g root -m 0600 ops/config/pvhot-baidu.env.example /etc/pvhot/pvhot-baidu.env
 ```
 
-检查 Chromium 的真实路径并修改 `/etc/pvhot/pvhot-fetch.env`。在服务器上生成新的后台密码摘要，填入 `/etc/pvhot/pvhot-admin.env`；把轮换后的百度推送 token 只填入 `/etc/pvhot/pvhot-baidu.env`。这些文件和任何真实凭据都不得提交 Git。
+检查 Chromium 的真实路径并修改 `/etc/pvhot/pvhot-fetch.env`。这个文件同时预留了可选的 X API 凭据，因此必须保持 `root:root`、权限 `0600`，不能再按普通 `0644` 配置安装。在服务器上生成新的后台密码摘要，填入 `/etc/pvhot/pvhot-admin.env`；把轮换后的百度推送 token 只填入 `/etc/pvhot/pvhot-baidu.env`。这些文件和任何真实凭据都不得提交 Git。
 
 先校验再安装受限 sudo 规则：
 
@@ -135,6 +135,49 @@ sudo install -o root -g root -m 0440 ops/sudoers/pvhot-deploy /etc/sudoers.d/pvh
 ```
 
 这个规则只允许 `pvhot-deploy` 重启和读取 `pvhot-admin.service` 状态。运行账号 `pvhot` 没有 sudo 权限。代码切换本身不使用 sudo，Nginx 也不需要在日常发布时 reload。
+
+### 可选启用 X 官方 API
+
+X 监控不是 PVHOT 基础抓取的必需条件。没有配置时，官网、RSS、微信公众号和其他信源仍会正常更新；后台信源健康面板会把 X 显示为“被拦截”，原因是 `X_API_NOT_CONFIGURED`。这是可预期的降级状态，不代表整站故障。
+
+启用前，站点所有者需要自行完成以下准备：
+
+1. 在 X Developer 平台开通可读取用户与帖子数据的官方 API 套餐，并确认当前接口和读取额度满足监控频率。
+2. 核对最新价格和限额。X API 可能收费，套餐与计价方式也可能调整；先设置月度预算、用量告警或硬性限额，避免意外费用。
+3. 只在生产服务器保存 Bearer Token，不经聊天、工单、Git、CI 制品或普通配置文件传递。
+
+当前 unit 已让后台服务和定时抓取共同读取 `/etc/pvhot/pvhot-fetch.env`。以服务器管理员身份编辑该文件：
+
+```bash
+sudoedit /etc/pvhot/pvhot-fetch.env
+sudo chown root:root /etc/pvhot/pvhot-fetch.env
+sudo chmod 0600 /etc/pvhot/pvhot-fetch.env
+```
+
+在服务器文件中给唯一变量 `PVHOT_X_BEARER_TOKEN` 填入真实值；仓库里的 `ops/config/pvhot-fetch.env.example` 必须一直保持空值。不要把 Token 直接写进 `ops/systemd/*.service` 的 `Environment=` 行，因为 unit 通常是 `0644`，也会进入 Git 和部署制品。
+
+如果运维平台统一采用 systemd credential，也应让秘密只存在于 root-only 凭据存储，并在进程启动时以同一个变量名 `PVHOT_X_BEARER_TOKEN` 提供给 PVHOT。当前仓库开箱即用的方式是上面的 root-only `EnvironmentFile`；不要在没有完成凭据文件读取适配时仅添加 `LoadCredential=`，否则应用不会自动取得 Token。
+
+保存后重启后台，并立即手动执行一轮抓取：
+
+```bash
+sudo systemctl restart pvhot-admin.service
+sudo systemctl start pvhot-fetch.service
+```
+
+验证时不要打印环境变量或 Token 本身。下面的检查只确认文件权限、变量非空、服务结果和 X 抓取状态：
+
+```bash
+sudo test "$(stat -c '%U:%G %a' /etc/pvhot/pvhot-fetch.env)" = "root:root 600"
+sudo grep -q '^PVHOT_X_BEARER_TOKEN=..*$' /etc/pvhot/pvhot-fetch.env && echo 'X token is configured'
+systemctl is-active pvhot-admin.service
+systemctl show pvhot-fetch.service -p Result --value
+journalctl -u pvhot-fetch.service --since '15 minutes ago' --no-pager
+```
+
+最后登录后台“信源健康”页面确认：顶部应显示“X 官方 API 已配置”，X 账号不再因为 `X_API_NOT_CONFIGURED` 统一处于“被拦截”。若仍出现 `401`、`403` 或 `429`，分别检查 Token 权限、套餐接口权限与额度/预算；不要把完整 Authorization 请求头贴入日志或反馈内容。
+
+如需停用，只需在服务器的 root-only 文件中清空 `PVHOT_X_BEARER_TOKEN`，再重启后台和下一轮抓取。停用后 X 恢复为“被拦截 / 未配置”，其他信源继续工作。
 
 ### 4. 安装 systemd 和日志轮转
 
@@ -333,6 +376,7 @@ curl --fail --silent https://pvhot.bbroot.com/api/healthz
 ## 安全边界
 
 - 仓库、tar、systemd unit、Nginx 配置和日志中不保存真实密码或私钥。
+- X API 统一使用 `PVHOT_X_BEARER_TOKEN`；真实值只放在服务器 root-only 环境文件或等效的 systemd credential 中，示例文件保持空值。
 - SSH 使用 CI 专用密钥；私钥只存在 GitHub `production` Environment。
 - `pvhot-deploy` 只可重启和检查 PVHOT 后台服务；运行账号 `pvhot` 没有 sudo 权限，两者都不能 reload Nginx 或管理其他服务。
 - 第三方 GitHub Actions 固定完整 commit SHA。

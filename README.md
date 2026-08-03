@@ -41,6 +41,16 @@ PVHOT_DEV_HOST=127.0.0.1
 PVHOT_DEV_PORT=4173
 ```
 
+## 可选的 X 权威信源
+
+PVHOT 可以通过 X 官方 API 监控已登记的权威光伏媒体账号。这个能力是可选的，统一使用环境变量 `PVHOT_X_BEARER_TOKEN`，真实 Bearer Token 绝不能写入仓库、示例文件、日志、PR 或 systemd unit。
+
+- 未配置 Token 时，官网、RSS、微信公众号和其他信源照常工作；后台会把 X 接入标记为“被拦截 / X 官方 API 未配置”，不会让整条新闻任务失败。
+- 启用前需由站点所有者自行开通 X Developer/API 套餐。X API 的功能、限额和价格可能变化，也可能产生费用；请先确认所需读取权限，设置月度预算或用量告警，再接入生产环境。
+- 生产环境应把 Token 只放在服务器 root-only 环境文件中，或采用等效的 systemd credential 管理；不要通过 GitHub 仓库或普通 `0644` 配置分发秘密。
+
+当前部署默认从权限为 `0600` 的 `/etc/pvhot/pvhot-fetch.env` 读取该变量。完整启用与验证步骤见 [`ops/README.md`](ops/README.md#可选启用-x-官方-api)。
+
 ## 开发与 PR 流程
 
 1. 从最新 `main` 创建短生命周期分支。

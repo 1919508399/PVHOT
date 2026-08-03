@@ -20,6 +20,7 @@ const {
   isSafeCustomArticleUrl,
   loadCustomSources,
   normalizeKeywords,
+  normalizeXUrl,
   probeCustomSource,
   saveCustomSources,
   updateCustomSource,
@@ -175,6 +176,59 @@ test('RSS sources require safe HTTPS and WeChat uses keywords instead of URLs', 
     error.code === 'WECHAT_URL_NOT_ALLOWED');
 });
 
+test('X sources accept handles and profile URLs while storing one canonical URL', async () => {
+  for (const value of [
+    '@PV_Tech',
+    'PV_Tech',
+    'x.com/PV_Tech',
+    'twitter.com/PV_Tech',
+    'https://www.x.com/PV_Tech/',
+    'https://twitter.com/PV_Tech/',
+  ]) {
+    assert.equal(normalizeXUrl(value), 'https://x.com/pv_tech', value);
+  }
+
+  const source = createCustomSource({
+    name: 'PV Tech on X',
+    type: 'x',
+    url: '@PV_Tech',
+    category: 'ALL',
+  }, { now: FIXED_NOW, randomUUID: () => FIXED_UUID });
+  assert.equal(source.url, 'https://x.com/pv_tech');
+  assert.equal(source.staleAfterHours, 168);
+  assert.deepEqual(source.keywords, []);
+
+  const probe = await probeCustomSource(source);
+  assert.equal(probe.mode, 'x-official-api');
+  assert.equal(probe.probeStatus, 'pending');
+  assert.equal(probe.reasonCode, 'WAITING_FOR_X_FETCH');
+  assert.doesNotMatch(probe.detail, /token\s*[:=]\s*\S+/i);
+});
+
+test('X source validation rejects post pages, credentials, ports and invalid handles', () => {
+  const invalid = [
+    'http://x.com/pvmagazine',
+    'https://user:pass@x.com/pvmagazine',
+    'https://x.com:8443/pvmagazine',
+    'https://example.com/pvmagazine',
+    'https://x.com/pvmagazine/status/123456',
+    'https://x.com/pvmagazine/lists/solar',
+    'https://x.com/pvmagazine?lang=en',
+    'https://x.com/pvmagazine#post',
+    'https://x.com/pv-magazine',
+    '@this_handle_is_far_too_long',
+    'https://x.com/home',
+  ];
+  for (const value of invalid) {
+    assert.throws(
+      () => normalizeXUrl(value),
+      (error) => error instanceof CustomSourceError &&
+        ['INVALID_X_URL', 'INVALID_X_HANDLE'].includes(error.code),
+      value
+    );
+  }
+});
+
 test('add/load/update uses atomic strict registry data and rejects duplicate URLs', (t) => {
   const file = temporaryRegistry(t);
   assert.deepEqual(loadCustomSources(file), createEmptyRegistry());
@@ -227,6 +281,26 @@ test('custom WeChat account names cannot be added twice', (t) => {
     now: new Date(FIXED_NOW.getTime() + 1000),
     randomUUID: () => makeUuid(2),
   }), (error) => error instanceof CustomSourceError && error.code === 'DUPLICATE_NAME');
+});
+
+test('custom X handles are case-insensitive duplicates', (t) => {
+  const file = temporaryRegistry(t);
+  addCustomSource(file, {
+    name: 'First X source',
+    type: 'x',
+    url: '@PV_Tech',
+  }, {
+    now: FIXED_NOW,
+    randomUUID: () => FIXED_UUID,
+  });
+  assert.throws(() => addCustomSource(file, {
+    name: 'Duplicate X source',
+    type: 'x',
+    url: 'https://twitter.com/pv_tech',
+  }, {
+    now: new Date(FIXED_NOW.getTime() + 1000),
+    randomUUID: () => makeUuid(2),
+  }), (error) => error instanceof CustomSourceError && error.code === 'DUPLICATE_URL');
 });
 
 test('strict loading rejects corrupt or unexpected data without overwriting the old file', (t) => {

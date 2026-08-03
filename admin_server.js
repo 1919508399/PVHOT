@@ -24,6 +24,7 @@ const {
   updateCustomSource,
 } = require('./lib/custom_sources');
 const { parseRss, probeRss } = require('./lib/safe_remote_fetch');
+const { probeXAccount, validXApiToken } = require('./lib/x_sources');
 const { buildHealthEntry, normalizeStatus, summarizeHealth } = require('./lib/source_health');
 const { withProcessLockSync } = require('./lib/process_lock');
 const {
@@ -31,6 +32,7 @@ const {
   CURATED_SEARCH_QUERIES,
   RSS_FEEDS,
   SCRAPE_SOURCES,
+  X_ACCOUNTS,
   WECHAT_ACCOUNTS,
 } = require('./source_registry');
 
@@ -422,6 +424,10 @@ function loadSourceHealthReport() {
   }
 }
 
+function xApiConfigured() {
+  return validXApiToken(process.env.PVHOT_X_BEARER_TOKEN);
+}
+
 function sourceHealthPayload() {
   const report = loadSourceHealthReport();
   let customRegistry;
@@ -491,6 +497,17 @@ function sourceHealthPayload() {
       tier: source.tier || 2,
       category: source.cat || 'ALL',
     })),
+    ...X_ACCOUNTS.map((source) => ({
+      id: source.id,
+      name: source.name,
+      handle: source.handle,
+      url: `https://x.com/${source.handle}`,
+      kind: 'x',
+      type: 'x',
+      tier: source.tier || 1,
+      category: source.cat || 'ALL',
+      staleAfterHours: source.staleAfterHours || 168,
+    })),
     ...WECHAT_ACCOUNTS.map((source) => ({
       id: `wechat:${source.name}`,
       name: source.name,
@@ -511,9 +528,11 @@ function sourceHealthPayload() {
       continue;
     }
     seen.add(source.id);
+    const awaitingXApi = source.type === 'x';
+    const missingXApi = awaitingXApi && !xApiConfigured();
     sources.push({
       ...source,
-      status: 'no_new',
+      status: missingXApi ? 'blocked' : 'no_new',
       items: 0,
       itemsSeen: 0,
       todayItems: null,
@@ -526,7 +545,11 @@ function sourceHealthPayload() {
       latestPublishedAt: null,
       consecutiveFailures: 0,
       consecutiveNoNew: 0,
-      detail: '等待首次健康检查',
+      errorCode: missingXApi ? 'X_API_NOT_CONFIGURED' : null,
+      reasonCode: missingXApi ? 'X_API_NOT_CONFIGURED' : null,
+      detail: missingXApi
+        ? '服务器尚未配置 X 官方 API，账号已登记并等待配置'
+        : (awaitingXApi ? '等待正式抓取任务首次检查 X 账号' : '等待首次健康检查'),
       custom: false,
       origin: 'built-in',
       enabled: true,
@@ -534,10 +557,11 @@ function sourceHealthPayload() {
   }
   for (const source of customRegistry.sources) {
     if (seen.has(source.id)) continue;
+    const missingXApi = source.type === 'x' && !xApiConfigured();
     sources.push({
       ...source,
       kind: source.type === 'website' ? 'google-news' : source.type,
-      status: 'no_new',
+      status: missingXApi ? 'blocked' : 'no_new',
       items: 0,
       itemsSeen: 0,
       todayItems: null,
@@ -550,7 +574,13 @@ function sourceHealthPayload() {
       latestPublishedAt: null,
       consecutiveFailures: 0,
       consecutiveNoNew: 0,
-      detail: source.enabled ? '已保存，等待下一轮抓取' : '当前已停用',
+      errorCode: missingXApi ? 'X_API_NOT_CONFIGURED' : null,
+      reasonCode: missingXApi ? 'X_API_NOT_CONFIGURED' : null,
+      detail: source.enabled
+        ? (missingXApi
+          ? '服务器尚未配置 X 官方 API，账号已保存并等待配置'
+          : (source.type === 'x' ? '已保存，等待正式抓取任务检查 X 账号' : '已保存，等待下一轮抓取'))
+        : '当前已停用',
       custom: true,
       origin: 'custom',
     });
@@ -561,6 +591,7 @@ function sourceHealthPayload() {
     checkedAt: report.checkedAt || null,
     registryVersion: report.registryVersion || null,
     customRevision: customRegistry.revision || 0,
+    integrations: { xApiConfigured: xApiConfigured() },
     configError,
     summary: {
       checked: counts.checked,
@@ -631,6 +662,12 @@ async function probeCustomSource(sourceOrInput) {
       items: [],
     };
   }
+  if (source.type === 'x') {
+    return probeXAccount(xHandleFromSource(source), {
+      token: process.env.PVHOT_X_BEARER_TOKEN || '',
+      timeoutMs: 8000,
+    });
+  }
   if (source.type === 'website') {
     const query = buildGoogleNewsSiteQuery(source);
     const url = 'https://news.google.com/rss/search?q=' + encodeURIComponent(`(${query}) when:7d`)
@@ -691,6 +728,29 @@ function duplicatesBuiltInWechat(source) {
       .map(normalizedAccountKey)
       .some((existing) => candidate && candidate === existing)
   );
+}
+
+function xHandleFromSource(source) {
+  if (!source || source.type !== 'x' || !source.url) return '';
+  try {
+    return decodeURIComponent(new URL(source.url).pathname.split('/').filter(Boolean)[0] || '')
+      .toLowerCase();
+  } catch (error) {
+    return '';
+  }
+}
+
+function duplicatesBuiltInX(source) {
+  const candidate = xHandleFromSource(source);
+  return !!candidate && X_ACCOUNTS.some((account) =>
+    String(account.handle || '').toLowerCase() === candidate
+  );
+}
+
+function builtInSourceConflict(source) {
+  if (duplicatesBuiltInWechat(source)) return '这个公众号已经在内置信源名单中';
+  if (duplicatesBuiltInX(source)) return '这个 X 账号已经在内置权威信源名单中';
+  return '';
 }
 
 const sourceProbeRate = new Map();
@@ -1234,8 +1294,9 @@ const server = http.createServer(async (req, res) => {
     const body = await getSourceBodyOrReject(req, res); if (!body) return;
     try {
       const normalized = normalizeSourceInput(body);
-      if (duplicatesBuiltInWechat(normalized)) {
-        send(res, 409, { error: '这个公众号已经在内置信源名单中' });
+      const conflict = builtInSourceConflict(normalized);
+      if (conflict) {
+        send(res, 409, { error: conflict });
         return;
       }
       const probe = await runRateLimitedSourceProbe(req, res, normalized);
@@ -1254,8 +1315,9 @@ const server = http.createServer(async (req, res) => {
       const sourceInput = { ...body };
       delete sourceInput.probe;
       const normalized = normalizeSourceInput(sourceInput);
-      if (duplicatesBuiltInWechat(normalized)) {
-        send(res, 409, { error: '这个公众号已经在内置信源名单中' });
+      const conflict = builtInSourceConflict(normalized);
+      if (conflict) {
+        send(res, 409, { error: conflict });
         return;
       }
       const probe = shouldProbe
@@ -1283,7 +1345,11 @@ const server = http.createServer(async (req, res) => {
         probe,
         health,
         revision: registry.revision,
-        message: source.type === 'wechat' ? '已加入公众号轮询队列' : '已保存，将在下一轮抓取中持续监控',
+        message: source.type === 'wechat'
+          ? '已加入公众号轮询队列'
+          : (source.type === 'x'
+            ? '已加入 X 官方 API 监控队列'
+            : '已保存，将在下一轮抓取中持续监控'),
       });
     } catch (error) {
       customSourceErrorResponse(res, error);
@@ -1331,8 +1397,9 @@ const server = http.createServer(async (req, res) => {
           staleAfterHours: current.staleAfterHours,
           ...body,
         });
-        if (duplicatesBuiltInWechat(normalized)) {
-          send(res, 409, { error: '这个公众号已经在内置信源名单中' });
+        const conflict = builtInSourceConflict(normalized);
+        if (conflict) {
+          send(res, 409, { error: conflict });
           return;
         }
         let probe = {
