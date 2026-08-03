@@ -60,6 +60,18 @@
     changelog: {
       items: [
         {
+          ver: "v5.8", date: "2026-08-03", time: "13:40", type: "重构",
+          title: "管理后台核心页面全面升级",
+          text: "运行概览、页面内容和反馈收件箱统一升级为清晰、专业的管理界面，普通用户无需理解技术代码也能完成日常操作。",
+          bullets: [
+            "侧栏字母占位图标全部换成统一线性图标，三页文案改为中文业务语言",
+            "运行概览隐藏原始路径、文件名和服务器日志，改为浏览、更新与信源状态卡片",
+            "页面内容改为四个独立模块，支持普通文字编辑、实时预览和结构化更新日志",
+            "反馈收件箱隐藏内部编号、完整 IP 和浏览器代码，加入搜索、处理状态与内部备注",
+            "修复中文请求被分段时可能产生乱码的问题，并增加异常字符与危险内容防护"
+          ]
+        },
+        {
           ver: "v5.7", date: "2026-08-03", time: "11:28", type: "信源",
           title: "X 权威光伏信源与后台管理接入",
           text: "首批接入 12 个近期活跃的国际光伏媒体和机构 X 账号，用于发现突发动态与辅助判断网络热度。",
@@ -266,6 +278,24 @@
   /* 估算阅读时长：每篇 30 秒，最少 5 分钟 */
   const estReadMin = n => Math.max(5, Math.round(n * 0.5));
   const esc = s => (s || "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+  const safeRichText = value => {
+    const template = document.createElement("template");
+    template.innerHTML = String(value || "");
+    const allowed = new Set(["SPAN", "B", "BR", "A"]);
+    Array.from(template.content.querySelectorAll("*")).forEach(element => {
+      if (!allowed.has(element.tagName)) {
+        element.replaceWith(document.createTextNode(element.textContent || ""));
+        return;
+      }
+      Array.from(element.attributes).forEach(attribute => element.removeAttribute(attribute.name));
+      if (element.tagName === "SPAN" || element.tagName === "B") element.className = "abt-emerald";
+      if (element.tagName === "A") {
+        element.setAttribute("href", "#");
+        element.setAttribute("data-goview", "feedback");
+      }
+    });
+    return template.innerHTML;
+  };
   const heatCls = h => h >= 80 ? "hi" : h >= 60 ? "mid" : "lo";
   const hl = (txt, kw) => {
     if (!kw) return esc(txt);
@@ -1257,16 +1287,16 @@ ${restUrl}
     /* ============ 关于页（aihot 版式，可编辑字段由 TEXTS 注入） ============ */
     if (view === "about") {
       const a = t.about || DEFAULT_TEXTS.about;
-      const poem = (a.poem || []).map(line => `<p>${line}</p>`).join("");
+      const poem = (a.poem || []).map(line => `<p>${safeRichText(line)}</p>`).join("");
       body.innerHTML = `
         <div class="abt-page">
           <div class="abt-eyebrow">${esc(a.eyebrow || "")}</div>
-          <h1 class="abt-h1">${a.title_html || ""}</h1>
+          <h1 class="abt-h1">${safeRichText(a.title_html)}</h1>
           <p class="abt-sub">${esc(a.sub || "")}</p>
 
           <div class="abt-popoem">${poem}</div>
 
-          <p class="abt-fine">${a.fineprint_html || ""}</p>
+          <p class="abt-fine">${safeRichText(a.fineprint_html)}</p>
 
           <div class="abt-divider"></div>
 
@@ -1306,13 +1336,13 @@ ${restUrl}
       const installCmd = `bash <(curl -fsSL ${origin}/pvhot-skill/install.sh) --target claude`;
       const verifyQ = ag.verify_q || "今天光伏行业最重要的 5 件事是什么？";
       const noteBlock = ag.note_html
-        ? `<div class="agt-note">${ag.note_html}</div>`
+        ? `<div class="agt-note">${safeRichText(ag.note_html)}</div>`
         : "";
       body.innerHTML = `
         <div class="agt-page">
           <div class="abt-eyebrow">${esc(ag.eyebrow || "")}</div>
-          <h1 class="abt-h1">${ag.title_html || ""}</h1>
-          <p class="abt-sub">${ag.sub_html || ""}</p>
+          <h1 class="abt-h1">${safeRichText(ag.title_html)}</h1>
+          <p class="abt-sub">${safeRichText(ag.sub_html)}</p>
 
           ${noteBlock}
 
@@ -1477,7 +1507,7 @@ ${restUrl}
 
             <div class="agt-blockh" style="margin-top:18px">验证问题</div>
             <div class="agt-codebox">
-              <pre id="agtVerify">${verifyQ}</pre>
+              <pre id="agtVerify">${esc(verifyQ)}</pre>
               ${copyBtn("#agtVerify")}
             </div>
             <div class="agt-success">
@@ -1650,8 +1680,8 @@ ${restUrl}
       body.innerHTML = `
         <div class="abt-page fb-page">
           <div class="abt-eyebrow">${esc(fb.eyebrow || "")}</div>
-          <h1 class="abt-h1">${fb.title_html || ""}</h1>
-          <p class="abt-sub">${fb.sub_html || ""}</p>
+          <h1 class="abt-h1">${safeRichText(fb.title_html)}</h1>
+          <p class="abt-sub">${safeRichText(fb.sub_html)}</p>
 
           <form class="fb-form" id="fbForm" autocomplete="off">
             <div class="fb-row">
