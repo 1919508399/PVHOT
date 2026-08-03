@@ -76,7 +76,11 @@ test('public health endpoint reports release and data freshness without authenti
 });
 
 test('authenticated source health API manages a custom WeChat source safely', async (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pvhot-admin-sources-'));
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pvhot-admin-sources-'));
+  const root = path.join(sandbox, 'current');
+  const shared = path.join(sandbox, 'shared');
+  fs.mkdirSync(root, { recursive: true });
+  fs.mkdirSync(path.join(shared, 'data'), { recursive: true });
   const port = await reservePort();
   fs.writeFileSync(path.join(root, 'data.json'), JSON.stringify({
     updated: new Date().toISOString(),
@@ -84,7 +88,7 @@ test('authenticated source health API manages a custom WeChat source safely', as
     items: [],
   }));
   fs.writeFileSync(path.join(root, 'admin.html'), '<!doctype html><title>admin</title>');
-  fs.writeFileSync(path.join(root, 'custom_sources.json'), JSON.stringify({
+  fs.writeFileSync(path.join(shared, 'data', 'custom_sources.json'), JSON.stringify({
     schemaVersion: 1,
     revision: 0,
     updatedAt: null,
@@ -105,7 +109,7 @@ test('authenticated source health API manages a custom WeChat source safely', as
   });
   t.after(() => {
     child.kill();
-    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(sandbox, { recursive: true, force: true });
   });
 
   await waitForReady(child);
@@ -197,7 +201,11 @@ test('authenticated source health API manages a custom WeChat source safely', as
     headers: { Cookie: cookie },
   });
   assert.equal(remove.status, 200);
-  const registry = JSON.parse(fs.readFileSync(path.join(root, 'custom_sources.json'), 'utf8'));
+  const registry = JSON.parse(fs.readFileSync(
+    path.join(shared, 'data', 'custom_sources.json'),
+    'utf8'
+  ));
   assert.equal(registry.sources.length, 0);
   assert.equal(registry.revision, 5);
+  assert.equal(fs.existsSync(path.join(root, 'custom_sources.json')), false);
 });

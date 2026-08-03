@@ -35,6 +35,10 @@ const {
 } = require('./source_registry');
 
 const ROOT = process.env.PVHOT_ROOT || '/var/www/pvhot';
+const IS_CURRENT_RELEASE = path.basename(path.resolve(ROOT)) === 'current';
+const HAS_SHARED_ROOT = Boolean(process.env.PVHOT_SHARED_DIR);
+const SHARED_ROOT = process.env.PVHOT_SHARED_DIR
+  || (IS_CURRENT_RELEASE ? path.join(path.dirname(ROOT), 'shared') : ROOT);
 const PORT = Number(process.env.PVHOT_ADMIN_PORT || 8777);
 const HOST = process.env.PVHOT_ADMIN_HOST || '127.0.0.1';
 const NODE = process.env.PVHOT_NODE || '/usr/bin/node';
@@ -50,7 +54,14 @@ const UPLOAD_DIR = path.join(ROOT, 'uploads');
 const QRCODE_FILE = path.join(UPLOAD_DIR, 'qrcode.png');
 const STATS_FILE = path.join(ROOT, 'stats.json');
 const SOURCE_HEALTH_FILE = path.join(ROOT, 'source_health.json');
-const CUSTOM_SOURCES_FILE = path.join(ROOT, 'custom_sources.json');
+const CUSTOM_SOURCES_FILE = process.env.PVHOT_CUSTOM_SOURCES_FILE
+  || (IS_CURRENT_RELEASE || HAS_SHARED_ROOT
+    ? path.join(SHARED_ROOT, 'data', 'custom_sources.json')
+    : path.join(ROOT, 'custom_sources.json'));
+const ADMIN_TASK_RUNTIME_DIR = process.env.PVHOT_TASK_RUNTIME_DIR
+  || (IS_CURRENT_RELEASE || HAS_SHARED_ROOT
+    ? path.join(SHARED_ROOT, 'runtime', 'admin')
+    : path.join(ROOT, '.runtime', 'admin'));
 const SOURCE_HEALTH_LOCK_OPTIONS = {
   root: ROOT,
   name: 'pvhot-source-health-write',
@@ -882,12 +893,16 @@ let refreshLastResult = null;
 
 function runNodeTask(filename, options = {}) {
   return new Promise((resolve, reject) => {
+    const taskHome = path.join(ADMIN_TASK_RUNTIME_DIR, 'home');
+    const taskCache = path.join(ADMIN_TASK_RUNTIME_DIR, 'cache');
+    fs.mkdirSync(taskHome, { recursive: true });
+    fs.mkdirSync(taskCache, { recursive: true });
     const child = spawn(NODE, [path.join(ROOT, filename)], {
       cwd: ROOT,
       env: {
         ...process.env,
-        HOME: process.env.HOME || '/var/lib/pvhot',
-        XDG_CACHE_HOME: process.env.XDG_CACHE_HOME || '/var/cache/pvhot',
+        HOME: taskHome,
+        XDG_CACHE_HOME: taskCache,
         PUPPETEER_EXECUTABLE_PATH: process.env.PUPPETEER_EXECUTABLE_PATH || '/opt/pvhot/chrome/chrome',
         PVHOT_WECHAT_LOCK_TIMEOUT_MS: process.env.PVHOT_WECHAT_LOCK_TIMEOUT_MS || '120000',
         PVHOT_NEWS_LOCK_TIMEOUT_MS: process.env.PVHOT_NEWS_LOCK_TIMEOUT_MS || '120000',

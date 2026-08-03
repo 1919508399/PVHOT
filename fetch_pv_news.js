@@ -43,12 +43,19 @@ const {
 } = require('./source_registry');
 
 const ROOT = process.env.PVHOT_ROOT || '/var/www/pvhot';
+const IS_CURRENT_RELEASE = path.basename(path.resolve(ROOT)) === 'current';
+const HAS_SHARED_ROOT = Boolean(process.env.PVHOT_SHARED_DIR);
+const SHARED_ROOT = process.env.PVHOT_SHARED_DIR
+  || (IS_CURRENT_RELEASE ? path.join(path.dirname(ROOT), 'shared') : ROOT);
 const OUT = path.join(ROOT, 'data_raw.json');
 const LOG = path.join(ROOT, 'fetch.log');
 const CACHE_FILE = path.join(ROOT, 'translate_cache.json');
 const ARTICLE_CACHE_FILE = path.join(ROOT, 'article_cache.json');
 const SOURCE_HEALTH_FILE = path.join(ROOT, 'source_health.json');
-const CUSTOM_SOURCES_FILE = path.join(ROOT, 'custom_sources.json');
+const CUSTOM_SOURCES_FILE = process.env.PVHOT_CUSTOM_SOURCES_FILE
+  || (IS_CURRENT_RELEASE || HAS_SHARED_ROOT
+    ? path.join(SHARED_ROOT, 'data', 'custom_sources.json')
+    : path.join(ROOT, 'custom_sources.json'));
 const RSSHUB_BASE = 'http://127.0.0.1:1200';
 const NEWS_LOCK_OPTIONS = {
   root: ROOT,

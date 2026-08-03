@@ -9,6 +9,7 @@
 
 const puppeteer = require('puppeteer');
 const fs = require('fs');
+const path = require('path');
 const crypto = require('crypto');
 const { atomicWriteJsonSync } = require('./lib/safe_io');
 const { withProcessLock } = require('./lib/process_lock');
@@ -20,9 +21,16 @@ const {
 } = require('./source_registry');
 
 const ROOT = process.env.PVHOT_ROOT || '/var/www/pvhot';
+const IS_CURRENT_RELEASE = path.basename(path.resolve(ROOT)) === 'current';
+const HAS_SHARED_ROOT = Boolean(process.env.PVHOT_SHARED_DIR);
+const SHARED_ROOT = process.env.PVHOT_SHARED_DIR
+  || (IS_CURRENT_RELEASE ? path.join(path.dirname(ROOT), 'shared') : ROOT);
 const MAX_PER_QUERY = 12;
 const OUTPUT_PATH = `${ROOT}/wechat_items.json`;
-const CUSTOM_SOURCES_FILE = `${ROOT}/custom_sources.json`;
+const CUSTOM_SOURCES_FILE = process.env.PVHOT_CUSTOM_SOURCES_FILE
+  || (IS_CURRENT_RELEASE || HAS_SHARED_ROOT
+    ? path.join(SHARED_ROOT, 'data', 'custom_sources.json')
+    : path.join(ROOT, 'custom_sources.json'));
 const FRESH_DAYS = 7;
 const WECHAT_LOCK_OPTIONS = {
   root: ROOT,
