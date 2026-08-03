@@ -274,6 +274,51 @@ seed_file() {
   set_or_verify_shared_file_permissions "${shared_path}" "${mode}"
 }
 
+sync_release_changelog() {
+  local release_texts="${STAGING_DIR}/site_texts.json"
+  local shared_texts="${SHARED_DIR}/data/site_texts.json"
+  local shared_fallback="${SHARED_DIR}/data/site_texts_fallback.js"
+
+  [[ -f "${release_texts}" ]] || die "release is missing site_texts.json"
+  [[ -f "${shared_texts}" && ! -L "${shared_texts}" ]] \
+    || die "shared site_texts.json is missing or unsafe"
+  [[ -f "${shared_fallback}" && ! -L "${shared_fallback}" ]] \
+    || die "shared site_texts_fallback.js is missing or unsafe"
+
+  "${NODE_BIN}" - "${release_texts}" "${shared_texts}" "${shared_fallback}" <<'NODE'
+const fs = require('fs');
+const path = require('path');
+const [releasePath, sharedPath, fallbackPath] = process.argv.slice(2);
+
+const releaseTexts = JSON.parse(fs.readFileSync(releasePath, 'utf8'));
+const sharedTexts = JSON.parse(fs.readFileSync(sharedPath, 'utf8'));
+if (!releaseTexts || !releaseTexts.changelog || !Array.isArray(releaseTexts.changelog.items)) {
+  throw new Error('release changelog is invalid');
+}
+
+const nextTexts = {
+  ...sharedTexts,
+  changelog: releaseTexts.changelog,
+};
+
+function writeAtomic(filePath, content) {
+  const temporary = path.join(path.dirname(filePath), `.${path.basename(filePath)}.${process.pid}.tmp`);
+  fs.writeFileSync(temporary, content);
+  fs.renameSync(temporary, filePath);
+}
+
+writeAtomic(sharedPath, `${JSON.stringify(nextTexts, null, 2)}\n`);
+writeAtomic(
+  fallbackPath,
+  `// 由 admin_server.js 同步自 site_texts.json\nwindow.SITE_TEXTS = ${JSON.stringify(nextTexts, null, 2)};\n`
+);
+NODE
+
+  chgrp "${RUNTIME_GROUP}" "${shared_texts}" "${shared_fallback}"
+  chmod 0660 "${shared_texts}" "${shared_fallback}"
+  log "synced release changelog into shared site texts"
+}
+
 link_shared_file() {
   local relative_path="$1"
   local shared_path="$2"
@@ -360,6 +405,7 @@ initialize_shared_state() {
     "${SHARED_DIR}/data/site_texts.json"
   seed_file "site_texts_fallback.js" \
     "${SHARED_DIR}/data/site_texts_fallback.js"
+  sync_release_changelog
   seed_file "data_raw.json" \
     "${SHARED_DIR}/data/data_raw.json" \
     "${SHARED_DIR}/data/data.json"
