@@ -1217,7 +1217,7 @@
       .trim();
     const bad = (cleaned.match(/[\uFFFD锟斤拷]/g) || []).length
       + (cleaned.match(/(?:Ã.|Â.|â€|æ[\u0080-\uFFFF])/g) || []).length;
-    if (bad >= 2 || /\?{7,}/.test(cleaned)) return fallback || '这段内容编码异常，已隐藏';
+    if (bad >= 1 || /\?{7,}/.test(cleaned)) return fallback || '这段内容编码异常，已隐藏';
     return cleaned;
   }
   function htmlToPlainText(value){
@@ -1352,13 +1352,18 @@
   }
   function card(it){
     const feat = it.featured === true;
-    const title = it.title_cn || it.title || '(无标题)';
+    const title = cleanDisplayText(it.title_cn || it.title || '', '标题编码异常，已隐藏') || '(无标题)';
     const catCls = feat ? 'badge feat' : 'badge';
-    const catTxt = feat ? '★ 精选' : (it.category||'');
-    const reason = it.reason ? `<div class="reason">${esc(it.reason)}</div>` : '';
-    const summary = it.summary_cn || it.summary || '';
-    const thumb = /^https?:\/\//i.test(it.image || '')
-      ? `<a class="item-thumb" href="${esc(it.link || '#')}" target="_blank" rel="noopener"><img src="${esc(it.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.item-thumb').remove()" /></a>`
+    const category = cleanDisplayText(it.category || '', '分类名称异常');
+    const catTxt = feat ? '★ 精选' : category;
+    const reasonText = cleanDisplayText(it.reason || '', '推荐理由编码异常，已隐藏');
+    const reason = it.reason ? `<div class="reason">${esc(reasonText)}</div>` : '';
+    const summary = cleanDisplayText(it.summary_cn || it.summary || '', '摘要编码异常，已隐藏');
+    const source = cleanDisplayText(it.source || '', '来源名称编码异常') || '未知信源';
+    const image = cleanDisplayText(it.image || '', '');
+    const link = cleanDisplayText(it.link || '', '');
+    const thumb = /^https?:\/\//i.test(image)
+      ? `<a class="item-thumb" href="${esc(link || '#')}" target="_blank" rel="noopener"><img src="${esc(image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.item-thumb').remove()" /></a>`
       : '';
     const sourceCount = Number(it.sourceCount || 1);
     const score = Number(it.score || 0);
@@ -1370,8 +1375,8 @@
           ${summary ? `<div class="item-summary">${esc(summary)}</div>` : ''}
           <div class="meta">
             <span class="${catCls}">${esc(catTxt)}</span>
-            ${feat && it.category ? `<span class="badge">${esc(it.category)}</span>` : ''}
-            <span class="src">${esc(it.source||'未知信源')}</span>
+            ${feat && category ? `<span class="badge">${esc(category)}</span>` : ''}
+            <span class="src">${esc(source)}</span>
             <span>${esc((it.pubDate||'').slice(0,16).replace('T',' '))}</span>
             <span class="metric-chip">${sourceCount} 个信源</span>
             ${score ? `<span class="metric-chip">AI ${score}</span>` : ''}
@@ -1688,9 +1693,9 @@
     const info = SOURCE_STATUS_INFO[statusKey];
     const origin = source.custom === true ? '后台添加' : '系统内置';
     const originDetail = source.origin && !/^(custom|built-?in|registry)$/i.test(String(source.origin))
-      ? String(source.origin)
+      ? cleanDisplayText(source.origin, '来源说明编码异常')
       : '';
-    const xHandle = sourceXHandle(source);
+    const xHandle = cleanDisplayText(sourceXHandle(source), '');
     const isX = String(source.kind || source.type || '').toLowerCase() === 'x';
     const newLabel = isX ? '采用' : '新增';
     const scanLabel = isX ? '新帖' : '扫描';
@@ -1700,12 +1705,13 @@
     const duration = source.durationMs != null ? `${sourceNumber(source.durationMs)}ms` : '';
     const failures = sourceNumber(source.consecutiveFailures);
     const statusMeta = [http, duration, failures ? `连续失败 ${failures} 次` : ''].filter(Boolean).join(' · ');
-    const detail = source.detail || info.help;
+    const sourceName = cleanDisplayText(source.name || '', '信源名称编码异常') || '未命名信源';
+    const detail = cleanDisplayText(source.detail || info.help, '状态说明编码异常');
     const disabledClass = source.enabled === false ? ' class="source-disabled"' : '';
     return `<tr${disabledClass}>
       <td><span class="source-status-badge ${info.cls}">${info.label}</span></td>
       <td>
-        <div class="source-name">${esc(source.name || '未命名信源')}</div>
+        <div class="source-name">${esc(sourceName)}</div>
         <div class="source-subline">
           <span class="source-origin-chip ${source.custom === true ? 'custom' : ''}">${origin}</span>
           ${xHandle ? `<span>@${esc(xHandle)}</span>` : ''}
@@ -1734,10 +1740,11 @@
     const statusKey = normalizeSourceStatus(source.status);
     const info = SOURCE_STATUS_INFO[statusKey];
     const latest = source.latestPublishedAt || source.lastItemAt || source.lastNewAt;
-    const details = source.detail || info.help;
+    const sourceName = cleanDisplayText(source.name || '', '信源名称编码异常') || '未命名信源';
+    const details = cleanDisplayText(source.detail || info.help, '状态说明编码异常');
     const http = source.httpStatus ? `HTTP ${source.httpStatus}` : '未记录';
     const duration = source.durationMs != null ? `${sourceNumber(source.durationMs)}ms` : '—';
-    const xHandle = sourceXHandle(source);
+    const xHandle = cleanDisplayText(sourceXHandle(source), '');
     const isX = String(source.kind || source.type || '').toLowerCase() === 'x';
     const metricText = isX
       ? `采用 ${sourceMetric(source.newItems)} · 今日文章 ${sourceMetric(source.todayItems)} · 新帖 ${sourceMetric(source.itemsSeen, source.items)}`
@@ -1746,7 +1753,7 @@
     return `<article class="source-health-card ${source.enabled === false ? 'source-disabled' : ''}">
       <div class="source-card-head">
         <div>
-          <div class="source-name">${esc(source.name || '未命名信源')}</div>
+          <div class="source-name">${esc(sourceName)}</div>
           <div class="source-subline">
             <span class="source-origin-chip ${source.custom === true ? 'custom' : ''}">${source.custom === true ? '后台添加' : '系统内置'}</span>
             <span>${esc(sourceKindLabel(source.kind || source.type))}</span>

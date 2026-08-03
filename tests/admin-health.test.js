@@ -162,7 +162,10 @@ test('authenticated source health API manages a custom WeChat source safely', as
       category: 'ALL',
     }),
   });
+  const invalidXPostBody = await invalidXPost.json();
   assert.equal(invalidXPost.status, 400);
+  assert.match(invalidXPostBody.error, /X 地址无效/);
+  assert.doesNotMatch(invalidXPostBody.error, /X account|INVALID_/);
 
   const forbiddenValue = 'must-not-appear-in-any-response';
   const secretFieldX = await fetch(`${baseUrl}/admin/api/sources`, {
