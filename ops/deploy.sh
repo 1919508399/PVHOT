@@ -738,7 +738,12 @@ prune_old_releases() {
     fi
 
     log "removing old release $(basename -- "${normalized}")"
-    rm -rf -- "${normalized}"
+    if ! rm -rf -- "${normalized}"; then
+      # Pruning is housekeeping after the new release has already passed all
+      # health checks. A legacy runtime-owned cache must not turn a healthy
+      # production deployment red or trigger an unnecessary rollback.
+      log "warning: could not fully remove old release $(basename -- "${normalized}"); leaving it for manual cleanup"
+    fi
   done < <(find "${RELEASES_DIR}" \
     -mindepth 1 \
     -maxdepth 1 \
