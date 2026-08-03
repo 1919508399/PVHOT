@@ -28,6 +28,7 @@ const REQUIRED_RELEASE_FILES = Object.freeze([
   'lib/source_health.js',
   'lib/custom_sources.js',
   'lib/safe_remote_fetch.js',
+  'lib/x_sources.js',
   'package.json',
   'package-lock.json',
   'data.json',
@@ -187,9 +188,16 @@ function main() {
   }));
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(`Release build failed: ${error.message}`);
-  process.exit(1);
+if (require.main === module) {
+  try {
+    main();
+  } catch (error) {
+    console.error(`Release build failed: ${error.message}`);
+    process.exit(1);
+  }
 }
+
+module.exports = {
+  OPTIONAL_RELEASE_FILES,
+  REQUIRED_RELEASE_FILES,
+};

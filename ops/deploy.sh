@@ -524,6 +524,7 @@ preflight_release() {
     lib/source_health.js
     lib/custom_sources.js
     lib/safe_remote_fetch.js
+    lib/x_sources.js
     site_texts.json
     site_texts_fallback.js
     data.json
@@ -556,7 +557,8 @@ preflight_release() {
     lib/process_lock.js \
     lib/source_health.js \
     lib/custom_sources.js \
-    lib/safe_remote_fetch.js; do
+    lib/safe_remote_fetch.js \
+    lib/x_sources.js; do
     "${NODE_BIN}" --check "${release_dir}/${js_file}" >/dev/null
   done
 
@@ -568,7 +570,7 @@ NODE
   if [[ "${verify_dependencies}" == "1" ]]; then
     (
       cd "${release_dir}"
-      "${NODE_BIN}" -e "require('puppeteer'); require('./lib/safe_io'); require('./lib/process_lock')"
+      "${NODE_BIN}" -e "require('puppeteer'); require('./lib/safe_io'); require('./lib/process_lock'); require('./lib/x_sources')"
     )
   fi
 
@@ -626,17 +628,17 @@ smoke_external() {
   )
 
   local smoke_rc=0
-  {
+  (
     curl "${curl_options[@]}" \
       "${url}/?__pvhot_release=${expected_sha}" \
-      -o "${temporary_dir}/index.html"
-    grep -qi '<html' "${temporary_dir}/index.html"
-    grep -q 'app\.js' "${temporary_dir}/index.html"
+      -o "${temporary_dir}/index.html" || exit $?
+    grep -qi '<html' "${temporary_dir}/index.html" || exit $?
+    grep -q 'app\.js' "${temporary_dir}/index.html" || exit $?
 
     curl "${curl_options[@]}" \
       "${url}/data.json?__pvhot_release=${expected_sha}" \
-      -o "${temporary_dir}/data.json"
-    "${NODE_BIN}" - "${temporary_dir}/data.json" <<'NODE'
+      -o "${temporary_dir}/data.json" || exit $?
+    "${NODE_BIN}" - "${temporary_dir}/data.json" <<'NODE' || exit $?
 const fs = require('fs');
 const value = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 if (!value || !Array.isArray(value.items)) throw new Error('data.json has no items array');
@@ -644,26 +646,43 @@ NODE
 
     curl "${curl_options[@]}" \
       "${url}/api/healthz?__pvhot_release=${expected_sha}" \
-      -o "${temporary_dir}/health.json"
-    "${NODE_BIN}" - "${temporary_dir}/health.json" <<'NODE'
+      -o "${temporary_dir}/health.json" || exit $?
+    "${NODE_BIN}" - "${temporary_dir}/health.json" "${expected_sha}" <<'NODE' || exit $?
 const fs = require('fs');
-const value = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const [file, expected] = process.argv.slice(2);
+const value = JSON.parse(fs.readFileSync(file, 'utf8'));
 const service = value && (value.service || value.svc);
-if (!value || value.ok !== true || service !== 'pvhot-admin') {
+if (!value || value.ok !== true || service !== 'pvhot-admin' || value.release !== expected) {
   throw new Error('admin health check failed');
+}
+NODE
+
+    # A process can briefly answer before crashing. Require the same release
+    # to remain healthy after a short stability window.
+    sleep 2
+    curl "${curl_options[@]}" \
+      "${url}/api/healthz?__pvhot_stable=${expected_sha}" \
+      -o "${temporary_dir}/health-stable.json" || exit $?
+    "${NODE_BIN}" - "${temporary_dir}/health-stable.json" "${expected_sha}" <<'NODE' || exit $?
+const fs = require('fs');
+const [file, expected] = process.argv.slice(2);
+const value = JSON.parse(fs.readFileSync(file, 'utf8'));
+const service = value && (value.service || value.svc);
+if (!value || value.ok !== true || service !== 'pvhot-admin' || value.release !== expected) {
+  throw new Error('admin stability health check failed');
 }
 NODE
 
     curl "${curl_options[@]}" \
       "${url}/release.json?__pvhot_release=${expected_sha}" \
-      -o "${temporary_dir}/release.json"
-    "${NODE_BIN}" - "${temporary_dir}/release.json" "${expected_sha}" <<'NODE'
+      -o "${temporary_dir}/release.json" || exit $?
+    "${NODE_BIN}" - "${temporary_dir}/release.json" "${expected_sha}" <<'NODE' || exit $?
 const fs = require('fs');
 const [file, expected] = process.argv.slice(2);
 const value = JSON.parse(fs.readFileSync(file, 'utf8'));
 if (!value || value.gitSha !== expected) throw new Error('public release SHA mismatch');
 NODE
-  } || smoke_rc=$?
+  ) || smoke_rc=$?
 
   rm -rf -- "${temporary_dir}"
   return "${smoke_rc}"
