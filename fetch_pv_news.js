@@ -2424,6 +2424,7 @@ async function runMain() {
       cacheHits: aiEditorial.cacheHits,
       eventCount: aiEditorial.eventCount,
       failures: aiEditorial.failures,
+      lastError: aiEditorial.lastError || '',
     },
   };
   const categories = ['全部','政策','价格','硅料','硅片','电池片','组件','逆变器','支架BOS','储能','电站','行情'];

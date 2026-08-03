@@ -134,3 +134,48 @@ test('AI editor falls back without modifying the article when the provider fails
     fs.rmSync(files.directory, { recursive:true, force:true });
   }
 });
+
+test('DeepSeek calls disable thinking for predictable JSON editing', async () => {
+  const files = workspace();
+  try {
+    const deepseekConfig = {
+      ...config(),
+      provider: 'deepseek',
+      model: 'deepseek-v4-flash',
+    };
+    let requestBody = null;
+    const items = [article('a','DeepSeek 结构化测试','来源甲')];
+    const result = await applyAiEditorial(items, deepseekConfig, {
+      ...files,
+      fetchImpl: async (_url, request) => {
+        requestBody = JSON.parse(request.body);
+        return new Response(JSON.stringify({
+          choices: [{ message: { content: JSON.stringify({
+            items: [{
+              id: 'a',
+              relevant: true,
+              category: '行情',
+              summary: 'DeepSeek 连接正常，已返回结构化 JSON。',
+              impact: '用于验证稳定输出。',
+              eventTitle: 'DeepSeek 结构化测试',
+              eventKey: 'DeepSeek 结构化测试',
+              importance: 60,
+              novelty: 50,
+              confidence: .8,
+              reason: '测试通过。',
+              entities: { companies:[], organizations:[], countries:['中国'], technologies:['光伏'] },
+            }],
+          }) } }],
+          usage: { total_tokens: 100 },
+        }), { status:200, headers:{ 'content-type':'application/json' } });
+      },
+    });
+    assert.equal(result.failures, 0);
+    assert.equal(result.analyzed, 1);
+    assert.deepEqual(requestBody.thinking, { type: 'disabled' });
+    assert.equal(requestBody.max_tokens, 2000);
+    assert.deepEqual(requestBody.response_format, { type: 'json_object' });
+  } finally {
+    fs.rmSync(files.directory, { recursive:true, force:true });
+  }
+});
