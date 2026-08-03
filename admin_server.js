@@ -28,6 +28,16 @@ const { probeXAccount, validXApiToken } = require('./lib/x_sources');
 const { buildHealthEntry, normalizeStatus, summarizeHealth } = require('./lib/source_health');
 const { withProcessLockSync } = require('./lib/process_lock');
 const {
+  AiConfigError,
+  loadAiConfig,
+  normalizeAiConfig,
+  publicAiConfig,
+  resolveAiConfigPath,
+  saveAiConfig,
+} = require('./lib/ai_config');
+const { loadUsage, testAiConnection } = require('./lib/ai_editor');
+const { buildSourceCatalog } = require('./lib/source_catalog');
+const {
   TOPIC_QUERIES,
   CURATED_SEARCH_QUERIES,
   RSS_FEEDS,
@@ -60,6 +70,12 @@ const CUSTOM_SOURCES_FILE = process.env.PVHOT_CUSTOM_SOURCES_FILE
   || (IS_CURRENT_RELEASE || HAS_SHARED_ROOT
     ? path.join(SHARED_ROOT, 'data', 'custom_sources.json')
     : path.join(ROOT, 'custom_sources.json'));
+const AI_CONFIG_FILE = process.env.PVHOT_AI_CONFIG_FILE
+  || resolveAiConfigPath(ROOT, SHARED_ROOT);
+const AI_USAGE_FILE = process.env.PVHOT_AI_USAGE_FILE
+  || (IS_CURRENT_RELEASE || HAS_SHARED_ROOT
+    ? path.join(SHARED_ROOT, 'data', 'ai_usage.json')
+    : path.join(ROOT, 'ai_usage.json'));
 const ADMIN_TASK_RUNTIME_DIR = process.env.PVHOT_TASK_RUNTIME_DIR
   || (IS_CURRENT_RELEASE || HAS_SHARED_ROOT
     ? path.join(SHARED_ROOT, 'runtime', 'admin')
@@ -512,6 +528,17 @@ function customSourceErrorResponse(res, error) {
   send(res, 500, { error: '信源设置保存失败，请稍后重试' });
 }
 
+function aiConfigErrorResponse(res, error) {
+  if (error instanceof AiConfigError) {
+    send(res, 400, { error: error.message, code: error.code || 'INVALID_AI_CONFIG' });
+    return;
+  }
+  const message = String(error && error.message || 'AI 服务暂时不可用')
+    .replace(/(?:sk|key|token)-[A-Za-z0-9_-]{6,}/gi, '[已隐藏]')
+    .slice(0, 220);
+  send(res, 502, { error: message || 'AI 服务暂时不可用', code: 'AI_CONNECTION_FAILED' });
+}
+
 function loadSourceHealthReport() {
   try {
     const report = JSON.parse(fs.readFileSync(SOURCE_HEALTH_FILE, 'utf8'));
@@ -526,6 +553,8 @@ function xApiConfigured() {
 }
 
 function sourceHealthPayload() {
+  const catalog = buildSourceCatalog();
+  const channelById = new Map(catalog.channels.map((channel) => [channel.id, channel]));
   const report = loadSourceHealthReport();
   let customRegistry;
   let configError = null;
@@ -697,12 +726,23 @@ function sourceHealthPayload() {
     });
   }
   const counts = summarizeHealth(sources);
+  for (const source of sources) {
+    const channel = channelById.get(source.id);
+    if (!channel) continue;
+    source.publisherId = channel.publisherId;
+    source.channelMode = channel.mode;
+  }
   return {
     schemaVersion: 2,
     checkedAt: report.checkedAt || null,
     registryVersion: report.registryVersion || null,
     customRevision: customRegistry.revision || 0,
     integrations: { xApiConfigured: xApiConfigured(), xIndirectEnabled: true },
+    catalog: {
+      publisherCount: catalog.publishers.length,
+      channelCount: catalog.channels.length,
+      discoveryRuleCount: catalog.discoveryRules.length,
+    },
     configError,
     summary: {
       checked: counts.checked,
@@ -866,6 +906,8 @@ function builtInSourceConflict(source) {
 
 const sourceProbeRate = new Map();
 let sourceProbeBusy = false;
+const aiTestRate = new Map();
+let aiTestBusy = false;
 function sourceProbeAllowed(req) {
   const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown')
     .split(',')[0].trim().slice(0, 80);
@@ -877,6 +919,20 @@ function sourceProbeAllowed(req) {
   }
   recent.push(now);
   sourceProbeRate.set(ip, recent);
+  return true;
+}
+
+function aiTestAllowed(req) {
+  const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown')
+    .split(',')[0].trim().slice(0, 80);
+  const now = Date.now();
+  const recent = (aiTestRate.get(ip) || []).filter((time) => now - time < 60000);
+  if (recent.length >= 3) {
+    aiTestRate.set(ip, recent);
+    return false;
+  }
+  recent.push(now);
+  aiTestRate.set(ip, recent);
   return true;
 }
 
@@ -1382,6 +1438,66 @@ const server = http.createServer(async (req, res) => {
   if (!authed(req)) { send(res, 401, { error: '未登录' }); return; }
 
   /* ---------- 信源健康与自定义信源（需登录） ---------- */
+  if (p === '/admin/api/ai-config' && method === 'GET') {
+    try {
+      const config = loadAiConfig(AI_CONFIG_FILE);
+      send(res, 200, {
+        ...publicAiConfig(config),
+        usage: loadUsage(AI_USAGE_FILE),
+      });
+    } catch (error) {
+      aiConfigErrorResponse(res, error);
+    }
+    return;
+  }
+
+  if (p.startsWith('/admin/api/ai-config') && method !== 'GET' && !mutationOriginAllowed(req)) {
+    send(res, 403, { error: '请求来源校验失败，请刷新后台页面后重试' });
+    return;
+  }
+
+  if (p === '/admin/api/ai-config' && method === 'PUT') {
+    const body = await getBodyOrReject(req, res); if (!body) return;
+    try {
+      const config = saveAiConfig(AI_CONFIG_FILE, body);
+      send(res, 200, {
+        ok: true,
+        config: publicAiConfig(config),
+        usage: loadUsage(AI_USAGE_FILE),
+        message: config.enabled
+          ? 'AI 编辑已启用，将从下一轮新闻抓取开始生效'
+          : 'AI 编辑配置已保存，目前保持关闭',
+      });
+    } catch (error) {
+      aiConfigErrorResponse(res, error);
+    }
+    return;
+  }
+
+  if (p === '/admin/api/ai-config/test' && method === 'POST') {
+    const body = await getBodyOrReject(req, res); if (!body) return;
+    if (!aiTestAllowed(req)) {
+      send(res, 429, { error: '测试太频繁，请 1 分钟后再试，避免产生额外费用' });
+      return;
+    }
+    if (aiTestBusy) {
+      send(res, 409, { error: '已有一个 AI 连接测试正在进行，请稍后再试' });
+      return;
+    }
+    aiTestBusy = true;
+    try {
+      const current = loadAiConfig(AI_CONFIG_FILE);
+      const draft = normalizeAiConfig(body, current);
+      const result = await testAiConnection(draft);
+      send(res, 200, result);
+    } catch (error) {
+      aiConfigErrorResponse(res, error);
+    } finally {
+      aiTestBusy = false;
+    }
+    return;
+  }
+
   if (p === '/admin/api/source-health' && method === 'GET') {
     send(res, 200, sourceHealthPayload());
     return;

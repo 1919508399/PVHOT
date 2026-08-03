@@ -624,6 +624,70 @@
   .change-delete{width:34px;height:34px;padding:0;display:grid;place-items:center;color:var(--danger);}
   .change-more{align-self:center;margin-top:4px;}
 
+  /* AI 编辑 */
+  .ai-hero{background:radial-gradient(circle at 92% 10%,rgba(218,188,111,.18),transparent 27%),var(--card);}
+  .ai-state-pill{display:inline-flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid var(--border);border-radius:999px;background:#f5f7f4;color:var(--ink-3);font-size:11.5px;font-weight:750;white-space:nowrap;}
+  .ai-state-pill i{width:8px;height:8px;border-radius:50%;background:#a7b1ac;box-shadow:0 0 0 4px rgba(167,177,172,.12);}
+  .ai-state-pill[data-state="on"]{color:var(--emerald);background:var(--mint);border-color:#cfe4dc;}
+  .ai-state-pill[data-state="on"] i{background:#2eaa82;box-shadow:0 0 0 4px rgba(46,170,130,.12);}
+  .ai-flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr auto 1fr;align-items:center;gap:10px;margin-bottom:14px;padding:14px;border:1px solid var(--border);border-radius:17px;background:var(--card);box-shadow:var(--shadow-1);}
+  .ai-flow>div{min-width:0;padding:13px 14px;border-radius:13px;background:#f6f8f5;border:1px solid transparent;}
+  .ai-flow>div.active{background:linear-gradient(135deg,var(--mint),var(--card));border-color:#cfe4dc;}
+  .ai-flow>div>span,.ai-flow>div>b,.ai-flow>div>small{display:block;}
+  .ai-flow>div>span{font-size:9px;font-weight:850;letter-spacing:.14em;color:var(--emerald);}
+  .ai-flow>div>b{margin-top:5px;font-size:12.5px;color:var(--ink);}
+  .ai-flow>div>small{margin-top:4px;color:var(--ink-3);font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ai-flow>i{font-style:normal;color:#aeb9b3;font-size:13px;}
+  .ai-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(290px,.58fr);gap:14px;align-items:start;}
+  .ai-config-card,.ai-usage-card,.ai-safety-card{border:1px solid var(--border);border-radius:18px;background:var(--card);box-shadow:var(--shadow-1);}
+  .ai-config-card{padding:24px;}
+  .ai-card-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:22px;margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--border-soft);}
+  .ai-card-heading h3,.ai-usage-card h3,.ai-safety-card h3{margin:6px 0 0;font-size:19px;color:var(--ink);letter-spacing:-.02em;}
+  .ai-card-heading p{margin:6px 0 0;max-width:590px;color:var(--ink-3);font-size:11.5px;line-height:1.65;}
+  .switch-row{display:inline-flex;align-items:center;gap:8px;white-space:nowrap;cursor:pointer;color:var(--ink-2);font-size:11.5px;}
+  .switch-row input{position:absolute;opacity:0;pointer-events:none;}
+  .switch-ui{position:relative;width:38px;height:22px;border-radius:999px;background:#cdd5d1;transition:.16s;box-shadow:inset 0 0 0 1px rgba(20,50,42,.08);}
+  .switch-ui:after{content:"";position:absolute;width:16px;height:16px;left:3px;top:3px;border-radius:50%;background:#fff;box-shadow:0 2px 5px rgba(19,49,41,.2);transition:.16s;}
+  .switch-row input:checked+.switch-ui{background:var(--emerald);}
+  .switch-row input:checked+.switch-ui:after{transform:translateX(16px);}
+  .form-grid.two{grid-template-columns:1fr 1fr;}
+  #panelAi .field{margin-bottom:17px;}
+  #panelAi .field label{display:block;margin-bottom:8px;font-size:12px;font-weight:720;color:var(--ink-2);}
+  #panelAi .field input,#panelAi .field select{width:100%;min-height:44px;padding:10px 12px;border:1px solid var(--border);border-radius:11px;background:#f8faf7;color:var(--ink);font:inherit;font-size:13px;outline:none;}
+  #panelAi .field input:focus,#panelAi .field select:focus{background:var(--card);border-color:var(--emerald);box-shadow:0 0 0 4px rgba(12,141,115,.07);}
+  .secret-input{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;}
+  .ai-feature-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:5px 0 18px;}
+  .ai-feature-grid label{display:flex;align-items:flex-start;gap:10px;padding:13px;border:1px solid var(--border-soft);border-radius:13px;background:#f8faf7;cursor:pointer;}
+  .ai-feature-grid input{margin-top:2px;accent-color:var(--emerald);}
+  .ai-feature-grid b,.ai-feature-grid small{display:block;}
+  .ai-feature-grid b{font-size:12px;color:var(--ink);}
+  .ai-feature-grid small{margin-top:4px;color:var(--ink-3);font-size:10.5px;line-height:1.45;}
+  .ai-advanced{margin-top:4px;border:1px solid var(--border-soft);border-radius:13px;background:#f8faf7;overflow:hidden;}
+  .ai-advanced summary{padding:13px 15px;cursor:pointer;font-size:11.5px;font-weight:750;color:var(--ink-2);}
+  .ai-advanced[open] summary{border-bottom:1px solid var(--border-soft);}
+  .ai-advanced .form-grid{padding:15px 15px 0;}
+  .ai-advanced>p{margin:0;padding:0 15px 15px;color:var(--ink-3);font-size:10.5px;line-height:1.6;}
+  .input-suffix{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;border:1px solid var(--border);border-radius:11px;background:var(--card);overflow:hidden;}
+  #panelAi .input-suffix input{border:0;border-radius:0;background:transparent;box-shadow:none;}
+  .input-suffix span{padding:0 11px;color:var(--ink-3);font-size:11px;}
+  .ai-actions{display:flex;align-items:center;gap:8px;margin-top:18px;flex-wrap:wrap;}
+  .ai-actions>span{margin-left:4px;color:var(--ink-3);font-size:11px;line-height:1.45;}
+  .ai-actions>span.ok{color:var(--emerald);}.ai-actions>span.error{color:var(--danger);}
+  .ai-side{display:flex;flex-direction:column;gap:14px;}
+  .ai-usage-card{padding:21px;}
+  .ai-usage-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:17px;}
+  .ai-usage-grid>div{padding:13px;border-radius:12px;background:#f7f9f6;border:1px solid var(--border-soft);}
+  .ai-usage-grid strong,.ai-usage-grid small{display:block;}
+  .ai-usage-grid strong{font-size:22px;color:var(--ink);font-variant-numeric:tabular-nums;}
+  .ai-usage-grid small{margin-top:4px;color:var(--ink-3);font-size:10px;}
+  .ai-usage-progress{height:7px;margin-top:16px;border-radius:999px;background:#edf1ee;overflow:hidden;}
+  .ai-usage-progress span{display:block;width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,#1d8d72,#d0ad59);transition:.2s;}
+  .ai-usage-card>p{margin:9px 0 0;color:var(--ink-3);font-size:10.5px;line-height:1.5;}
+  .ai-safety-card{display:flex;align-items:flex-start;gap:13px;padding:20px;background:linear-gradient(145deg,#173f35,#24594c);color:#fff;}
+  .safety-icon{width:31px;height:31px;display:grid;place-items:center;flex:none;border:1px solid rgba(255,255,255,.18);border-radius:10px;background:rgba(255,255,255,.08);color:#d9bd72;}
+  .ai-safety-card h3{margin-top:2px;color:#fff;}
+  .ai-safety-card ul{margin:12px 0 0;padding-left:16px;color:rgba(255,255,255,.68);font-size:10.5px;line-height:1.75;}
+
   /* 反馈收件箱 */
   .feedback-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px;}
   .feedback-summary-card{appearance:none;display:flex;align-items:center;justify-content:space-between;gap:15px;padding:17px 18px;border:1px solid var(--border);border-radius:15px;
@@ -666,15 +730,19 @@
     #panelStats .sys-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
     .content-nav{grid-template-columns:repeat(2,minmax(0,1fr));}
     .editor-layout{grid-template-columns:minmax(0,1fr) 280px;}
+    .ai-layout{grid-template-columns:minmax(0,1fr) 270px;}
+    .ai-flow{grid-template-columns:1fr 1fr;}
+    .ai-flow>i{display:none;}
   }
   @media(max-width:860px){
     .editor-layout{grid-template-columns:1fr;}
+    .ai-layout{grid-template-columns:1fr;}
     .content-preview{position:relative;top:auto;min-height:310px;}
     .change-editor-head{grid-template-columns:95px 1fr 1fr auto;}
     .change-editor-head .change-title-input{grid-column:1/-1;grid-row:2;}
   }
   @media(max-width:780px){
-    #panelStats .panel-hero,#panelContent .panel-hero,#panelFeedback .panel-hero{flex-direction:column;align-items:stretch;}
+    #panelStats .panel-hero,#panelContent .panel-hero,#panelFeedback .panel-hero,#panelAi .panel-hero{flex-direction:column;align-items:stretch;}
     .hero-actions{width:100%;justify-content:space-between;}
     #panelStats .stat-cards{grid-template-columns:repeat(2,minmax(0,1fr));}
     #panelContent .qr-row{grid-template-columns:210px minmax(0,1fr);gap:22px;}
@@ -707,6 +775,11 @@
     #panelContent .qr-preview{width:min(240px,100%);height:auto;aspect-ratio:1;margin:0 auto;}
     #panelContent .qr-ops{align-items:center;}
     .form-grid.three{grid-template-columns:1fr 1fr;}
+    .form-grid.two,.ai-feature-grid{grid-template-columns:1fr;}
+    .ai-config-card{padding:18px;}
+    .ai-card-heading{display:block;}
+    .switch-row{margin-top:14px;}
+    .ai-flow{grid-template-columns:1fr;}
     .form-grid.three .field:first-child{grid-column:1/-1;}
     .change-editor-head{grid-template-columns:82px minmax(0,1fr) auto;}
     .change-editor-head .change-date-input,.change-editor-head .change-time-input{grid-row:2;}
@@ -767,6 +840,7 @@
         <nav class="tabs" aria-label="后台功能" role="tablist">
           <button class="tab on" data-tab="news" type="button" role="tab"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h14v15H5z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span><span>新闻管理</span></button>
           <button class="tab" data-tab="sources" type="button" role="tab"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path d="m8 11 8-4M8 13l8 4"/></svg></span><span>信源健康</span></button>
+          <button class="tab" data-tab="ai" type="button" role="tab"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 14 8l5 2-5 2-2 5-2-5-5-2 5-2z"/><path d="m18 16 .8 2.2L21 19l-2.2.8L18 22l-.8-2.2L15 19l2.2-.8z"/></svg></span><span>AI 编辑</span></button>
           <button class="tab" data-tab="stats" type="button" role="tab"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg></span><span>运行概览</span></button>
           <button class="tab" data-tab="content" type="button" role="tab"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h10l4 4v12H5z"/><path d="M15 4v4h4M8 12h8M8 16h6"/></svg></span><span>页面内容</span></button>
           <button class="tab" data-tab="feedback" type="button" role="tab"><span class="nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v12H8l-4 3z"/><path d="M8 9h8M8 13h5"/></svg></span><span>反馈收件箱</span><span class="badge-unread" id="fbUnreadBadge" style="display:none">0</span></button>
@@ -915,6 +989,91 @@
           <div class="source-card-list" id="sourceHealthCards">
             <div class="source-loading">正在读取信源状态…</div>
           </div>
+        </div>
+      </div>
+
+      <!-- AI 编辑 panel -->
+      <div id="panelAi" style="display:none">
+        <section class="panel-hero compact-hero ai-hero">
+          <div>
+            <span class="eyebrow">AI EDITORIAL ENGINE</span>
+            <h2>AI 编辑与事件聚类</h2>
+            <p>让 AI 帮助分类、提炼摘要、识别同一事件和评估信息价值；抓取与真实性核验仍由系统规则负责。</p>
+          </div>
+          <div class="ai-state-pill" id="aiStatusBadge" data-state="off"><i></i><span>尚未启用</span></div>
+        </section>
+
+        <div class="ai-flow" aria-label="AI 编辑处理流程">
+          <div><span>01</span><b>信源抓取</b><small>RSS、官网、微信与 X</small></div>
+          <i>→</i>
+          <div><span>02</span><b>真实性核验</b><small>日期、域名与原文链接</small></div>
+          <i>→</i>
+          <div class="active"><span>03</span><b>AI 编辑</b><small>摘要、分类与事件聚类</small></div>
+          <i>→</i>
+          <div><span>04</span><b>综合精选</b><small>规则分数与 AI 判断结合</small></div>
+        </div>
+
+        <div class="ai-layout">
+          <section class="ai-config-card">
+            <div class="ai-card-heading">
+              <div><span class="section-label">连接设置</span><h3>AI API</h3><p>支持常见的 OpenAI 兼容接口。API Key 只保存在服务器，不会发送到浏览器或写入 GitHub。</p></div>
+              <label class="switch-row"><input id="aiEnabled" type="checkbox"/><span class="switch-ui"></span><b>启用 AI 编辑</b></label>
+            </div>
+
+            <div class="form-grid two ai-provider-grid">
+              <div class="field"><label for="aiProvider">AI 服务商</label><select id="aiProvider" aria-label="AI 服务商"></select><small class="field-help" id="aiProviderHelp">请选择已经开通 API 的服务商。</small></div>
+              <div class="field"><label for="aiModel">模型名称</label><input id="aiModel" maxlength="120" autocomplete="off" placeholder="填写控制台中可用的模型名称"/><small class="field-help">不自动猜测模型，避免调用不存在或已停用的型号。</small></div>
+            </div>
+
+            <div class="field ai-key-field">
+              <label for="aiApiKey">API Key</label>
+              <div class="secret-input"><input id="aiApiKey" type="password" maxlength="512" autocomplete="new-password" placeholder="输入新的 API Key；留空则保留已有密钥"/><button class="btn ghost compact" id="aiRevealKey" type="button">显示</button></div>
+              <small class="field-help" id="aiKeyHint">尚未配置密钥</small>
+            </div>
+
+            <div class="ai-feature-grid">
+              <label><input id="aiFeatureClassify" type="checkbox"/><span><b>智能分类</b><small>识别政策、价格、组件、储能等方向</small></span></label>
+              <label><input id="aiFeatureSummarize" type="checkbox"/><span><b>完整摘要</b><small>生成有首有尾的中文简短总结</small></span></label>
+              <label><input id="aiFeatureEvent" type="checkbox"/><span><b>事件聚类</b><small>把不同信源的同一件事关联起来</small></span></label>
+              <label><input id="aiFeatureRanking" type="checkbox"/><span><b>精选辅助</b><small>AI 只占部分权重，不单独决定头条</small></span></label>
+            </div>
+
+            <details class="ai-advanced">
+              <summary>调用额度与保护设置</summary>
+              <div class="form-grid three">
+                <div class="field"><label for="aiDailyLimit">每日最多处理</label><div class="input-suffix"><input id="aiDailyLimit" type="number" min="10" max="1000" step="10"/><span>篇</span></div></div>
+                <div class="field"><label for="aiTimeout">单次超时</label><div class="input-suffix"><input id="aiTimeout" type="number" min="5" max="120"/><span>秒</span></div></div>
+                <div class="field"><label for="aiMaxChars">单篇最多输入</label><div class="input-suffix"><input id="aiMaxChars" type="number" min="1000" max="30000" step="500"/><span>字</span></div></div>
+              </div>
+              <p>达到每日上限、接口超时或余额不足时，网站会自动使用原有规则继续更新，不会停站。</p>
+            </details>
+
+            <div class="ai-actions">
+              <button class="btn" id="aiTestBtn" type="button">测试连接</button>
+              <button class="btn primary" id="aiSaveBtn" type="button">保存 AI 设置</button>
+              <button class="btn ghost" id="aiClearKeyBtn" type="button" hidden>移除密钥</button>
+              <span id="aiActionMessage" role="status"></span>
+            </div>
+          </section>
+
+          <aside class="ai-side">
+            <section class="ai-usage-card">
+              <span class="section-label">今日调用</span><h3>使用情况</h3>
+              <div class="ai-usage-grid">
+                <div><strong id="aiUsageArticles">0</strong><small>已处理文章</small></div>
+                <div><strong id="aiUsageCalls">0</strong><small>API 请求</small></div>
+                <div><strong id="aiUsageTokens">0</strong><small>模型 Tokens</small></div>
+                <div><strong id="aiUsageFailures">0</strong><small>失败次数</small></div>
+              </div>
+              <div class="ai-usage-progress"><span id="aiUsageProgress"></span></div>
+              <p id="aiUsageText">今天尚未调用 AI。</p>
+            </section>
+
+            <section class="ai-safety-card">
+              <span class="safety-icon">✓</span>
+              <div><h3>安全原则</h3><ul><li>AI 不负责抓取和判断原始发布日期</li><li>不允许 AI 编造信源、链接或热度</li><li>接口失败时自动回退到规则精选</li><li>密钥永不返回前端，只显示脱敏提示</li></ul></div>
+            </section>
+          </aside>
         </div>
       </div>
 
@@ -1524,6 +1683,7 @@
     const pageMeta = {
       news:['新闻管理','审核资讯、维护精选并管理信源内容'],
       sources:['信源健康','查看每个信源的状态，并添加希望系统持续抓取的来源'],
+      ai:['AI 编辑','配置内容分析、事件聚类与精选辅助能力'],
       stats:['运行概览','查看访问表现、内容更新与信源运行情况'],
       content:['页面内容','维护前台文案、公众号图片与更新记录'],
       feedback:['反馈收件箱','查看访客意见并跟进处理'],
@@ -1537,6 +1697,7 @@
     $('#pageDesc').textContent = pageMeta[name][1];
     $('#panelNews').style.display = name === 'news' ? '' : 'none';
     $('#panelSources').style.display = name === 'sources' ? '' : 'none';
+    $('#panelAi').style.display = name === 'ai' ? '' : 'none';
     $('#panelStats').style.display = name === 'stats' ? '' : 'none';
     $('#panelContent').style.display = name === 'content' ? '' : 'none';
     $('#panelFeedback').style.display = name === 'feedback' ? '' : 'none';
@@ -1544,9 +1705,135 @@
     if (name === 'feedback') loadFeedback();
     if (name === 'stats') loadStats();
     if (name === 'sources') loadSourceHealth();
+    if (name === 'ai') loadAiConfig();
   }
   $$('.tab').forEach(t => t.onclick = () => switchTab(t.dataset.tab));
   $$('[data-go-tab]').forEach(button => { button.onclick = () => switchTab(button.dataset.goTab); });
+
+  /* ============== AI 编辑设置 ============== */
+  let AI_CONFIG = null;
+
+  function aiMessage(message, tone){
+    const el = $('#aiActionMessage');
+    el.textContent = message || '';
+    el.className = tone || '';
+  }
+
+  function renderAiUsage(usage, dailyLimit){
+    usage = usage || {};
+    const articles = Number(usage.articles) || 0;
+    const calls = Number(usage.calls) || 0;
+    const tokens = Number(usage.tokens) || 0;
+    const failures = Number(usage.failures) || 0;
+    $('#aiUsageArticles').textContent = articles.toLocaleString('zh-CN');
+    $('#aiUsageCalls').textContent = calls.toLocaleString('zh-CN');
+    $('#aiUsageTokens').textContent = tokens.toLocaleString('zh-CN');
+    $('#aiUsageFailures').textContent = failures.toLocaleString('zh-CN');
+    const percent = Math.min(100, Math.round(articles / Math.max(1, dailyLimit || 120) * 100));
+    $('#aiUsageProgress').style.width = percent + '%';
+    $('#aiUsageText').textContent = articles
+      ? `今日已处理 ${articles} / ${dailyLimit} 篇${usage.lastCallAt ? ' · 最近调用 ' + formatFriendlyTime(usage.lastCallAt) : ''}`
+      : '今天尚未调用 AI。';
+  }
+
+  function renderAiConfig(config){
+    AI_CONFIG = config;
+    const provider = $('#aiProvider');
+    provider.innerHTML = (config.providers || []).map(item =>
+      `<option value="${esc(item.id)}">${esc(item.name)}</option>`
+    ).join('');
+    provider.value = config.provider || 'openai';
+    $('#aiEnabled').checked = config.enabled === true;
+    $('#aiModel').value = config.model || '';
+    $('#aiApiKey').value = '';
+    $('#aiDailyLimit').value = config.dailyArticleLimit || 120;
+    $('#aiTimeout').value = Math.round((config.timeoutMs || 25000) / 1000);
+    $('#aiMaxChars').value = config.maxInputChars || 8000;
+    $('#aiFeatureClassify').checked = config.features && config.features.classify !== false;
+    $('#aiFeatureSummarize').checked = config.features && config.features.summarize !== false;
+    $('#aiFeatureEvent').checked = config.features && config.features.eventCluster !== false;
+    $('#aiFeatureRanking').checked = config.features && config.features.ranking !== false;
+    $('#aiKeyHint').textContent = config.apiKeyConfigured
+      ? `服务器已安全保存：${config.apiKeyHint}。留空不会覆盖现有密钥。`
+      : '尚未配置密钥。密钥保存后不会再次完整显示。';
+    $('#aiClearKeyBtn').hidden = !config.apiKeyConfigured;
+    const badge = $('#aiStatusBadge');
+    badge.dataset.state = config.enabled ? 'on' : 'off';
+    badge.querySelector('span').textContent = config.enabled
+      ? `${config.providerName || 'AI'} 已启用`
+      : (config.apiKeyConfigured ? '配置完成，当前关闭' : '尚未启用');
+    renderAiProviderHelp();
+    renderAiUsage(config.usage, config.dailyArticleLimit);
+  }
+
+  function renderAiProviderHelp(){
+    if (!AI_CONFIG) return;
+    const selected = (AI_CONFIG.providers || []).find(item => item.id === $('#aiProvider').value);
+    $('#aiProviderHelp').textContent = selected
+      ? `${selected.help} · 接口地址由系统安全管理：${selected.baseUrl}`
+      : '请选择已经开通 API 的服务商。';
+  }
+
+  async function loadAiConfig(){
+    aiMessage('正在读取设置…');
+    const r = await api('/ai-config');
+    if (!r.ok) {
+      aiMessage((r.data && r.data.error) || 'AI 设置读取失败', 'error');
+      return;
+    }
+    renderAiConfig(r.data);
+    aiMessage(r.data.updatedAt ? '设置更新于 ' + formatFriendlyTime(r.data.updatedAt) : '等待首次配置');
+  }
+
+  function aiDraft(overrides){
+    const key = $('#aiApiKey').value.trim();
+    return Object.assign({
+      enabled: $('#aiEnabled').checked,
+      provider: $('#aiProvider').value,
+      model: $('#aiModel').value.trim(),
+      dailyArticleLimit: Number($('#aiDailyLimit').value),
+      timeoutMs: Number($('#aiTimeout').value) * 1000,
+      maxInputChars: Number($('#aiMaxChars').value),
+      features: {
+        classify: $('#aiFeatureClassify').checked,
+        summarize: $('#aiFeatureSummarize').checked,
+        eventCluster: $('#aiFeatureEvent').checked,
+        ranking: $('#aiFeatureRanking').checked,
+      },
+    }, key ? { apiKey:key } : {}, overrides || {});
+  }
+
+  $('#aiProvider').onchange = renderAiProviderHelp;
+  $('#aiRevealKey').onclick = () => {
+    const input = $('#aiApiKey');
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    $('#aiRevealKey').textContent = show ? '隐藏' : '显示';
+  };
+  $('#aiSaveBtn').onclick = async () => {
+    const button = $('#aiSaveBtn');
+    button.disabled = true; button.textContent = '正在保存…'; aiMessage('');
+    const r = await api('/ai-config', { method:'PUT', body:JSON.stringify(aiDraft()) });
+    button.disabled = false; button.textContent = '保存 AI 设置';
+    if (!r.ok) { aiMessage((r.data && r.data.error) || '保存失败', 'error'); return; }
+    renderAiConfig(Object.assign({}, r.data.config, { usage:r.data.usage }));
+    aiMessage(r.data.message || '设置已保存', 'ok');
+    toast('AI 设置已保存');
+  };
+  $('#aiTestBtn').onclick = async () => {
+    const button = $('#aiTestBtn');
+    button.disabled = true; button.textContent = '正在连接…'; aiMessage('正在验证密钥、模型和结构化输出…');
+    const r = await api('/ai-config/test', { method:'POST', body:JSON.stringify(aiDraft()) });
+    button.disabled = false; button.textContent = '测试连接';
+    aiMessage(r.ok ? (r.data.message || '连接成功') : ((r.data && r.data.error) || '连接失败'), r.ok ? 'ok' : 'error');
+  };
+  $('#aiClearKeyBtn').onclick = async () => {
+    if (!confirm('确定移除服务器中保存的 AI API Key？AI 编辑也会同时关闭。')) return;
+    const r = await api('/ai-config', { method:'PUT', body:JSON.stringify(aiDraft({ enabled:false, clearApiKey:true })) });
+    if (!r.ok) { aiMessage((r.data && r.data.error) || '移除失败', 'error'); return; }
+    renderAiConfig(Object.assign({}, r.data.config, { usage:r.data.usage }));
+    aiMessage('密钥已移除，AI 编辑已关闭', 'ok');
+  };
 
   /* ============== 信源健康中心 ============== */
   const SOURCE_STATUS_INFO = {
@@ -1641,8 +1928,12 @@
       : (data.integrations && data.integrations.xIndirectEnabled
         ? 'X 无 Token 间接监控已启用'
         : 'X 官方 API 未配置');
+    const catalog = data.catalog || {};
+    const catalogText = catalog.publisherCount == null
+      ? `共 ${items.length} 个信源`
+      : `${catalog.publisherCount} 个媒体主体 · ${catalog.channelCount} 条抓取通道 · ${catalog.discoveryRuleCount} 条发现规则`;
     $('#sourceHealthMeta').textContent = (data.checkedAt ? '最近检查 ' + formatSourceTime(data.checkedAt) : '尚未生成健康检查')
-      + ` · 共 ${items.length} 个信源 · ${xApiText} · 点击上方状态卡可快速筛选`;
+      + ` · ${catalogText} · ${xApiText} · 点击上方状态卡可快速筛选`;
     $$('.source-summary-card').forEach(card => {
       const active = sourceState.status === card.dataset.sourceSummary;
       card.classList.toggle('on', active);

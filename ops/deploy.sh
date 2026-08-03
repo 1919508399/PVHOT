@@ -391,6 +391,14 @@ initialize_shared_state() {
     "${SHARED_DIR}/data/article_cache.json" \
     "" \
     '{}'
+  seed_file "ai_cache.json" \
+    "${SHARED_DIR}/data/ai_cache.json" \
+    "" \
+    '{"schemaVersion":1,"entries":{}}'
+  seed_file "ai_usage.json" \
+    "${SHARED_DIR}/data/ai_usage.json" \
+    "" \
+    '{}'
   seed_file "wechat_items.json" \
     "${SHARED_DIR}/data/wechat_items.json" \
     "" \
@@ -468,6 +476,8 @@ wire_shared_state() {
     source_health.json \
     translate_cache.json \
     article_cache.json \
+    ai_cache.json \
+    ai_usage.json \
     wechat_items.json \
     site_texts.json \
     site_texts_fallback.js; do
@@ -525,6 +535,9 @@ preflight_release() {
     lib/custom_sources.js
     lib/safe_remote_fetch.js
     lib/x_sources.js
+    lib/ai_config.js
+    lib/ai_editor.js
+    lib/source_catalog.js
     site_texts.json
     site_texts_fallback.js
     data.json
@@ -558,7 +571,10 @@ preflight_release() {
     lib/source_health.js \
     lib/custom_sources.js \
     lib/safe_remote_fetch.js \
-    lib/x_sources.js; do
+    lib/x_sources.js \
+    lib/ai_config.js \
+    lib/ai_editor.js \
+    lib/source_catalog.js; do
     "${NODE_BIN}" --check "${release_dir}/${js_file}" >/dev/null
   done
 

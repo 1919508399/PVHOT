@@ -27,6 +27,8 @@ const {
 } = require('./lib/custom_sources');
 const { safeFetch } = require('./lib/safe_remote_fetch');
 const { fetchXSources, normalizeExternalArticleUrl } = require('./lib/x_sources');
+const { loadAiConfig, resolveAiConfigPath } = require('./lib/ai_config');
+const { applyAiEditorial } = require('./lib/ai_editor');
 const {
   advanceHealthEntry,
   buildHealthEntry,
@@ -58,6 +60,16 @@ const CUSTOM_SOURCES_FILE = process.env.PVHOT_CUSTOM_SOURCES_FILE
   || (IS_CURRENT_RELEASE || HAS_SHARED_ROOT
     ? path.join(SHARED_ROOT, 'data', 'custom_sources.json')
     : path.join(ROOT, 'custom_sources.json'));
+const AI_CONFIG_FILE = process.env.PVHOT_AI_CONFIG_FILE
+  || resolveAiConfigPath(ROOT, SHARED_ROOT);
+const AI_CACHE_FILE = process.env.PVHOT_AI_CACHE_FILE
+  || (IS_CURRENT_RELEASE || HAS_SHARED_ROOT
+    ? path.join(SHARED_ROOT, 'data', 'ai_cache.json')
+    : path.join(ROOT, 'ai_cache.json'));
+const AI_USAGE_FILE = process.env.PVHOT_AI_USAGE_FILE
+  || (IS_CURRENT_RELEASE || HAS_SHARED_ROOT
+    ? path.join(SHARED_ROOT, 'data', 'ai_usage.json')
+    : path.join(ROOT, 'ai_usage.json'));
 const RSSHUB_BASE = 'http://127.0.0.1:1200';
 const NEWS_LOCK_OPTIONS = {
   root: ROOT,
@@ -1616,12 +1628,20 @@ function computeScoreDetails(it) {
   if (/政策|监管|关税|补贴|标准|法规|反倾销|中标|招标|并网|投产|量产|收购|合作|签约|突破|效率|纪录|price|tariff|policy|acquisition|launch|record/i.test(title)) importance += 6;
   if (/\d+(?:\.\d+)?\s*(?:%|％|GW|MW|kWh|亿|万|元|美元|\/W)/i.test(title)) importance += 6;
   const penalty = GENERIC_SOCIAL_SOURCE_RE.test(sourceText) ? 10 : 0;
+  const ai = it.ai && typeof it.ai === 'object' ? it.ai : {};
+  const aiConfidence = Math.max(0, Math.min(1, Number(ai.confidence) || 0));
+  const aiEditorial = ai.analyzed && ai.rankingEnabled !== false && aiConfidence >= .55
+    ? Math.min(20, Math.round(
+      Math.max(0, Math.min(100, Number(ai.importance) || 0)) * .14
+      + Math.max(0, Math.min(100, Number(ai.novelty) || 0)) * .06
+    ))
+    : 0;
   const base = 24;
-  const score = Math.max(1, Math.min(100, Math.round(base + recency + crossSource + authority + official + richness + importance + xSignal - penalty)));
+  const score = Math.max(1, Math.min(100, Math.round(base + recency + crossSource + authority + official + richness + importance + xSignal + aiEditorial - penalty)));
   return {
     score,
-    networkHeat: Math.min(100, 35 + crossSource * 2 + (isTrustedItem(it) ? 15 : 0) + Math.min(15, importance) + xSignal * 2),
-    breakdown: { recency, crossSource, authority, official, richness, importance, xSignal, penalty },
+    networkHeat: Math.min(100, 35 + crossSource * 2 + (isTrustedItem(it) ? 15 : 0) + Math.min(15, importance) + xSignal * 2 + Math.round(aiEditorial * .6)),
+    breakdown: { recency, crossSource, authority, official, richness, importance, xSignal, aiEditorial, penalty },
   };
 }
 
@@ -2332,6 +2352,41 @@ async function runMain() {
     return obj;
   });
 
+  // === AI 编辑层：规则抓取继续作为底座；AI 只做分类、摘要、事件聚类和有限加权 ===
+  // 未配置、达到每日上限或接口失败时会自动保留规则结果，新闻抓取不会因此中断。
+  let aiEditorial = {
+    enabled: false,
+    analyzed: 0,
+    cacheHits: 0,
+    calls: 0,
+    failures: 0,
+    eventCount: 0,
+    lastError: '',
+  };
+  try {
+    const aiConfig = loadAiConfig(AI_CONFIG_FILE);
+    aiEditorial = await applyAiEditorial(items, aiConfig, {
+      cacheFile: AI_CACHE_FILE,
+      usageFile: AI_USAGE_FILE,
+      batchSize: 4,
+      stopOnError: true,
+    });
+    // AI 可能更新分类、摘要和事件信息，因此在精选前重新计算一次综合分。
+    for (const item of items) {
+      const details = computeScoreDetails(item);
+      item.score = details.score;
+      item.networkHeat = details.networkHeat;
+      item.scoreBreakdown = details.breakdown;
+    }
+    log(`ai-editor: enabled=${aiEditorial.enabled} analyzed=${aiEditorial.analyzed}`
+      + ` cache=${aiEditorial.cacheHits} calls=${aiEditorial.calls} events=${aiEditorial.eventCount}`
+      + ` failures=${aiEditorial.failures}${aiEditorial.lastError ? ` error=${aiEditorial.lastError}` : ''}`);
+  } catch (error) {
+    aiEditorial.failures += 1;
+    aiEditorial.lastError = String(error && error.message || 'AI 编辑层不可用').slice(0, 200);
+    log(`WARN ai-editor fallback: ${aiEditorial.lastError}`);
+  }
+
   // AI 精选只允许北京时间当天新闻；以跨源热度、来源权威度、时效和产业重要性综合选出。
   const todayKey = beijingDateKey();
   const todayItems = items
@@ -2361,6 +2416,15 @@ async function runMain() {
     generator: `光伏 HOT (source registry ${REGISTRY_VERSION} · Google News + RSS + Scrape + WeChat + X)`,
     sourceRegistryVersion: REGISTRY_VERSION,
     monitoredSources: health.configured,
+    aiEditorial: {
+      enabled: aiEditorial.enabled,
+      provider: aiEditorial.provider || '',
+      model: aiEditorial.model || '',
+      analyzed: aiEditorial.analyzed,
+      cacheHits: aiEditorial.cacheHits,
+      eventCount: aiEditorial.eventCount,
+      failures: aiEditorial.failures,
+    },
   };
   const categories = ['全部','政策','价格','硅料','硅片','电池片','组件','逆变器','支架BOS','储能','电站','行情'];
 

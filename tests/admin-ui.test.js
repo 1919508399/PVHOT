@@ -49,11 +49,19 @@ test('three core admin views use friendly labels and hide raw technical details'
   const stats = panelMarkup(html, 'panelStats', 'panelContent');
   const content = panelMarkup(html, 'panelContent', 'panelFeedback');
   const feedback = panelMarkup(html, 'panelFeedback', 'editMask');
+  const ai = panelMarkup(html, 'panelAi', 'panelStats');
 
   assert.doesNotMatch(html, /<span class="nav-icon">[DCF]<\/span>/);
   assert.match(html, /data-tab="stats"[\s\S]*?<svg[\s\S]*?<span>运行概览<\/span>/);
   assert.match(html, /data-tab="content"[\s\S]*?<span>页面内容<\/span>/);
   assert.match(html, /data-tab="feedback"[\s\S]*?<span>反馈收件箱<\/span>/);
+  assert.match(html, /data-tab="ai"[\s\S]*?<span>AI 编辑<\/span>/);
+
+  assert.match(ai, /AI 编辑与事件聚类/);
+  assert.match(ai, /测试连接/);
+  assert.match(ai, /每日最多处理/);
+  assert.match(ai, /id="aiApiKey"[^>]*type="password"/);
+  assert.match(ai, /API Key 只保存在服务器/);
 
   assert.match(stats, /今日浏览次数/);
   assert.match(stats, /总访问用户数/);
