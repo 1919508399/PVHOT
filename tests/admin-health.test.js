@@ -94,6 +94,15 @@ test('authenticated source health API manages a custom WeChat source safely', as
     updatedAt: null,
     sources: [],
   }));
+  fs.writeFileSync(path.join(shared, 'data', 'source_health.json'), JSON.stringify({
+    schemaVersion: 2,
+    checkedAt: '2026-08-03T05:00:00.000Z',
+    sources: [{
+      id: 'x-pvmagazine', name: 'PV Magazine Global', kind: 'x', type: 'x',
+      status: 'blocked', errorCode: 'x_api_not_configured', reasonCode: 'x_api_not_configured',
+      detail: '未配置 X 官方 API', items: 0, itemsSeen: 0,
+    }],
+  }));
 
   const testLoginValue = 'test_admin_login_value';
   const child = spawn(process.execPath, [path.join(process.cwd(), 'admin_server.js')], {
@@ -132,12 +141,15 @@ test('authenticated source health API manages a custom WeChat source safely', as
   const initialHealth = await initialHealthResponse.json();
   assert.equal(initialHealthResponse.status, 200);
   assert.equal(initialHealth.integrations.xApiConfigured, false);
+  assert.equal(initialHealth.integrations.xIndirectEnabled, true);
   const builtInX = initialHealth.sources.filter((source) =>
     source.type === 'x' && source.custom !== true
   );
   assert.equal(builtInX.length, 12);
-  assert.ok(builtInX.every((source) => source.status === 'blocked'));
-  assert.ok(builtInX.every((source) => source.reasonCode === 'X_API_NOT_CONFIGURED'));
+  assert.ok(builtInX.every((source) => source.status === 'no_new'));
+  assert.ok(builtInX.every((source) => source.monitorMode === 'search-indirect'));
+  assert.ok(builtInX.every((source) => source.reasonCode == null));
+  assert.match(builtInX.find((source) => source.id === 'x-pvmagazine').detail, /间接监控已启用/);
   assert.ok(builtInX.some((source) => source.handle === 'pvmagazine'));
 
   const duplicateBuiltInX = await fetch(`${baseUrl}/admin/api/sources`, {

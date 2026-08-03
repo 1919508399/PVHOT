@@ -10,7 +10,7 @@
  * 4. 微信账号按小时轮询，fetch_wechat.js 会保留 7 天历史，不会因轮换丢失文章。
  */
 
-const REGISTRY_VERSION = '2026.08.03-r2';
+const REGISTRY_VERSION = '2026.08.03-r3';
 
 const TOPIC_QUERIES = [
   { id: 'topic-all', cat: 'ALL', q: 'solar OR photovoltaic OR solar panel', locale: 'en' },
@@ -128,7 +128,8 @@ const SCRAPE_SOURCES = [
 ];
 
 // 已核验的 X（Twitter）权威光伏媒体与机构账号。
-// X 仅作为新闻发现信号；正式抓取使用服务器端 X 官方 API，凭证不进入注册表。
+// X 仅作为新闻发现信号：有官方凭证时读取账号时间线；无凭证时通过搜索引擎
+// 定向发现账号所属官网的文章。两种模式都必须回到登记官网核验原文与发布日期。
 const X_ACCOUNTS = [
   {
     id: 'x-pvmagazine', name: 'PV Magazine Global', handle: 'pvmagazine',
