@@ -106,6 +106,16 @@ test('keywords accept English/Chinese comma text and are deduplicated', () => {
   );
 });
 
+test('custom source text rejects unreadable encoding artifacts', () => {
+  assert.throws(() => createCustomSource({
+    name: '异常' + String.fromCharCode(0xFFFD) + '信源',
+    type: 'website',
+    url: 'https://example.com',
+    keywords: '光伏',
+    category: '组件',
+  }), (error) => error instanceof CustomSourceError && error.code === 'INVALID_FIELD');
+});
+
 test('server creates the source id and normalizes website sources to a site domain', () => {
   const source = createCustomSource({
     name: '示例光伏网站',

@@ -277,10 +277,43 @@
   };
   /* 估算阅读时长：每篇 30 秒，最少 5 分钟 */
   const estReadMin = n => Math.max(5, Math.round(n * 0.5));
-  const esc = s => (s || "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+  const looksLikeBrokenEncoding = value => {
+    const text = value == null ? "" : String(value);
+    if (/[\uFFFD\u0080-\u009F]/.test(text) || /锟斤拷|\?{7,}/.test(text)) return true;
+    if (/(?:Ã.|Â.|â€|ï¿½|ðŸ)/.test(text)) return true;
+    return /(?:[åæçäèé][\u00A0-\u00FF]{2}){2,}/.test(text);
+  };
+  const cleanPublicText = (value, fallback = "内容编码异常，暂不展示") => {
+    const text = (value == null ? "" : String(value))
+      .replace(/&(?:amp;)?mdash;/gi, "—")
+      .replace(/&(?:amp;)?nbsp;/gi, " ")
+      .replace(/\u001b\[[0-9;]*[A-Za-z]/g, "")
+      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
+    return looksLikeBrokenEncoding(text) ? fallback : text;
+  };
+  const fallbackForField = key => {
+    const field = String(key || "").toLowerCase();
+    if (/(?:^|_)(?:url|link|image|id|date|time|handle)$/.test(field) || /^(?:url|link|image|id|pubdate)$/.test(field)) return "";
+    if (field.includes("title")) return "标题编码异常，暂不展示";
+    if (/(?:source|author|name)/.test(field)) return "来源名称编码异常";
+    if (/(?:category|tag)/.test(field)) return "其他";
+    return "内容编码异常，暂不展示";
+  };
+  const sanitizePublicPayload = (value, key = "") => {
+    if (typeof value === "string") return cleanPublicText(value, fallbackForField(key));
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => { value[index] = sanitizePublicPayload(item, key); });
+      return value;
+    }
+    if (value && typeof value === "object") {
+      Object.keys(value).forEach(field => { value[field] = sanitizePublicPayload(value[field], field); });
+    }
+    return value;
+  };
+  const esc = s => cleanPublicText(s, "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
   const safeRichText = value => {
     const template = document.createElement("template");
-    template.innerHTML = String(value || "");
+    template.innerHTML = cleanPublicText(value);
     const allowed = new Set(["SPAN", "B", "BR", "A"]);
     Array.from(template.content.querySelectorAll("*")).forEach(element => {
       if (!allowed.has(element.tagName)) {
@@ -1981,6 +2014,7 @@ ${restUrl}
    */
   /* 预处理：自动识别语言，英文译文(title_cn)替换进 title，并标记 translated */
   function preprocessData(data) {
+    sanitizePublicPayload(data);
     (data.items || []).forEach(it => {
       if (it.title_short) {
         /* v18.7 数据：卡片显示短标题，tooltip 挂完整中文标题；summary 已由后端算好（真实描述/增量段），不再覆盖 */
@@ -2100,7 +2134,7 @@ ${restUrl}
   /* ---------- 加载可编辑 texts（关于/Agent/反馈/更新日志） ---------- */
   function loadTexts() {
     const apply = (t) => {
-      TEXTS = t || DEFAULT_TEXTS;
+      TEXTS = sanitizePublicPayload(t || DEFAULT_TEXTS);
       // 当前如果停在某个 info 视图，重渲一次让最新内容生效
       if (state.view === "about" || state.view === "agent" || state.view === "feedback" || state.view === "changelog") {
         renderInfoView(state.view);

@@ -343,10 +343,17 @@ async function getBodyOrReject(req, res) {
   return body;
 }
 
+function hasUnreadableCharacters(value) {
+  const text = value == null ? '' : String(value);
+  if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\uFFFD\u0080-\u009F]/.test(text)) return true;
+  if (/锟斤拷|\?{7,}|(?:Ã.|Â.|â€|ï¿½|ðŸ)/.test(text)) return true;
+  return /(?:[åæçäèé][\u00A0-\u00FF]{2}){2,}/.test(text);
+}
+
 function validateEditableString(value, label, maxLength, allowMarkup = false) {
   if (typeof value !== 'string') return `${label}格式不正确`;
   if (value.length > maxLength) return `${label}内容过长`;
-  if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\uFFFD]/.test(value) || /锟斤拷/.test(value)) {
+  if (hasUnreadableCharacters(value)) {
     return `${label}包含无法识别的字符，请重新输入`;
   }
   if (allowMarkup && (/<\s*(script|style|iframe|object|embed|svg|math|form|input|button)\b/i.test(value)
@@ -475,7 +482,30 @@ function customSourceErrorResponse(res, error) {
     return;
   }
   if (error instanceof CustomSourceError) {
-    send(res, 400, { error: '信源设置不符合要求：' + error.message, code: code || 'INVALID_SOURCE' });
+    const friendlyMessages = {
+      INVALID_SOURCE: '提交内容格式不正确，请刷新页面后重试',
+      UNSUPPORTED_FIELD: '提交内容包含不支持的项目，请刷新页面后重试',
+      INVALID_FIELD: '请检查信源名称和关键词，不能留空、过长或包含乱码',
+      INVALID_KEYWORDS: '关键词格式不正确，请用逗号分隔',
+      TOO_MANY_KEYWORDS: '关键词最多填写 20 个',
+      INVALID_SOURCE_TYPE: '请选择支持的信源类型',
+      INVALID_CATEGORY: '请选择列表中的行业分类',
+      INVALID_SOURCE_URL: '网站地址无效，请填写公开的 HTTPS 地址',
+      INVALID_X_HANDLE: 'X 账号格式不正确，请填写公开账号名',
+      INVALID_X_URL: 'X 地址无效，请填写账号主页，不要填写单条帖子',
+      INVALID_STALE_WINDOW: '长期未更新的判断时间设置不正确',
+      WECHAT_KEYWORDS_REQUIRED: '公众号至少需要填写一个名称或关键词',
+      WECHAT_URL_NOT_ALLOWED: '公众号请填写名称和关键词，不需要填写网址',
+    };
+    const internalCodes = new Set([
+      'INVALID_REGISTRY', 'INVALID_REGISTRY_JSON', 'INVALID_STORED_SOURCE',
+      'INVALID_TIMESTAMP', 'NON_CANONICAL_SOURCE', 'REGISTRY_READ_FAILED', 'UNSUPPORTED_SCHEMA',
+    ]);
+    const status = internalCodes.has(code) ? 500 : 400;
+    const message = internalCodes.has(code)
+      ? '信源数据暂时无法读取，请联系维护人员处理'
+      : (friendlyMessages[code] || '信源设置不符合要求，请检查后重试');
+    send(res, status, { error: message, code: code || 'INVALID_SOURCE' });
     return;
   }
   console.error('[sources] error', error);
@@ -1275,6 +1305,7 @@ const server = http.createServer(async (req, res) => {
     const msg = (body.msg || '').toString().trim();
     if (!msg) { send(res, 400, { error: '内容不能为空' }); return; }
     if (msg.length > 4000) { send(res, 400, { error: '内容超过 4000 字' }); return; }
+    if (hasUnreadableCharacters(msg)) { send(res, 400, { error: '内容包含无法识别的字符，请重新输入' }); return; }
     const email = (body.email || '').toString().trim().slice(0, 120);
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { send(res, 400, { error: '邮箱格式不对' }); return; }
     let list = [];

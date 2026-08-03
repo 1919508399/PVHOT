@@ -69,11 +69,17 @@ test('three core admin views use friendly labels and hide raw technical details'
   assert.doesNotMatch(feedback, /UA：|IP：|用户代理|原始编号/);
 
   assert.match(html, /function cleanDisplayText/);
+  assert.match(html, /if \(bad >= 1/);
+  assert.match(html, /标题编码异常，已隐藏/);
+  assert.match(html, /信源名称编码异常/);
   assert.match(html, /skill_md:\s*\(TEXTS_DATA/);
   assert.doesNotMatch(html, /\$\{esc\(it\.id\)\}<\/span>/);
   assert.doesNotMatch(html, /UA：\$\{esc\(it\.ua/);
 
   const app = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+  assert.match(app, /const looksLikeBrokenEncoding =/);
+  assert.match(app, /sanitizePublicPayload\(data\)/);
+  assert.match(app, /TEXTS = sanitizePublicPayload/);
   assert.match(app, /const safeRichText =/);
   assert.match(app, /safeRichText\(a\.title_html\)/);
   assert.match(app, /<pre id="agtVerify">\$\{esc\(verifyQ\)\}<\/pre>/);
@@ -136,6 +142,20 @@ test('admin request body keeps Chinese text intact when UTF-8 bytes arrive in se
     } }),
   });
   assert.equal(unsafeSave.status, 400);
+
+  const brokenEncodingSave = await fetch(`http://127.0.0.1:${port}/admin/api/texts/about`, {
+    method:'PUT', headers:{ 'Content-Type':'application/json', Cookie:cookie },
+    body:JSON.stringify({ value:{
+      eyebrow:'关于', title_html:'异常' + String.fromCharCode(0xFFFD) + '标题', sub:'简介', poem:['第一行'], fineprint_html:'说明',
+    } }),
+  });
+  assert.equal(brokenEncodingSave.status, 400);
+
+  const brokenFeedback = await fetch(`http://127.0.0.1:${port}/api/feedback`, {
+    method:'POST', headers:{ 'Content-Type':'application/json' },
+    body:JSON.stringify({ msg:'页面出现异常' + String.fromCharCode(0xFFFD) + '字符' }),
+  });
+  assert.equal(brokenFeedback.status, 400);
 
   const safeValue = {
     eyebrow:'关于这个站', title_html:'专业的 <span class="abt-emerald">光伏情报</span>',
