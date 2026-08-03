@@ -7,7 +7,6 @@
  * 输出: 写入 /var/www/pvhot/wechat_items.json（供 fetch_pv_news.js 合并）
  */
 
-const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -39,8 +38,9 @@ const WECHAT_LOCK_OPTIONS = {
   staleMs: Number(process.env.PVHOT_WECHAT_LOCK_STALE_MS || 45 * 60_000),
 };
 const ACCOUNT_BATCH_SIZE = Math.max(1, Math.min(16, Number(process.env.PVHOT_WECHAT_ACCOUNT_BATCH || 8)));
-const CUSTOM_ACCOUNT_BATCH_SIZE = Math.max(1, Math.min(8, Number(process.env.PVHOT_WECHAT_CUSTOM_ACCOUNT_BATCH || 4)));
+const CUSTOM_ACCOUNT_BATCH_SIZE = Math.max(1, Math.min(16, Number(process.env.PVHOT_WECHAT_CUSTOM_ACCOUNT_BATCH || 8)));
 const TOPIC_BATCH_SIZE = Math.max(1, Math.min(WECHAT_TOPIC_QUERIES.length, Number(process.env.PVHOT_WECHAT_TOPIC_BATCH || 4)));
+const MAX_ACCOUNT_SEARCH_TERMS = Math.max(1, Math.min(4, Number(process.env.PVHOT_WECHAT_ACCOUNT_TERMS || 3)));
 let MONITORED_WECHAT_ACCOUNTS = WECHAT_ACCOUNTS;
 
 const CHROME_PATH = process.env.PUPPETEER_EXECUTABLE_PATH
@@ -56,11 +56,38 @@ function normalizeAccountName(value) {
   return (value || '').toLowerCase().replace(/[\s·\-—_（）()｜|]/g, '');
 }
 
+function uniqueNonEmpty(values) {
+  const seen = new Set();
+  const result = [];
+  for (const value of values) {
+    const text = String(value || '').trim().replace(/\s+/g, ' ');
+    const key = normalizeAccountName(text);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(text);
+  }
+  return result;
+}
+
+function expandAccountAliases(account) {
+  const base = [account && account.name, ...((account && account.aliases) || [])];
+  const expanded = [];
+  for (const value of base) {
+    const text = String(value || '').trim();
+    if (!text) continue;
+    expanded.push(text);
+    const chineseParts = text.match(/[\u4e00-\u9fa5]{2,}/g) || [];
+    const englishParts = text.match(/[A-Za-z][A-Za-z0-9_-]{1,}/g) || [];
+    expanded.push(...chineseParts, ...englishParts);
+  }
+  return uniqueNonEmpty(expanded);
+}
+
 function findMonitoredAccount(value) {
   const actual = normalizeAccountName(value);
   if (!actual) return null;
   return MONITORED_WECHAT_ACCOUNTS.find((account) =>
-    [account.name, ...(account.aliases || [])]
+    expandAccountAliases(account)
       .map(normalizeAccountName)
       .some((alias) => actual.includes(alias) || alias.includes(actual))
   ) || null;
@@ -212,7 +239,7 @@ async function searchWechat(keyword, page, targetAccount = null) {
   for (const raw of rawItems) {
     if (targetAccount) {
       const actual = normalizeAccountName(raw.account);
-      const aliases = [targetAccount.name, ...(targetAccount.aliases || [])].map(normalizeAccountName);
+      const aliases = expandAccountAliases(targetAccount).map(normalizeAccountName);
       if (!actual || !aliases.some((alias) => actual.includes(alias) || alias.includes(actual))) continue;
     }
     const pubDate = parseSogouDate(raw.rawDate);
@@ -238,8 +265,60 @@ async function searchWechat(keyword, page, targetAccount = null) {
   };
 }
 
+function accountSearchTerms(account) {
+  const aliases = expandAccountAliases(account);
+  const first = aliases.find((term) => /[\u4e00-\u9fa5]/.test(term) && !/[A-Za-z]/.test(term));
+  return uniqueNonEmpty([
+    first,
+    ...aliases,
+  ]).slice(0, MAX_ACCOUNT_SEARCH_TERMS);
+}
+
+function selectCustomAccountsForRun(customAccounts, hourSlot) {
+  if (!customAccounts.length) return [];
+  const now = Date.now();
+  const recent = customAccounts.filter((account) => {
+    const stamp = Date.parse(account.createdAt || account.updatedAt || '');
+    return Number.isFinite(stamp) && now - stamp <= 24 * 3600_000;
+  });
+  const start = (hourSlot * CUSTOM_ACCOUNT_BATCH_SIZE) % customAccounts.length;
+  const rotating = Array.from({
+    length: Math.min(CUSTOM_ACCOUNT_BATCH_SIZE, customAccounts.length),
+  }, (_, i) => customAccounts[(start + i) % customAccounts.length]);
+  const byId = new Map();
+  for (const account of [...recent, ...rotating]) {
+    if (byId.size >= CUSTOM_ACCOUNT_BATCH_SIZE) break;
+    byId.set(account.id || account.name, account);
+  }
+  return [...byId.values()];
+}
+
+async function searchAccountWechat(account, page) {
+  const terms = accountSearchTerms(account);
+  const items = [];
+  let rawCount = 0;
+  let blocked = false;
+  let parseError = false;
+  for (const term of terms) {
+    const result = await searchWechat(term, page, account);
+    rawCount += result.rawCount || 0;
+    if (result.status === 'captcha') blocked = true;
+    if (result.status === 'error' || result.status === 'parse_error') parseError = true;
+    items.push(...result.items);
+    if (result.items.length) break;
+    await sleep(1500);
+  }
+  return {
+    items,
+    rawCount,
+    terms,
+    status: items.length ? 'ok' : (blocked ? 'captcha' : (parseError ? 'error' : 'empty')),
+  };
+}
+
 async function runMain() {
   console.log('[wechat] START Puppeteer WeChat search');
+  const puppeteer = require('puppeteer');
   let customAccounts = [];
   try {
     const registry = loadCustomSources(CUSTOM_SOURCES_FILE);
@@ -253,6 +332,8 @@ async function runMain() {
         tier: 2,
         category: source.category || 'ALL',
         staleAfterHours: source.staleAfterHours || 168,
+        createdAt: source.createdAt,
+        updatedAt: source.updatedAt,
         custom: true,
       }));
   } catch (error) {
@@ -283,12 +364,7 @@ async function runMain() {
   const builtInAccounts = Array.from({ length: Math.min(ACCOUNT_BATCH_SIZE, WECHAT_ACCOUNTS.length) }, (_, i) =>
     WECHAT_ACCOUNTS[(accountStart + i) % WECHAT_ACCOUNTS.length]
   );
-  const customStart = customAccounts.length
-    ? (hourSlot * CUSTOM_ACCOUNT_BATCH_SIZE) % customAccounts.length
-    : 0;
-  const customQueriedAccounts = Array.from({
-    length: Math.min(CUSTOM_ACCOUNT_BATCH_SIZE, customAccounts.length),
-  }, (_, i) => customAccounts[(customStart + i) % customAccounts.length]);
+  const customQueriedAccounts = selectCustomAccountsForRun(customAccounts, hourSlot);
   const queriedAccounts = [...customQueriedAccounts, ...builtInAccounts];
   const topicStart = (hourSlot * TOPIC_BATCH_SIZE) % WECHAT_TOPIC_QUERIES.length;
   const topicQueries = Array.from({ length: TOPIC_BATCH_SIZE }, (_, i) =>
@@ -347,7 +423,7 @@ async function runMain() {
 
     for (const account of queriedAccounts) {
       try {
-        const result = await searchWechat(account.name, page, account);
+        const result = await searchAccountWechat(account, page);
         health.push({
           id: `account:${account.name}`,
           name: account.name,
@@ -356,6 +432,7 @@ async function runMain() {
           status: result.status,
           raw: result.rawCount,
           fresh: result.items.length,
+          queryTerms: result.terms,
         });
         for (const it of result.items) {
           allItems.push({
@@ -436,7 +513,15 @@ async function main() {
   return withProcessLock(WECHAT_LOCK_OPTIONS, runMain);
 }
 
-main().catch(e => {
-  console.error('[wechat] FATAL:', e);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch(e => {
+    console.error('[wechat] FATAL:', e);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  accountSearchTerms,
+  expandAccountAliases,
+  selectCustomAccountsForRun,
+};
