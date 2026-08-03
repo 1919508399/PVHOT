@@ -1063,10 +1063,11 @@
                 <div><strong id="aiUsageArticles">0</strong><small>已处理文章</small></div>
                 <div><strong id="aiUsageCalls">0</strong><small>API 请求</small></div>
                 <div><strong id="aiUsageTokens">0</strong><small>模型 Tokens</small></div>
-                <div><strong id="aiUsageFailures">0</strong><small>失败次数</small></div>
+                <div><strong id="aiUsageFailures">0</strong><small>AI 失败</small></div>
               </div>
               <div class="ai-usage-progress"><span id="aiUsageProgress"></span></div>
               <p id="aiUsageText">今天尚未调用 AI。</p>
+              <p id="aiUsageError" hidden></p>
             </section>
 
             <section class="ai-safety-card">
@@ -1731,9 +1732,18 @@
     $('#aiUsageFailures').textContent = failures.toLocaleString('zh-CN');
     const percent = Math.min(100, Math.round(articles / Math.max(1, dailyLimit || 120) * 100));
     $('#aiUsageProgress').style.width = percent + '%';
-    $('#aiUsageText').textContent = articles
+    $('#aiUsageText').textContent = articles || calls
       ? `今日已处理 ${articles} / ${dailyLimit} 篇${usage.lastCallAt ? ' · 最近调用 ' + formatFriendlyTime(usage.lastCallAt) : ''}`
-      : '今天尚未调用 AI。';
+      : (failures ? '今天 AI 有失败记录，但没有成功处理文章。' : '今天尚未调用 AI。');
+    const errorEl = $('#aiUsageError');
+    const lastError = (usage.lastError || '').trim();
+    if (lastError) {
+      errorEl.hidden = false;
+      errorEl.textContent = '最近失败原因：' + lastError;
+    } else {
+      errorEl.hidden = true;
+      errorEl.textContent = '';
+    }
   }
 
   function renderAiConfig(config){
