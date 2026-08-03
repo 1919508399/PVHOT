@@ -193,6 +193,7 @@ jobs:
           fi
           destination="${DEPLOY_USER}@${DEPLOY_HOST}"
           remote_stem="/var/www/pvhot/incoming/.pvhot-${GITHUB_SHA}.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+          deploy_script_sha256="$(sha256sum ops/deploy.sh | awk '{ print $1 }')"
           ssh_options=(
             -i "${HOME}/.ssh/pvhot_deploy"
             -p "${DEPLOY_PORT}"
@@ -213,7 +214,7 @@ jobs:
           )
           cleanup_remote() {
             ssh "${ssh_options[@]}" "${destination}" \
-              "rm -f -- '${remote_stem}.tar.gz.part' '${remote_stem}.sha256.part'" \
+              "rm -f -- '${remote_stem}.tar.gz.part' '${remote_stem}.sha256.part' '${remote_stem}.deploy.sh.part'" \
               >/dev/null 2>&1 || true
           }
           trap cleanup_remote EXIT
@@ -221,8 +222,11 @@ jobs:
             "${ARTIFACT}" "${destination}:${remote_stem}.tar.gz.part"
           scp "${scp_options[@]}" \
             "${CHECKSUM}" "${destination}:${remote_stem}.sha256.part"
+          scp "${scp_options[@]}" \
+            ops/deploy.sh "${destination}:${remote_stem}.deploy.sh.part"
           ssh "${ssh_options[@]}" "${destination}" \
             bash -s -- "${GITHUB_SHA}" "${GITHUB_RUN_ID}" "${GITHUB_RUN_ATTEMPT}" \
+              "${deploy_script_sha256}" \
             < scripts/remote-deploy.sh
           trap - EXIT
       - name: Remove SSH identity

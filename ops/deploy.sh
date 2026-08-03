@@ -21,6 +21,7 @@ readonly PREVIOUS_LINK="${BASE_DIR}/previous"
 readonly PUBLIC_URL="${PVHOT_PUBLIC_URL:-https://pvhot.bbroot.com}"
 readonly KEEP_RELEASES="${PVHOT_KEEP_RELEASES:-5}"
 readonly ADMIN_SERVICE="${PVHOT_ADMIN_SERVICE:-pvhot-admin.service}"
+readonly RUNTIME_USER="${PVHOT_RUNTIME_USER:-pvhot}"
 readonly RUNTIME_GROUP="${PVHOT_RUNTIME_GROUP:-pvhot}"
 readonly SYSTEMCTL_BIN="${PVHOT_SYSTEMCTL_BIN:-/usr/bin/systemctl}"
 readonly NODE_BIN="${PVHOT_NODE_BIN:-/usr/bin/node}"
@@ -171,17 +172,69 @@ set_or_verify_shared_file_permissions() {
   local shared_path="$1"
   local expected_mode="$2"
 
-  if [[ -O "${shared_path}" ]]; then
-    chgrp "${RUNTIME_GROUP}" "${shared_path}"
-    chmod "${expected_mode}" "${shared_path}"
+  [[ -f "${shared_path}" && ! -L "${shared_path}" ]] \
+    || die "shared file is missing, not regular, or is a symlink: ${shared_path}"
+
+  local actual_owner actual_group actual_mode deploy_owner
+  deploy_owner="$(id -un)"
+  actual_owner="$(stat -c '%U' "${shared_path}")"
+  actual_group="$(stat -c '%G' "${shared_path}")"
+  actual_mode="$(stat -c '%a' "${shared_path}")"
+  if [[ ( "${actual_owner}" == "${deploy_owner}"
+          || "${actual_owner}" == "${RUNTIME_USER}"
+          || "${actual_owner}" == "root" )
+        && "${actual_group}" == "${RUNTIME_GROUP}"
+        && "${actual_mode}" == "${expected_mode#0}" ]]; then
+    return 0
+  fi
+  if [[ "${actual_owner}" == "${RUNTIME_USER}"
+        && "${actual_group}" == "${RUNTIME_GROUP}"
+        && "${expected_mode#0}" == "660"
+        && "${actual_mode}" == "640" ]]; then
+    log "accepted runtime-owned shared file with owner-write/group-read mode: ${shared_path}"
+    return 0
+  fi
+  die "shared file has unsafe ownership/mode: ${shared_path} (${actual_owner}:${actual_group}:${actual_mode}); expected ${RUNTIME_USER}:${RUNTIME_GROUP} mode ${expected_mode}"
+}
+
+publish_new_shared_file() {
+  local shared_path="$1"
+  local mode="$2"
+  local source_path="$3"
+  local has_default="$4"
+  local default_content="$5"
+  local temporary
+
+  temporary="$(mktemp "${RELEASES_DIR}/.shared-seed.XXXXXX")"
+  if [[ -n "${source_path}" ]]; then
+    if ! cp -- "${source_path}" "${temporary}"; then
+      rm -f -- "${temporary}"
+      die "failed to prepare shared file: ${shared_path}"
+    fi
+  elif [[ "${has_default}" == "1" ]]; then
+    if ! printf '%s' "${default_content}" >"${temporary}"; then
+      rm -f -- "${temporary}"
+      die "failed to prepare shared file: ${shared_path}"
+    fi
+  else
+    rm -f -- "${temporary}"
+    die "cannot initialize required shared file: ${shared_path}"
+  fi
+
+  if ! chgrp "${RUNTIME_GROUP}" "${temporary}" || ! chmod "${mode}" "${temporary}"; then
+    rm -f -- "${temporary}"
+    die "failed to secure new shared file: ${shared_path}"
+  fi
+
+  if ln -T -- "${temporary}" "${shared_path}" 2>/dev/null; then
+    rm -f -- "${temporary}"
     return 0
   fi
 
-  local actual_group actual_mode
-  actual_group="$(stat -c '%G' "${shared_path}")"
-  actual_mode="$(stat -c '%a' "${shared_path}")"
-  [[ "${actual_group}" == "${RUNTIME_GROUP}" && "${actual_mode}" == "${expected_mode#0}" ]] \
-    || die "shared file has unsafe ownership/mode: ${shared_path} (${actual_group}:${actual_mode}); expected group ${RUNTIME_GROUP} mode ${expected_mode}"
+  rm -f -- "${temporary}"
+  [[ -e "${shared_path}" || -L "${shared_path}" ]] \
+    || die "failed to publish shared file: ${shared_path}"
+  log "shared file appeared during initialization; validating it without modification: ${shared_path}"
 }
 
 seed_file() {
@@ -199,19 +252,24 @@ seed_file() {
     || die "shared target escapes shared directory: ${shared_path}"
   mkdir -p -- "$(dirname -- "${shared_path}")"
 
-  if [[ ! -e "${shared_path}" ]]; then
+  if [[ ! -e "${shared_path}" && ! -L "${shared_path}" ]]; then
+    local seed_source=""
     if [[ -f "${legacy_source}" && ! -L "${legacy_source}" ]]; then
-      cp -- "${legacy_source}" "${shared_path}"
+      seed_source="${legacy_source}"
       log "seeded shared/${relative_path} from legacy production data"
     elif [[ -f "${release_source}" && ! -L "${release_source}" ]]; then
-      cp -- "${release_source}" "${shared_path}"
-    elif [[ -n "${fallback_source}" && -f "${fallback_source}" ]]; then
-      cp -- "${fallback_source}" "${shared_path}"
-    elif (( has_default == 1 )); then
-      printf '%s' "${default_content}" >"${shared_path}"
-    else
-      die "cannot initialize required shared file: ${relative_path}"
+      seed_source="${release_source}"
+    elif [[ -n "${fallback_source}"
+            && -f "${fallback_source}"
+            && ! -L "${fallback_source}" ]]; then
+      seed_source="${fallback_source}"
     fi
+    publish_new_shared_file \
+      "${shared_path}" \
+      "${mode}" \
+      "${seed_source}" \
+      "${has_default}" \
+      "${default_content}"
   fi
   set_or_verify_shared_file_permissions "${shared_path}" "${mode}"
 }
@@ -345,12 +403,14 @@ initialize_shared_state() {
     "${SHARED_DIR}/content/pvhot-skill-SKILL.md"
 
   if [[ ! -e "${SHARED_DIR}/data/data_bootstrap.json" ]]; then
+    local bootstrap_seed_source=""
     if [[ -f "${BASE_DIR}/data_bootstrap.json" && ! -L "${BASE_DIR}/data_bootstrap.json" ]]; then
-      cp -- "${BASE_DIR}/data_bootstrap.json" "${SHARED_DIR}/data/data_bootstrap.json"
+      bootstrap_seed_source="${BASE_DIR}/data_bootstrap.json"
     elif [[ -f "${STAGING_DIR}/data_bootstrap.json" ]]; then
-      cp -- "${STAGING_DIR}/data_bootstrap.json" "${SHARED_DIR}/data/data_bootstrap.json"
+      bootstrap_seed_source="${STAGING_DIR}/data_bootstrap.json"
     else
-      "${NODE_BIN}" - "${SHARED_DIR}/data/data.json" "${SHARED_DIR}/data/data_bootstrap.json" <<'NODE'
+      bootstrap_seed_source="${STAGING_DIR}/.data_bootstrap.seed.json"
+      "${NODE_BIN}" - "${SHARED_DIR}/data/data.json" "${bootstrap_seed_source}" <<'NODE'
 const fs = require('fs');
 const [source, target] = process.argv.slice(2);
 const data = JSON.parse(fs.readFileSync(source, 'utf8'));
@@ -363,11 +423,25 @@ fs.writeFileSync(temporary, JSON.stringify(bootstrap), 'utf8');
 fs.renameSync(temporary, target);
 NODE
     fi
+    publish_new_shared_file \
+      "${SHARED_DIR}/data/data_bootstrap.json" \
+      0660 \
+      "${bootstrap_seed_source}" \
+      0 \
+      ""
+    if [[ "${bootstrap_seed_source}" == "${STAGING_DIR}/.data_bootstrap.seed.json" ]]; then
+      rm -f -- "${bootstrap_seed_source}"
+    fi
   fi
   set_or_verify_shared_file_permissions "${SHARED_DIR}/data/data_bootstrap.json" 0660
 
   if [[ ! -e "${SHARED_DIR}/config/admin_pass.txt" && -f "${BASE_DIR}/admin_pass.txt" ]]; then
-    cp -- "${BASE_DIR}/admin_pass.txt" "${SHARED_DIR}/config/admin_pass.txt"
+    publish_new_shared_file \
+      "${SHARED_DIR}/config/admin_pass.txt" \
+      0640 \
+      "${BASE_DIR}/admin_pass.txt" \
+      0 \
+      ""
   fi
   if [[ -e "${SHARED_DIR}/config/admin_pass.txt" ]]; then
     set_or_verify_shared_file_permissions "${SHARED_DIR}/config/admin_pass.txt" 0640
@@ -392,7 +466,6 @@ wire_shared_state() {
     feedback.json \
     stats.json \
     source_health.json \
-    custom_sources.json \
     translate_cache.json \
     article_cache.json \
     wechat_items.json \
@@ -673,6 +746,8 @@ main() {
   require_command tr
   require_command id
   require_command grep
+  require_command ln
+  require_command mktemp
 
   [[ "${NODE_BIN}" == /* && -x "${NODE_BIN}" ]] \
     || die "PVHOT_NODE_BIN must name an executable absolute path"
@@ -682,6 +757,10 @@ main() {
   validate_base_dir
   validate_public_url
   validate_sha "${sha}"
+  [[ "${RUNTIME_USER}" =~ ^[a-z_][a-z0-9_-]*[$]?$ ]] \
+    || die "invalid PVHOT_RUNTIME_USER: ${RUNTIME_USER}"
+  getent passwd "${RUNTIME_USER}" >/dev/null \
+    || die "runtime user does not exist: ${RUNTIME_USER}"
   [[ "${RUNTIME_GROUP}" =~ ^[a-z_][a-z0-9_-]*[$]?$ ]] \
     || die "invalid PVHOT_RUNTIME_GROUP: ${RUNTIME_GROUP}"
   getent group "${RUNTIME_GROUP}" >/dev/null \

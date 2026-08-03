@@ -26,7 +26,7 @@
 
 ## 文件职责
 
-- `deploy.sh`：唯一正式发布入口。
+- `deploy.sh`：正式发布入口；CI 会上传并校验当前提交中的脚本后执行，服务器安装版保留给首次迁移和人工应急。
 - `rollback.sh`：回到 `previous`，或指定一个仍保留的完整 Git SHA。
 - `nginx/pvhot.conf`：唯一 PVHOT Nginx 配置。
 - `systemd/pvhot-admin.service`：后台和公开 API。
@@ -225,7 +225,9 @@ git archive \
   c953027fa91a245e4a273f09c69bd57b.txt
 ```
 
-CI 将制品上传到 `/var/www/pvhot/incoming/` 后，以 `pvhot-deploy` 用户执行：
+CI 将制品和当前提交中的 `ops/deploy.sh` 一同上传到 `/var/www/pvhot/incoming/`，分别核对校验和后，以 `pvhot-deploy` 用户执行这份版本化脚本。这样代码与发布规则始终属于同一个 Git 提交，不会因服务器残留旧脚本而失败。
+
+首次迁移或人工应急时，仍可使用服务器安装版：
 
 ```bash
 /usr/local/bin/pvhot-deploy \
