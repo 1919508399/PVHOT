@@ -60,6 +60,17 @@
     changelog: {
       items: [
         {
+          ver: "v5.7", date: "2026-08-03", time: "11:28", type: "信源",
+          title: "X 权威光伏信源与后台管理接入",
+          text: "首批接入 12 个近期活跃的国际光伏媒体和机构 X 账号，用于发现突发动态与辅助判断网络热度。",
+          bullets: [
+            "X 只作发现信号，正文仍回到媒体官网提取标题、日期、摘要与主图",
+            "按账号增量读取并保存上次位置，排除回复和纯转发，减少重复请求",
+            "后台支持筛选、查看健康状态和添加指定 X 账号",
+            "未配置官方 API 时如实显示被拦截，官网、RSS 和公众号抓取不受影响"
+          ]
+        },
+        {
           ver: "v5.6", date: "2026-07-30", time: "09:25", type: "发布",
           title: "工程整改完成：CI、原子发布与安全运维上线",
           text: "PV HOT 的开发、合并和部署流程完成生产化整改；每个线上版本都能追溯到 Git 提交，并经过自动检查、健康验证和可恢复发布。",
@@ -969,6 +980,9 @@
       : (it.featured === false) ? false
       : (score >= 60);
     const featHTML = (featured && state.view === "featured") ? `<span class="tl-featured">精选</span>` : '';
+    const xSignalHTML = /^https:\/\/x\.com\/[A-Za-z0-9_]{1,15}\/status\/\d+$/i.test(it.xPostUrl || '')
+      ? `<a class="tl-x-signal" href="${esc(it.xPostUrl)}" target="_blank" rel="noopener" title="查看发现这篇文章的 X 原帖">X 线索</a>`
+      : '';
     const numStr = String(Math.max(1, score));
     const pubTime = it.pubTime || (it.pubDate || '').slice(11, 16) || '--:--';
     const relatedHTML = (it.related && it.related.length)
@@ -984,6 +998,7 @@
               <span class="tl-srcname">${srcName}</span>
               ${srcType ? `<span class="tl-srctype">${srcType}</span>` : ''}
               <span class="tl-src-badge" style="background:${srcColor};color:#fff">${esc(srcLabel)}</span>
+              ${xSignalHTML}
               ${featHTML}
             </div>
             <div class="tl-head-r">

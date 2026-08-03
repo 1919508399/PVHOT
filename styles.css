@@ -1747,6 +1747,18 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .tl-featured { color: #7a4f00; background: #fff0c6; }
 body.dark .tl-featured { color: #f3ca73; background: rgba(226,165,44,.14); }
+.tl-x-signal {
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, var(--emerald) 22%, var(--border));
+  border-radius: 999px;
+  color: var(--emerald);
+  background: var(--emerald-soft);
+  font-size: 9.5px;
+  font-weight: 650;
+  line-height: 1.5;
+  text-decoration: none;
+}
+.tl-x-signal:hover { border-color: var(--emerald); }
 .tl-num {
   padding: 3px 7px;
   border: 1px solid color-mix(in srgb, var(--emerald) 18%, var(--border));

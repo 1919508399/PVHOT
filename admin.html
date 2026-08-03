@@ -611,7 +611,7 @@
           <div>
             <span class="eyebrow">SOURCE OPERATIONS</span>
             <h2>信源健康中心</h2>
-            <p>看清每个信源是否正常，也可以添加希望系统持续监控的网站、RSS 或微信公众号。</p>
+            <p>看清每个信源是否正常，也可以添加希望系统持续监控的网站、RSS、X 账号或微信公众号。</p>
           </div>
           <div class="hero-note"><span class="service-dot"></span><span id="sourceCheckedText">等待健康检查</span></div>
         </section>
@@ -627,7 +627,7 @@
           </button>
           <button class="source-summary-card" data-source-summary="blocked" data-tone="blocked" type="button">
             <span class="source-summary-top"><span class="source-summary-label">被拦截</span><i class="source-summary-dot"></i></span>
-            <strong id="sourceCountBlocked">—</strong><small>网站拒绝或限制了抓取</small>
+            <strong id="sourceCountBlocked">—</strong><small>来源限制访问，或接口未配置</small>
           </button>
           <button class="source-summary-card" data-source-summary="parseError" data-tone="parse-error" type="button">
             <span class="source-summary-top"><span class="source-summary-label">解析失败</span><i class="source-summary-dot"></i></span>
@@ -657,6 +657,7 @@
             <option value="google">新闻搜索</option>
             <option value="website">网站直抓</option>
             <option value="rss">RSS</option>
+            <option value="x">X（Twitter）</option>
             <option value="wechat">微信公众号</option>
             <option value="other">其他</option>
           </select>
@@ -903,7 +904,7 @@
     <div class="modal" style="max-width:620px">
       <h3>添加指定信源</h3>
       <div class="source-form-note">
-        不需要懂抓取技术：选择信源类型并填写公开地址或公众号名称，系统会按计划持续检查。添加后不会自动发布旧新闻。
+        不需要懂抓取技术：选择信源类型并填写公开地址、X 账号或公众号名称，系统会按计划持续检查。添加后不会自动发布旧新闻。
       </div>
       <div class="row2">
         <div class="field">
@@ -915,6 +916,7 @@
           <select id="sourceNewType">
             <option value="website">网站</option>
             <option value="rss">RSS 订阅</option>
+            <option value="x">X（Twitter）账号</option>
             <option value="wechat">微信公众号</option>
           </select>
           <div class="source-type-help" id="sourceTypeHelp">适合官网、新闻站或企业动态页面。</div>
@@ -1253,7 +1255,7 @@
   const SOURCE_STATUS_INFO = {
     normal: { label:'正常', cls:'normal', help:'本轮发现了新稿' },
     noNew: { label:'无新稿', cls:'no-new', help:'连接正常，暂时没有新内容' },
-    blocked: { label:'被拦截', cls:'blocked', help:'网站拒绝或限制了抓取' },
+    blocked: { label:'被拦截', cls:'blocked', help:'来源限制访问，或所需接口尚未配置' },
     parseError: { label:'解析失败', cls:'parse-error', help:'网络或页面格式需要处理' },
     stale: { label:'长期未更新', cls:'stale', help:'超过设定时间没有新文章' },
   };
@@ -1270,6 +1272,7 @@
 
   function sourceKindGroup(value){
     const kind = String(value || '').toLowerCase();
+    if (kind === 'x' || /twitter|x\.com|x-api|x-official|rsshub[-_:]?(?:x|twitter)/.test(kind)) return 'x';
     if (/wechat|weixin|公众号|freewechat|rsshub/.test(kind)) return 'wechat';
     if (/google|gnews|query|search|搜索/.test(kind)) return 'google';
     if (/rss|feed/.test(kind)) return 'rss';
@@ -1279,8 +1282,18 @@
 
   function sourceKindLabel(value){
     const group = sourceKindGroup(value);
-    const labels = { google:'新闻搜索', website:'网站直抓', rss:'RSS', wechat:'微信公众号', other:'其他' };
+    const labels = { google:'新闻搜索', website:'网站直抓', rss:'RSS', x:'X（Twitter）', wechat:'微信公众号', other:'其他' };
     return labels[group];
+  }
+
+  function sourceXHandle(source){
+    if (!source || sourceKindGroup(source.kind || source.type) !== 'x') return '';
+    if (source.handle) return String(source.handle).replace(/^@/, '');
+    try {
+      return decodeURIComponent(new URL(source.url).pathname.split('/').filter(Boolean)[0] || '').replace(/^@/, '');
+    } catch(e) {
+      return '';
+    }
   }
 
   function formatSourceTime(value){
@@ -1325,8 +1338,11 @@
     $('#sourceCountStale').textContent = count('stale');
     const checked = summary.checked == null ? items.length : sourceNumber(summary.checked);
     $('#sourceCheckedText').textContent = checked ? `已检查 ${checked} 个信源` : '尚无检查结果';
+    const xApiText = data.integrations && data.integrations.xApiConfigured
+      ? 'X 官方 API 已配置'
+      : 'X 官方 API 未配置';
     $('#sourceHealthMeta').textContent = (data.checkedAt ? '最近检查 ' + formatSourceTime(data.checkedAt) : '尚未生成健康检查')
-      + ` · 共 ${items.length} 个信源 · 点击上方状态卡可快速筛选`;
+      + ` · 共 ${items.length} 个信源 · ${xApiText} · 点击上方状态卡可快速筛选`;
     $$('.source-summary-card').forEach(card => {
       const active = sourceState.status === card.dataset.sourceSummary;
       card.classList.toggle('on', active);
@@ -1348,7 +1364,7 @@
       if (origin === 'builtin' && source.custom === true) return false;
       if (q) {
         const haystack = [
-          source.name, source.kind, source.type, source.origin, source.detail,
+          source.name, source.handle, source.url, source.kind, source.type, source.origin, source.detail,
           SOURCE_STATUS_INFO[currentStatus].label,
         ].filter(Boolean).join(' ').toLowerCase();
         if (!haystack.includes(q)) return false;
@@ -1383,6 +1399,10 @@
     const originDetail = source.origin && !/^(custom|built-?in|registry)$/i.test(String(source.origin))
       ? String(source.origin)
       : '';
+    const xHandle = sourceXHandle(source);
+    const isX = String(source.kind || source.type || '').toLowerCase() === 'x';
+    const newLabel = isX ? '采用' : '新增';
+    const scanLabel = isX ? '新帖' : '扫描';
     const latest = source.latestPublishedAt || source.lastItemAt || source.lastNewAt;
     const checked = source.lastCheckedAt || source.checkedAt;
     const http = source.httpStatus ? `HTTP ${source.httpStatus}` : '';
@@ -1397,6 +1417,7 @@
         <div class="source-name">${esc(source.name || '未命名信源')}</div>
         <div class="source-subline">
           <span class="source-origin-chip ${source.custom === true ? 'custom' : ''}">${origin}</span>
+          ${xHandle ? `<span>@${esc(xHandle)}</span>` : ''}
           ${source.enabled === false ? '<span class="source-enabled-chip off">已停用</span>' : ''}
         </div>
       </td>
@@ -1406,9 +1427,9 @@
       </td>
       <td>
         <div class="source-metrics">
-          <span>新增<b>${sourceMetric(source.newItems)}</b></span>
+          <span>${newLabel}<b>${sourceMetric(source.newItems)}</b></span>
           <span>今日<b>${sourceMetric(source.todayItems)}</b></span>
-          <span>扫描<b>${sourceMetric(source.itemsSeen, source.items)}</b></span>
+          <span>${scanLabel}<b>${sourceMetric(source.itemsSeen, source.items)}</b></span>
         </div>
       </td>
       <td><div class="source-time">${esc(formatSourceTime(latest))}<small>最后成功 ${esc(formatSourceTime(source.lastSuccessAt))}</small></div></td>
@@ -1425,6 +1446,12 @@
     const details = source.detail || info.help;
     const http = source.httpStatus ? `HTTP ${source.httpStatus}` : '未记录';
     const duration = source.durationMs != null ? `${sourceNumber(source.durationMs)}ms` : '—';
+    const xHandle = sourceXHandle(source);
+    const isX = String(source.kind || source.type || '').toLowerCase() === 'x';
+    const metricText = isX
+      ? `采用 ${sourceMetric(source.newItems)} · 今日文章 ${sourceMetric(source.todayItems)} · 新帖 ${sourceMetric(source.itemsSeen, source.items)}`
+      : `新增 ${sourceMetric(source.newItems)} · 今日 ${sourceMetric(source.todayItems)} · 扫描 ${sourceMetric(source.itemsSeen, source.items)}`;
+    const latestLabel = isX ? '最近动态' : '最近文章';
     return `<article class="source-health-card ${source.enabled === false ? 'source-disabled' : ''}">
       <div class="source-card-head">
         <div>
@@ -1432,14 +1459,15 @@
           <div class="source-subline">
             <span class="source-origin-chip ${source.custom === true ? 'custom' : ''}">${source.custom === true ? '后台添加' : '系统内置'}</span>
             <span>${esc(sourceKindLabel(source.kind || source.type))}</span>
+            ${xHandle ? `<span>@${esc(xHandle)}</span>` : ''}
             ${source.enabled === false ? '<span class="source-enabled-chip off">已停用</span>' : ''}
           </div>
         </div>
         <span class="source-status-badge ${info.cls}">${info.label}</span>
       </div>
       <div class="source-card-grid">
-        <div><small>本轮内容</small><span>新增 ${sourceMetric(source.newItems)} · 今日 ${sourceMetric(source.todayItems)} · 扫描 ${sourceMetric(source.itemsSeen, source.items)}</span></div>
-        <div><small>最近文章</small><span>${esc(formatSourceTime(latest))}</span></div>
+        <div><small>本轮内容</small><span>${metricText}</span></div>
+        <div><small>${latestLabel}</small><span>${esc(formatSourceTime(latest))}</span></div>
         <div><small>最近检测</small><span>${esc(formatSourceTime(source.lastCheckedAt || source.checkedAt))} · ${esc(http)} · ${esc(duration)}</span></div>
         <div><small>状态说明</small><span>${esc(details)}</span></div>
       </div>
@@ -1550,7 +1578,7 @@
       const detail = probe.detail || health.detail || '';
       await loadSourceHealth();
       if (!probeOk) {
-        const fallback = statusKey === 'blocked' ? '目标网站拒绝或限制了抓取' : '暂时无法解析该信源';
+        const fallback = statusKey === 'blocked' ? '来源限制访问，或所需接口尚未配置' : '暂时无法解析该信源';
         toast('检测失败：' + (detail || fallback));
       } else if (statusKey === 'noNew') {
         toast(detail || '检测完成：连接正常，暂未发现新稿');
@@ -1684,12 +1712,20 @@
     const help = $('#sourceTypeHelp');
     const keywordsLabel = $('#sourceKeywordsLabel');
     const keywordsHelp = $('#sourceKeywordsHelp');
+    urlInput.type = type === 'x' ? 'text' : 'url';
     if (type === 'wechat') {
       urlField.style.display = 'none';
       urlInput.value = '';
       help.textContent = '填写公众号的准确名称，系统会通过公众号监控通道轮流查询。';
       keywordsLabel.textContent = '公众号别名（选填）';
       keywordsHelp.textContent = '如果公众号还有常用简称，可用逗号分隔填写，帮助系统准确识别。';
+    } else if (type === 'x') {
+      urlField.style.display = '';
+      urlLabel.textContent = 'X 账号 *';
+      urlInput.placeholder = '@pvmagazine 或 https://x.com/pvmagazine';
+      help.textContent = '只填写公开的 @账号或个人主页地址。凭证由服务器统一保管，请勿在这里填写 Token。';
+      keywordsLabel.textContent = '内容关键词（选填）';
+      keywordsHelp.textContent = '可填写 solar、photovoltaic、storage 等希望优先保留的关键词。';
     } else if (type === 'rss') {
       urlField.style.display = '';
       urlLabel.textContent = 'RSS 订阅地址 *';
@@ -1740,17 +1776,29 @@
     }
     if (type !== 'wechat') {
       if (!url) {
-        errorBox.textContent = type === 'rss' ? '请填写 RSS 订阅地址' : '请填写网站公开地址';
+        errorBox.textContent = type === 'rss'
+          ? '请填写 RSS 订阅地址'
+          : (type === 'x' ? '请填写 X 账号' : '请填写网站公开地址');
         $('#sourceNewUrl').focus();
         return;
       }
-      try {
-        const parsed = new URL(url);
-        if (parsed.protocol !== 'https:') throw new Error('protocol');
-      } catch(e) {
-        errorBox.textContent = '地址格式不正确，请填写以 https:// 开头的公开地址';
-        $('#sourceNewUrl').focus();
-        return;
+      if (type === 'x') {
+        const handlePattern = /^@?[A-Za-z0-9_]{1,15}$/;
+        const profilePattern = /^(?:https:\/\/)?(?:www\.)?(?:x\.com|twitter\.com)\/[A-Za-z0-9_]{1,15}\/?$/i;
+        if (!handlePattern.test(url) && !profilePattern.test(url)) {
+          errorBox.textContent = '请填写 @账号、账号名，或完整的 x.com 个人主页；不要填写帖子链接';
+          $('#sourceNewUrl').focus();
+          return;
+        }
+      } else {
+        try {
+          const parsed = new URL(url);
+          if (parsed.protocol !== 'https:') throw new Error('protocol');
+        } catch(e) {
+          errorBox.textContent = '地址格式不正确，请填写以 https:// 开头的公开地址';
+          $('#sourceNewUrl').focus();
+          return;
+        }
       }
     }
 

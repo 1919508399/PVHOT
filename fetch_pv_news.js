@@ -26,6 +26,7 @@ const {
   isSafeCustomArticleUrl,
 } = require('./lib/custom_sources');
 const { safeFetch } = require('./lib/safe_remote_fetch');
+const { fetchXSources } = require('./lib/x_sources');
 const {
   advanceHealthEntry,
   buildHealthEntry,
@@ -39,6 +40,7 @@ const {
   SCRAPE_SOURCES,
   RSSHUB_ROUTES: REGISTERED_RSSHUB_ROUTES,
   WECHAT_ACCOUNTS,
+  X_ACCOUNTS,
   TRUSTED_SOURCE_TOKENS,
 } = require('./source_registry');
 
@@ -142,6 +144,62 @@ function isRelevantItem(it) {
   return true;
 }
 
+function canonicalArticleKey(value) {
+  try {
+    const parsed = new URL(String(value || ''));
+    parsed.hash = '';
+    parsed.hostname = parsed.hostname.toLowerCase().replace(/^www\./, '');
+    for (const key of [...parsed.searchParams.keys()]) {
+      if (/^(?:utm_.+|fbclid|gclid|mc_cid|mc_eid|ref|source)$/i.test(key)) {
+        parsed.searchParams.delete(key);
+      }
+    }
+    parsed.searchParams.sort();
+    parsed.pathname = parsed.pathname.replace(/\/{2,}/g, '/').replace(/\/$/, '') || '/';
+    return parsed.href;
+  } catch (error) {
+    return cleanText(value || '');
+  }
+}
+
+function dedupeXArticleSignals(items) {
+  const output = [];
+  const firstByLink = new Map();
+  for (const item of Array.isArray(items) ? items : []) {
+    const key = canonicalArticleKey(item && item.link);
+    const index = key ? firstByLink.get(key) : undefined;
+    if (index === undefined) {
+      if (key) firstByLink.set(key, output.length);
+      output.push(item);
+      continue;
+    }
+    const existing = output[index];
+    if (!existing.xPostUrl && !item.xPostUrl) {
+      output.push(item);
+      continue;
+    }
+    let primary = existing;
+    let secondary = item;
+    if (existing._xSourceId && !item._xSourceId) {
+      primary = item;
+      secondary = existing;
+      output[index] = primary;
+    }
+    if (!primary.xPostUrl) primary.xPostUrl = secondary.xPostUrl || '';
+    if (!primary.xHandle) primary.xHandle = secondary.xHandle || '';
+    if (!primary.xMetrics && secondary.xMetrics) primary.xMetrics = secondary.xMetrics;
+    const samePost = primary.xPostUrl && primary.xPostUrl === secondary.xPostUrl;
+    primary.xSignalCount = samePost
+      ? Math.max(Number(primary.xSignalCount) || 0, Number(secondary.xSignalCount) || 0, 1)
+      : (Number(primary.xSignalCount) || 0) + (Number(secondary.xSignalCount) || 0);
+    if (!primary.image && secondary.image) primary.image = secondary.image;
+    if ((secondary.summary || '').length > (primary.summary || '').length) {
+      primary.summary = secondary.summary;
+    }
+  }
+  return output;
+}
+
 function sourceCap(source, item) {
   if (isTrustedItem(item)) return 18;
   if (/the cool down/i.test(source || '')) return 5;
@@ -231,6 +289,8 @@ function selectAcrossDays(items, limit) {
   });
   if (selected.length < limit) {
     for (const it of items) {
+      const day = (toBJ(it._pubDate || it.pubDate) || {}).dateKey;
+      if (!groups.has(day)) continue;
       const id = cleanText(it.link || it.title);
       if (seen.has(id)) continue;
       seen.add(id);
@@ -289,13 +349,33 @@ function beijingWeekday(date = new Date()) {
   return ['周日','周一','周二','周三','周四','周五','周六'][bj.getUTCDay()];
 }
 
-function recentBeijingDateKeys(days = MAX_AGE_DAYS) {
+function recentBeijingDateKeys(days = MAX_AGE_DAYS, nowValue = new Date()) {
   const keys = [];
-  const now = new Date();
+  const now = nowValue instanceof Date ? nowValue : new Date(nowValue);
+  const safeNow = Number.isNaN(now.getTime()) ? new Date() : now;
   for (let i = 0; i < days; i++) {
-    keys.push(beijingDateKey(new Date(now.getTime() - i * 86400000)));
+    keys.push(beijingDateKey(new Date(safeNow.getTime() - i * 86400000)));
   }
   return keys;
+}
+
+function filterPostEnrichmentFresh(items, nowValue = Date.now()) {
+  const parsedNow = nowValue instanceof Date ? nowValue.getTime() : Number(nowValue);
+  const now = Number.isFinite(parsedNow) ? parsedNow : Date.now();
+  const allowedDateKeys = new Set(recentBeijingDateKeys(MAX_AGE_DAYS, new Date(now)));
+  const futureLimit = now + 2 * 3600000;
+  return (Array.isArray(items) ? items : []).filter((it) => {
+    // A post timestamp is not an article publication timestamp. X-only
+    // discoveries stay out until the official page confirms its own date.
+    if (it && it._xSourceId && it._xArticleDateConfirmed !== true) return false;
+    const t = new Date(it && it.pubDate).getTime();
+    const bj = toBJ(it && it.pubDate);
+    return !Number.isNaN(t)
+      && t <= futureLimit
+      && bj
+      && allowedDateKeys.has(bj.dateKey)
+      && isRelevantItem(it);
+  });
 }
 
 // 把 RFC822 pubDate 转北京时间（明确无 Z，前端按本地时区解析即北京）
@@ -664,7 +744,7 @@ function normalizeArticleImage(value, baseUrl) {
 }
 
 function collectJsonLd(html, baseUrl) {
-  const result = { body: '', description: '', image: '' };
+  const result = { body: '', description: '', image: '', headline: '', publishedAt: '' };
   const re = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
   let match;
   while ((match = re.exec(html)) !== null) {
@@ -680,6 +760,12 @@ function collectJsonLd(html, baseUrl) {
           if (!result.body && node.articleBody) result.body = decodeHtmlText(node.articleBody);
           if (!result.description && node.description) result.description = decodeHtmlText(node.description);
           if (!result.image && node.image) result.image = normalizeArticleImage(node.image, baseUrl);
+          if (!result.headline && (node.headline || node.name)) {
+            result.headline = decodeHtmlText(node.headline || node.name);
+          }
+          if (!result.publishedAt && node.datePublished && !Number.isNaN(Date.parse(node.datePublished))) {
+            result.publishedAt = new Date(node.datePublished).toISOString();
+          }
         }
       }
     } catch (e) {}
@@ -774,10 +860,24 @@ function extractArticleDetails(html, url, title, fallbackSummary) {
     extractMetaContent(html, ['og:image:secure_url', 'og:image', 'twitter:image', 'twitter:image:src']),
     url
   );
-  const summaryCandidate = summarizeArticleText(body, description || fallbackSummary, title, detectLang(title) === 'zh' ? 300 : 650);
+  const publishedValue = jsonLd.publishedAt
+    || extractMetaContent(html, ['article:published_time', 'og:published_time', 'datePublished', 'date']);
+  const publishedAt = publishedValue && !Number.isNaN(Date.parse(publishedValue))
+    ? new Date(publishedValue).toISOString()
+    : '';
+  const headline = stripTrailingSource(
+    jsonLd.headline || extractMetaContent(html, ['og:title', 'twitter:title'])
+  ).slice(0, 300);
+  const summaryTitle = headline || title;
+  const summaryCandidate = summarizeArticleText(
+    body,
+    description || fallbackSummary,
+    summaryTitle,
+    detectLang(summaryTitle) === 'zh' ? 300 : 650
+  );
   const summary = isMojibake(summaryCandidate) ? '' : summaryCandidate;
-  if (!summary && !image) return null;
-  return { articleUrl: url, summary, image, fetchedAt: new Date().toISOString() };
+  if (!summary && !image && !headline && !publishedAt) return null;
+  return { articleUrl: url, headline, summary, image, publishedAt, fetchedAt: new Date().toISOString() };
 }
 
 async function decodeGoogleNewsUrl(sourceUrl) {
@@ -849,9 +949,9 @@ async function mapLimit(items, limit, worker) {
   return results;
 }
 
-async function enrichArticleCandidates(items, log) {
-  if (!ENRICH_LIMIT || !items.length) return items;
-  const now = Date.now();
+function selectArticleEnrichmentCandidates(items, limit = ENRICH_LIMIT) {
+  const maxCandidates = Math.max(0, Math.min(120, Number(limit) || 0));
+  if (!maxCandidates || !Array.isArray(items) || !items.length) return [];
   const ranked = items
     .slice()
     .sort((a, b) => {
@@ -866,15 +966,28 @@ async function enrichArticleCandidates(items, log) {
     });
   const direct = ranked.filter((it) => !/news\.google\.com/.test(it.link || ''));
   const google = ranked.filter((it) => /news\.google\.com/.test(it.link || ''));
-  const directQuota = Math.min(direct.length, Math.ceil(ENRICH_LIMIT * .40));
+  const xDirect = direct.filter((it) => it && it._xSourceId);
+  const otherDirect = direct.filter((it) => !(it && it._xSourceId));
+  // X-only discoveries cannot be published until the official page confirms
+  // its date, so reserve enough enrichment slots to keep this source useful.
+  const xQuota = Math.min(xDirect.length, Math.max(1, Math.ceil(maxCandidates * .25)));
+  const directQuota = Math.min(direct.length, Math.max(xQuota, Math.ceil(maxCandidates * .40)));
   const candidates = [
-    ...direct.slice(0, directQuota),
-    ...google.slice(0, ENRICH_LIMIT - directQuota),
+    ...xDirect.slice(0, xQuota),
+    ...otherDirect.slice(0, Math.max(0, directQuota - xQuota)),
+    ...google.slice(0, maxCandidates - directQuota),
   ];
-  if (candidates.length < ENRICH_LIMIT) {
+  if (candidates.length < maxCandidates) {
     const used = new Set(candidates);
-    candidates.push(...ranked.filter((it) => !used.has(it)).slice(0, ENRICH_LIMIT - candidates.length));
+    candidates.push(...ranked.filter((it) => !used.has(it)).slice(0, maxCandidates - candidates.length));
   }
+  return candidates.slice(0, maxCandidates);
+}
+
+async function enrichArticleCandidates(items, log) {
+  if (!ENRICH_LIMIT || !items.length) return items;
+  const now = Date.now();
+  const candidates = selectArticleEnrichmentCandidates(items, ENRICH_LIMIT);
   let decoded = 0;
   let detailed = 0;
   await mapLimit(candidates, 4, async (it) => {
@@ -887,6 +1000,11 @@ async function enrichArticleCandidates(items, log) {
     if (cached && now - new Date(cached.fetchedAt || 0).getTime() < 7 * 86400000) {
       if (cached.summary && cached.summary.length > (it.summary || '').length) it.summary = cached.summary;
       if (cached.image) it.image = cached.image;
+      if (it._xSourceId && cached.headline) it.title = cached.headline;
+      if (cached.publishedAt && !Number.isNaN(Date.parse(cached.publishedAt))) {
+        it.pubDate = cached.publishedAt;
+        if (it._xSourceId) it._xArticleDateConfirmed = true;
+      }
       if (cached.articleUrl) {
         it.googleNewsUrl = /news\.google\.com/.test(it.link || '') ? it.link : '';
         it.link = cached.articleUrl;
@@ -935,6 +1053,11 @@ async function enrichArticleCandidates(items, log) {
     ARTICLE_CACHE[key] = details;
     if (details.summary && details.summary.length > (it.summary || '').length) it.summary = details.summary;
     if (details.image) it.image = details.image;
+    if (it._xSourceId && details.headline) it.title = details.headline;
+    if (details.publishedAt && !Number.isNaN(Date.parse(details.publishedAt))) {
+      it.pubDate = details.publishedAt;
+      if (it._xSourceId) it._xArticleDateConfirmed = true;
+    }
     if (articleUrl !== it.link && !it.googleNewsUrl) {
       it.googleNewsUrl = it.link;
       it.link = articleUrl;
@@ -1403,6 +1526,14 @@ function aggregateMultiSource(items) {
         if (rep.author && rep.avatar) break;
       }
     }
+    const xMembers = c.members.filter((member) => member.xPostUrl);
+    if (xMembers.length) {
+      const signal = xMembers[0];
+      if (!rep.xPostUrl) rep.xPostUrl = signal.xPostUrl;
+      if (!rep.xHandle) rep.xHandle = signal.xHandle || '';
+      if (!rep.xMetrics && signal.xMetrics) rep.xMetrics = signal.xMetrics;
+      rep.xSignalCount = Math.max(Number(rep.xSignalCount) || 0, xMembers.length);
+    }
     // 代表条目可能来自另一家信源；保留同事件中已成功提取的正文主图与最长摘要。
     if (!rep.image) {
       const withImage = c.members.find((m) => m.image);
@@ -1437,16 +1568,27 @@ function computeScoreDetails(it) {
   const authority = isTrustedItem(it) ? 12 : 4;
   const official = /国家能源局|发改委|工信部|中国光伏行业协会|cpia|iea|irena|nrel|seia|reuters/i.test(sourceText) ? 5 : 0;
   const richness = (body.length >= 110 ? 6 : body.length >= 45 ? 3 : 0) + (it.image ? 4 : 0);
+  const xMetrics = it.xMetrics && typeof it.xMetrics === 'object' ? it.xMetrics : {};
+  const xEngagement = Math.max(0,
+    Number(xMetrics.likes) || 0,
+    (Number(xMetrics.reposts) || 0) * 2,
+    (Number(xMetrics.quotes) || 0) * 2,
+    Number(xMetrics.replies) || 0
+  );
+  // X 只提供发现和热度佐证，最多加 6 分，不能反向抬高来源权威等级。
+  const xSignal = it.xPostUrl
+    ? Math.min(6, 1 + Math.floor(Math.log10(xEngagement + 1) * 2))
+    : 0;
   let importance = 0;
   if (/政策|监管|关税|补贴|标准|法规|反倾销|中标|招标|并网|投产|量产|收购|合作|签约|突破|效率|纪录|price|tariff|policy|acquisition|launch|record/i.test(title)) importance += 6;
   if (/\d+(?:\.\d+)?\s*(?:%|％|GW|MW|kWh|亿|万|元|美元|\/W)/i.test(title)) importance += 6;
   const penalty = GENERIC_SOCIAL_SOURCE_RE.test(sourceText) ? 10 : 0;
   const base = 24;
-  const score = Math.max(1, Math.min(100, Math.round(base + recency + crossSource + authority + official + richness + importance - penalty)));
+  const score = Math.max(1, Math.min(100, Math.round(base + recency + crossSource + authority + official + richness + importance + xSignal - penalty)));
   return {
     score,
-    networkHeat: Math.min(100, 35 + crossSource * 2 + (isTrustedItem(it) ? 15 : 0) + Math.min(15, importance)),
-    breakdown: { recency, crossSource, authority, official, richness, importance, penalty },
+    networkHeat: Math.min(100, 35 + crossSource * 2 + (isTrustedItem(it) ? 15 : 0) + Math.min(15, importance) + xSignal * 2),
+    breakdown: { recency, crossSource, authority, official, richness, importance, xSignal, penalty },
   };
 }
 
@@ -1488,9 +1630,11 @@ function writeSourceHealthUnlocked({
   rssResults,
   scrapeResults,
   rsshubResults,
+  xResults = [],
   wechatSnapshot,
   queryConfigs = QUERIES,
   rssConfigs = RSS_FEEDS,
+  xConfigs = X_ACCOUNTS,
   customWechatAccounts = [],
   customSources = [],
 }) {
@@ -1500,11 +1644,12 @@ function writeSourceHealthUnlocked({
   const entry = (config, kind, items) => {
     const normalizedItems = Array.isArray(items) ? items : [];
     const healthConfig = { ...config, label: healthSourceName(config), kind };
+    const diagnostics = normalizedItems._health || {};
     const source = buildHealthEntry(
       healthConfig,
       normalizedItems,
       previousById.get(String(config.id || config.source || config.name || config.q)),
-      normalizedItems._health || {},
+      diagnostics,
       checkedAt
     );
     return {
@@ -1514,6 +1659,19 @@ function writeSourceHealthUnlocked({
       enabled: config.enabled !== false,
       category: config.category || config.cat || 'ALL',
       type: config.type || kind,
+      ...(kind === 'x' ? {
+        url: config.url || `https://x.com/${config.handle || diagnostics.xHandle || ''}`,
+        handle: config.handle || diagnostics.xHandle || '',
+        xHandle: diagnostics.xHandle || config.handle || '',
+        xUserId: diagnostics.xUserId || '',
+        lastPostId: diagnostics.lastPostId || '',
+        itemsSeen: Number.isFinite(Number(diagnostics.postsSeen))
+          ? Number(diagnostics.postsSeen)
+          : source.itemsSeen,
+        articlesAccepted: Number.isFinite(Number(diagnostics.articlesAccepted))
+          ? Number(diagnostics.articlesAccepted)
+          : normalizedItems.length,
+      } : {}),
     };
   };
   const sources = [
@@ -1521,6 +1679,7 @@ function writeSourceHealthUnlocked({
     ...rssConfigs.map((config, i) => entry(config, 'rss', rssResults[i])),
     ...SCRAPE_SOURCES.map((config, i) => entry(config, 'scrape', scrapeResults[i])),
     ...RSSHUB_ROUTES.map((config, i) => entry(config, 'rsshub-wechat', rsshubResults[i])),
+    ...xConfigs.map((config, i) => entry(config, 'x', xResults[i])),
   ];
   const snapshotHealth = Array.isArray(wechatSnapshot && wechatSnapshot.health)
     ? wechatSnapshot.health
@@ -1695,7 +1854,7 @@ function writeSourceHealthUnlocked({
         statusEvaluatedAt: checkedAt,
         consecutiveFailures: 0,
         consecutiveNoNew: 0,
-        staleAfterHours: config.staleAfterHours || (config.type === 'wechat' ? 168 : 72),
+        staleAfterHours: config.staleAfterHours || (config.type === 'wechat' || config.type === 'x' ? 168 : 72),
         httpStatus: null,
         durationMs: null,
         errorCode: null,
@@ -1732,6 +1891,7 @@ function writeSourceHealthUnlocked({
       rss: rssConfigs.length,
       scrape: SCRAPE_SOURCES.length,
       rsshubWechat: RSSHUB_ROUTES.length,
+      xAccounts: xConfigs.length,
       wechatAccounts: monitoredWechat.length,
       customSources: customSources.length,
     },
@@ -1795,19 +1955,37 @@ async function runMain() {
       tier: 2,
       custom: true,
     }));
+  const customXAccounts = enabledCustomSources
+    .filter((source) => source.type === 'x')
+    .map((source) => {
+      let handle = '';
+      try { handle = new URL(source.url).pathname.split('/').filter(Boolean)[0] || ''; } catch (error) {}
+      return {
+        ...source,
+        handle,
+        domains: [],
+        cat: source.category || 'ALL',
+        kind: '媒体',
+        tier: 2,
+        custom: true,
+      };
+    });
   const runtimeQueries = [...QUERIES, ...customWebsiteSources];
   const runtimeRssFeeds = [...RSS_FEEDS, ...customRssSources];
+  const runtimeXAccounts = [...X_ACCOUNTS, ...customXAccounts];
   log('START fetch v3.0 (multi-source), gnews=' + runtimeQueries.length + ' rss=' + runtimeRssFeeds.length +
-      ' scrape=' + SCRAPE_SOURCES.length + ' rsshub=' + RSSHUB_ROUTES.length);
+      ' scrape=' + SCRAPE_SOURCES.length + ' rsshub=' + RSSHUB_ROUTES.length + ' x=' + runtimeXAccounts.length);
 
   // === 并行抓取（RSSHub 分批，避免打爆本地 RSSHub 服务）===
-  const [gnewsResults, rssResults, scrapeResults, rsshubResults] = await Promise.all([
+  const previousHealthReport = readPreviousSourceHealth();
+  const [gnewsResults, rssResults, scrapeResults, rsshubResults, xResults] = await Promise.all([
     mapLimit(runtimeQueries, GOOGLE_FETCH_CONCURRENCY, (q) => fetchRSS(q)),
     mapLimit(runtimeRssFeeds, RSS_FETCH_CONCURRENCY, (s) => s.custom
       ? fetchCustomRss(s, { maxItems: 30 })
       : fetchDirectRSS(s.url)),
     Promise.all(SCRAPE_SOURCES.map(s => fetchScrape(s))),
     batchFetch(RSSHUB_ROUTES, 8, (s) => fetchRSSHub(s.route)),
+    fetchXSources(runtimeXAccounts, previousHealthReport),
   ]);
 
   // === 合并 + 跨源去重（link 去重）===
@@ -1900,6 +2078,42 @@ async function runMain() {
     });
   });
 
+  // X 只作“发现 + 热度”信号：只采用指向媒体官网的外链，不把 X 帖本身当正文。
+  let xcount = 0;
+  let xsignals = 0;
+  const mergedByCanonicalLink = new Map();
+  for (const item of merged) {
+    const key = canonicalArticleKey(item.link);
+    if (key && !mergedByCanonicalLink.has(key)) mergedByCanonicalLink.set(key, item);
+  }
+  xResults.forEach((arr, idx) => {
+    const src = runtimeXAccounts[idx];
+    arr.forEach((it) => {
+      if (src.custom && !isSafeCustomArticleUrl(it.link)) return;
+      const key = canonicalArticleKey(it.link);
+      const existing = mergedByCanonicalLink.get(key);
+      if (existing) {
+        if (!existing.xPostUrl) existing.xPostUrl = it.xPostUrl;
+        if (!existing.xHandle) existing.xHandle = it.xHandle;
+        if (!existing.xMetrics && it.xMetrics) existing.xMetrics = it.xMetrics;
+        existing.xSignalCount = (Number(existing.xSignalCount) || 0) + 1;
+        xsignals++;
+        return;
+      }
+      const classified = classify(`${it.title || ''} ${it.summary || ''}`);
+      const finalCat = (src.cat !== 'ALL' && classified === '行情') ? src.cat : classified;
+      const item = {
+        ...it,
+        cat: finalCat,
+        source: src.name || it.source,
+      };
+      merged.push(item);
+      mergedByCanonicalLink.set(key, item);
+      seen.add(cleanText(it.link));
+      xcount++;
+    });
+  });
+
   // === Puppeteer 抓取的微信文章（fetch_wechat.js 产出）===
   let wcount = 0;
   let wechatSnapshot = null;
@@ -1927,20 +2141,24 @@ async function runMain() {
     log('wechat_items.json read error: ' + e.message);
   }
 
-  log('sources: gnews=' + gcount + ' rss=' + rcount + ' scrape=' + scount + ' rsshub=' + hcount + ' wechat=' + wcount + ' merged=' + merged.length);
+  log('sources: gnews=' + gcount + ' rss=' + rcount + ' scrape=' + scount + ' rsshub=' + hcount +
+      ' xArticles=' + xcount + ' xSignals=' + xsignals + ' wechat=' + wcount + ' merged=' + merged.length);
   const health = writeSourceHealth({
     gnewsResults,
     rssResults,
     scrapeResults,
     rsshubResults,
+    xResults,
     wechatSnapshot,
     queryConfigs: runtimeQueries,
     rssConfigs: runtimeRssFeeds,
+    xConfigs: runtimeXAccounts,
     customWechatAccounts,
     customSources: customRegistry.sources,
   });
   log('source-health: registry=' + REGISTRY_VERSION + ' ok=' + health.summary.ok + '/' + health.summary.checked +
-      ' wechatAccounts=' + health.configured.wechatAccounts + ' cachedWechat=' + health.summary.wechatCachedItems);
+      ' xAccounts=' + health.configured.xAccounts + ' wechatAccounts=' + health.configured.wechatAccounts +
+      ' cachedWechat=' + health.summary.wechatCachedItems);
 
   // === 只保留最近 7 个北京时间自然日；未来时间一律剔除 ===
   const allowedDateKeys = new Set(recentBeijingDateKeys(MAX_AGE_DAYS));
@@ -1975,10 +2193,18 @@ async function runMain() {
 
   // === 抓取原文正文与主图；有缓存的文章不会重复请求 ===
   await enrichArticleCandidates(balancedFresh, log);
+  const signalDedupedFresh = dedupeXArticleSignals(balancedFresh);
+  if (signalDedupedFresh.length !== balancedFresh.length) {
+    log(`x-dedupe: ${balancedFresh.length} → ${signalDedupedFresh.length} (same canonical article)`);
+  }
+  const postEnrichmentFresh = filterPostEnrichmentFresh(signalDedupedFresh);
+  if (postEnrichmentFresh.length !== signalDedupedFresh.length) {
+    log(`post-enrich freshness: kept=${postEnrichmentFresh.length} dropped=${signalDedupedFresh.length - postEnrichmentFresh.length}`);
+  }
 
   // === 自动识别语言 + 翻译英文（带缓存）===
   let enDone = 0;
-  for (const it of balancedFresh) {
+  for (const it of postEnrichmentFresh) {
     it.lang = detectLang(it.title);
     if (it.lang === 'en' && enDone < MAX_ITEMS) {
       enDone++;
@@ -1991,12 +2217,12 @@ async function runMain() {
       if (it.summary && !it.summary_cn) it.summary_cn = it.summary;
     }
   }
-  log('lang: translated ' + enDone + ' english items, ' + (balancedFresh.length - enDone) + ' chinese items (no translation)');
+  log('lang: translated ' + enDone + ' english items, ' + (postEnrichmentFresh.length - enDone) + ' chinese items (no translation)');
 
   // === v3b：多信源聚合（翻译后按标题相似度合并同事件）===
-  const aggregated = aggregateMultiSource(balancedFresh);
+  const aggregated = aggregateMultiSource(postEnrichmentFresh);
   const multiCount = aggregated.filter(it => (it._sourceCount || 1) > 1).length;
-  log('aggregate: ' + balancedFresh.length + ' → ' + aggregated.length + ' items (' + multiCount + ' multi-source clusters)');
+  log('aggregate: ' + postEnrichmentFresh.length + ' → ' + aggregated.length + ' items (' + multiCount + ' multi-source clusters)');
   const outputCandidates = selectAcrossDays(aggregated, MAX_ITEMS);
 
   // === 构建输出 items ===
@@ -2039,6 +2265,10 @@ async function runMain() {
       author: it.author || "",
       avatar: it.avatar || "",
       image: normalizeArticleImage(it.image, it.link),
+      xPostUrl: it.xPostUrl || '',
+      xHandle: it.xHandle || '',
+      xSignalCount: Number(it.xSignalCount) || 0,
+      xMetrics: it.xMetrics || null,
       summaryMode: (
         !isMojibake(it.summary_cn || (it.lang === 'zh' ? it.summary : ''))
         && (it.summary_cn || (it.lang === 'zh' ? it.summary : '') || '').length >= 45
@@ -2084,7 +2314,7 @@ async function runMain() {
       timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit', hour12: false,
     }).format(new Date()).replace('T', ' '),
-    generator: `光伏 HOT (source registry ${REGISTRY_VERSION} · Google News + RSS + Scrape + WeChat)`,
+    generator: `光伏 HOT (source registry ${REGISTRY_VERSION} · Google News + RSS + Scrape + WeChat + X)`,
     sourceRegistryVersion: REGISTRY_VERSION,
     monitoredSources: health.configured,
   };
@@ -2137,6 +2367,9 @@ if (require.main === module) {
 module.exports = {
   main,
   decodeGoogleNewsUrl,
+  dedupeXArticleSignals,
+  filterPostEnrichmentFresh,
+  selectArticleEnrichmentCandidates,
   extractArticleDetails,
   summarizeArticleText,
   buildBody,
