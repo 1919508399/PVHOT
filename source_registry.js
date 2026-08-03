@@ -10,7 +10,7 @@
  * 4. 微信账号按小时轮询，fetch_wechat.js 会保留 7 天历史，不会因轮换丢失文章。
  */
 
-const REGISTRY_VERSION = '2026.08.03-r3';
+const REGISTRY_VERSION = '2026.08.03-r4';
 
 const TOPIC_QUERIES = [
   { id: 'topic-all', cat: 'ALL', q: 'solar OR photovoltaic OR solar panel', locale: 'en' },
