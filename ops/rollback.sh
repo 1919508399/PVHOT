@@ -116,7 +116,7 @@ smoke_external() {
   local temporary
   temporary="$(mktemp -d)"
   local rc=0
-  {
+  (
     curl \
       --fail \
       --silent \
@@ -128,9 +128,9 @@ smoke_external() {
       --retry-delay 1 \
       --retry-connrefused \
       "${url}/?__pvhot_rollback=${expected_sha}" \
-      -o "${temporary}/index.html"
-    grep -qi '<html' "${temporary}/index.html"
-    grep -q 'app\.js' "${temporary}/index.html"
+      -o "${temporary}/index.html" || exit $?
+    grep -qi '<html' "${temporary}/index.html" || exit $?
+    grep -q 'app\.js' "${temporary}/index.html" || exit $?
 
     curl \
       --fail \
@@ -143,8 +143,8 @@ smoke_external() {
       --retry-delay 1 \
       --retry-connrefused \
       "${url}/data.json?__pvhot_rollback=${expected_sha}" \
-      -o "${temporary}/data.json"
-    "${NODE_BIN}" - "${temporary}/data.json" <<'NODE'
+      -o "${temporary}/data.json" || exit $?
+    "${NODE_BIN}" - "${temporary}/data.json" <<'NODE' || exit $?
 const fs = require('fs');
 const value = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 if (!value || !Array.isArray(value.items)) throw new Error('data.json has no items array');
@@ -161,8 +161,8 @@ NODE
       --retry-delay 1 \
       --retry-connrefused \
       "${url}/release.json?__pvhot_rollback=${expected_sha}" \
-      -o "${temporary}/release.json"
-    "${NODE_BIN}" - "${temporary}/release.json" "${expected_sha}" <<'NODE'
+      -o "${temporary}/release.json" || exit $?
+    "${NODE_BIN}" - "${temporary}/release.json" "${expected_sha}" <<'NODE' || exit $?
 const fs = require('fs');
 const [file, expected] = process.argv.slice(2);
 const value = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -180,16 +180,40 @@ NODE
       --retry-delay 1 \
       --retry-connrefused \
       "${url}/api/healthz?__pvhot_rollback=${expected_sha}" \
-      -o "${temporary}/health.json"
-    "${NODE_BIN}" - "${temporary}/health.json" <<'NODE'
+      -o "${temporary}/health.json" || exit $?
+    "${NODE_BIN}" - "${temporary}/health.json" "${expected_sha}" <<'NODE' || exit $?
 const fs = require('fs');
-const value = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const [file, expected] = process.argv.slice(2);
+const value = JSON.parse(fs.readFileSync(file, 'utf8'));
 const service = value && (value.service || value.svc);
-if (!value || value.ok !== true || service !== 'pvhot-admin') {
+if (!value || value.ok !== true || service !== 'pvhot-admin' || value.release !== expected) {
   throw new Error('admin health check failed');
 }
 NODE
-  } || rc=$?
+
+    sleep 2
+    curl \
+      --fail \
+      --silent \
+      --show-error \
+      --location \
+      --connect-timeout 5 \
+      --max-time 20 \
+      --retry 2 \
+      --retry-delay 1 \
+      --retry-connrefused \
+      "${url}/api/healthz?__pvhot_rollback_stable=${expected_sha}" \
+      -o "${temporary}/health-stable.json" || exit $?
+    "${NODE_BIN}" - "${temporary}/health-stable.json" "${expected_sha}" <<'NODE' || exit $?
+const fs = require('fs');
+const [file, expected] = process.argv.slice(2);
+const value = JSON.parse(fs.readFileSync(file, 'utf8'));
+const service = value && (value.service || value.svc);
+if (!value || value.ok !== true || service !== 'pvhot-admin' || value.release !== expected) {
+  throw new Error('admin stability health check failed');
+}
+NODE
+  ) || rc=$?
   rm -rf -- "${temporary}"
   return "${rc}"
 }
