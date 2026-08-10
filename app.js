@@ -879,7 +879,7 @@
             <span class="tm-meta">
               <span class="tm-src">${srcName}</span>
               ${tags ? `<span class="tm-tags">${tags}</span>` : ''}
-              <button class="tl-fav ${favOn ? "on" : ""}" data-fav="${esc(it.id)}" title="收藏" aria-label="收藏">${favOn ? "★" : "☆"}</button>
+              <button class="tl-fav ${favOn ? "on" : ""}" data-fav="${esc(it.id)}" title="收藏" aria-label="收藏">${favOn ? "♥" : "♡"}</button>
             </span>
           </span>
         </a>`;
@@ -889,7 +889,7 @@
         <div class="tl-merge-head">
           <span class="tm-h">${items.length} 条新闻</span>
           <span class="tm-cnt">合并视图</span>
-          <span class="tm-mode">点击 ▾ 分开</span>
+          <button class="tm-mode dh-toggle merged" type="button" data-toggle="${esc(dayKey)}" title="当前：合并 · 点击分开" aria-label="分开当天新闻">点击 ▾ 分开</button>
         </div>
         <div class="tl-merge-list">${rows}</div>
       </article>`;
@@ -1305,7 +1305,7 @@
             </div>
             <div class="tl-head-r">
               <span class="tl-num" title="AI 推荐分">AI ${numStr}</span>
-              <button class="tl-fav ${isFav(it.id) ? "on" : ""}" data-fav="${esc(it.id)}" title="收藏" aria-label="收藏">${isFav(it.id) ? "★" : "☆"}</button>
+              <button class="tl-fav ${isFav(it.id) ? "on" : ""}" data-fav="${esc(it.id)}" title="收藏" aria-label="收藏">${isFav(it.id) ? "♥" : "♡"}</button>
             </div>
           </header>
           <a class="tl-title" href="${esc(it.link)}" title="${esc(it.orig_title || '')}" target="_blank" rel="noopener">${hl(it.title, state.kw)}</a>
@@ -2161,9 +2161,9 @@ ${restUrl}
       const id = b.dataset.fav;
       if (!id) return;
       const nowOn = toggleFav(id);
-      // 更新当前按钮视觉（用 ★/☆ 与 renderItem 渲染时保持一致）
+      // 更新当前按钮视觉（用 ♥/♡ 与 renderItem 渲染时保持一致）
       b.classList.toggle("on", nowOn);
-      b.textContent = nowOn ? "★" : "☆";
+      b.textContent = nowOn ? "♥" : "♡";
       b.title = nowOn ? "取消收藏" : "收藏";
       // 刷新侧栏收藏计数 + 移动端抽屉计数
       updateFavBadge();

@@ -571,6 +571,12 @@ body.dark .wp-eyebrow { color: #5fb5c4; }
   margin-left: auto; font-size: 11.5px; color: var(--ink-3);
   background: var(--bg-1); border: 1px solid var(--border-soft);
   padding: 1px 8px; border-radius: 999px;
+  cursor: pointer; font: inherit; font-size: 11.5px; line-height: 1.5;
+}
+.tl-merge-head .tm-mode:hover,
+.tl-merge-head .tm-mode:focus-visible {
+  color: var(--emerald); border-color: var(--emerald);
+  outline: none;
 }
 .tl-merge-list { display: flex; flex-direction: column; }
 .tl-merge-row {
