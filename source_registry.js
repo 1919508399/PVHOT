@@ -10,7 +10,7 @@
  * 4. 微信账号按小时轮询，fetch_wechat.js 会保留 7 天历史，不会因轮换丢失文章。
  */
 
-const REGISTRY_VERSION = '2026.08.10-r5';
+const REGISTRY_VERSION = '2026.08.10-r6';
 
 const TOPIC_QUERIES = [
   { id: 'topic-all', cat: 'ALL', q: 'solar OR photovoltaic OR solar panel', locale: 'en' },
@@ -60,6 +60,16 @@ const CURATED_SEARCH_QUERIES = [
     label: '海外专业能源媒体', tier: 1,
   },
   {
+    id: 'global-research-markets', cat: 'ALL', locale: 'en',
+    q: '(solar OR photovoltaic OR BESS) (site:woodmac.com OR site:spglobal.com OR site:pv-magazine.com OR site:pv-tech.org OR site:energy-storage.news)',
+    label: '海外市场与储能研究', tier: 1,
+  },
+  {
+    id: 'cn-research-price', cat: '价格', locale: 'zh',
+    q: '(光伏 OR 储能 OR 硅料 OR 硅片) (site:pvinfolink.com OR site:solarzoom.com OR site:cnesa.org.cn OR site:trendforce.cn)',
+    label: '中国价格与储能分析', tier: 1,
+  },
+  {
     id: 'global-institutions', cat: '政策', locale: 'en',
     q: '"solar PV" (site:iea.org OR site:irena.org OR site:iea-pvps.org OR site:nrel.gov OR site:seia.org OR site:solarpowereurope.org)',
     label: '海外官方机构与协会', tier: 1,
@@ -73,9 +83,15 @@ const CURATED_SEARCH_QUERIES = [
 
 const RSS_FEEDS = [
   { id: 'pv-magazine', url: 'https://www.pv-magazine.com/feed/', source: 'pv-magazine', cat: 'ALL', tier: 1 },
+  { id: 'pv-magazine-usa', url: 'https://pv-magazine-usa.com/feed/', source: 'pv-magazine-usa', cat: 'ALL', tier: 1 },
   { id: 'pv-tech', url: 'https://www.pv-tech.org/feed', source: 'pv-tech', cat: 'ALL', tier: 1 },
+  { id: 'solar-power-world', url: 'https://www.solarpowerworldonline.com/feed/', source: 'solar-power-world', cat: 'ALL', tier: 1 },
+  { id: 'energy-storage-news', url: 'https://www.energy-storage.news/feed/', source: 'energy-storage.news', cat: '储能', tier: 1 },
   { id: 'cleantechnica', url: 'https://cleantechnica.com/feed/', source: 'cleantechnica', cat: 'ALL', tier: 2 },
   { id: 'solarquarter', url: 'https://solarquarter.com/feed/', source: 'solarquarter', cat: 'ALL', tier: 1 },
+  { id: 'mercom-india', url: 'https://www.mercomindia.com/feed', source: 'mercom-india', cat: 'ALL', tier: 1 },
+  { id: 'saur-energy', url: 'https://www.saurenergy.com/rss', source: 'saur-energy', cat: 'ALL', tier: 2 },
+  { id: 'utility-dive-energy', url: 'https://www.utilitydive.com/feeds/news/', source: 'utility-dive-energy', cat: 'ALL', tier: 2 },
 ];
 
 const SCRAPE_SOURCES = [
