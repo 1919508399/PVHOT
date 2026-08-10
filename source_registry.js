@@ -107,6 +107,7 @@ const SCRAPE_SOURCES = [
   {
     id: 'bjx-guangfu', url: 'https://guangfu.bjx.com.cn/', source: 'bjx-guangfu', cat: 'ALL', tier: 1,
     linkPattern: /guangfu\.bjx\.com\.cn\/news\/\d{8}\/\d+\.shtml/,
+    fallbackQuery: 'site:bjx.com.cn',
     dateFromUrl(url) {
       const m = url.match(/\/news\/(\d{4})(\d{2})(\d{2})\//);
       return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
