@@ -15,6 +15,8 @@ const REQUIRED_RELEASE_FILES = Object.freeze([
   'index.html',
   'styles.css',
   'app.js',
+  'manifest.webmanifest',
+  'sw.js',
   'admin.html',
   'admin_server.js',
   'fetch_pv_news.js',

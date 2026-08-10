@@ -5,9 +5,11 @@ const test = require('node:test');
 const {
   beijingDateKey,
   computeScoreDetails,
+  classify,
   decodeResponseBuffer,
   dedupeXArticleSignals,
   extractArticleDetails,
+  extractTopics,
   filterPostEnrichmentFresh,
   inspectFeedStructure,
   isMojibake,
@@ -185,6 +187,18 @@ test('custom sources cannot inherit the built-in trusted-source score', () => {
   assert.equal(builtIn.breakdown.authority, 12);
   assert.equal(custom.breakdown.authority, 4);
   assert.ok(custom.score < builtIn.score);
+});
+
+test('classification accumulates evidence instead of using the first keyword', () => {
+  assert.equal(classify('Solar module price policy and battery storage update'), '价格');
+  assert.equal(classify('BESS battery storage project expansion'), '储能');
+});
+
+test('topic extraction never fabricates four-character fragments', () => {
+  assert.deepEqual(extractTopics('今天发布了一份行业公告'), []);
+  const topics = extractTopics('光伏组件价格下跌');
+  assert.ok(topics.includes('组件'));
+  assert.ok(topics.every((topic) => topic.length !== 4));
 });
 
 test('feed structure check separates a valid empty feed from broken parsing', () => {

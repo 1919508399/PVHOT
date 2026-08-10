@@ -31,6 +31,8 @@ async function main() {
 
     await assertResponse(baseUrl, '/styles.css', /^text\/css;\s*charset=utf-8/i);
     await assertResponse(baseUrl, '/app.js', /^text\/javascript;\s*charset=utf-8/i);
+    await assertResponse(baseUrl, '/manifest.webmanifest', /^application\/manifest\+json;\s*charset=utf-8/i);
+    await assertResponse(baseUrl, '/sw.js', /^text\/javascript;\s*charset=utf-8/i);
 
     const dataResponse = await assertResponse(baseUrl, '/data.json', /^application\/json;\s*charset=utf-8/i);
     const data = await dataResponse.json();

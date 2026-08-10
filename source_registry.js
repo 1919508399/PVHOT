@@ -10,7 +10,7 @@
  * 4. 微信账号按小时轮询，fetch_wechat.js 会保留 7 天历史，不会因轮换丢失文章。
  */
 
-const REGISTRY_VERSION = '2026.08.03-r4';
+const REGISTRY_VERSION = '2026.08.10-r5';
 
 const TOPIC_QUERIES = [
   { id: 'topic-all', cat: 'ALL', q: 'solar OR photovoltaic OR solar panel', locale: 'en' },
@@ -122,6 +122,19 @@ const SCRAPE_SOURCES = [
       if (full) return `${full[1]}-${full[2]}-${full[3]}`;
       const md = snippet.match(/<span[^>]*>\s*(\d{2})-(\d{2})\s*<\/span>/i);
       return md ? `${new Date().getFullYear()}-${md[1]}-${md[2]}` : null;
+    },
+    maxItems: 18,
+  },
+  {
+    id: 'huasun-official', url: 'https://www.huasunsolar.com/news.html', source: 'Huasun Solar 官方', cat: '组件', tier: 1,
+    linkPattern: /huasunsolar\.com\/news\/[^"'<>\s]+\.html/i,
+    dateFromUrl: null,
+    dateFromContext(html, index) {
+      const snippet = html.slice(Math.max(0, index - 500), index + 700);
+      const match = snippet.match(/(20\d{2})[\/-](\d{1,2})[\/-](\d{1,2})/);
+      return match
+        ? `${match[1]}-${String(match[2]).padStart(2, '0')}-${String(match[3]).padStart(2, '0')}`
+        : null;
     },
     maxItems: 18,
   },
@@ -247,7 +260,7 @@ const TRUSTED_SOURCE_TOKENS = [
   '国家能源局', '中国光伏行业协会', 'cpia', 'reuters', 'cleantechnica',
   'solar power world', 'taiyangnews', 'solarquarter', 'mercom',
   'saur energy', 'canary media', 'reneweconomy', 'solar power portal', 'ember',
-  'energy-storage.news', 'ess news', 'iea', 'irena', 'iea pvps', 'nrel',
+  'energy-storage.news', 'ess news', 'huasun', 'iea', 'irena', 'iea pvps', 'nrel',
   'seia', 'solarpower europe', '公众号',
 ];
 

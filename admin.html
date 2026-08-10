@@ -1036,6 +1036,7 @@
               <label><input id="aiFeatureSummarize" type="checkbox"/><span><b>完整摘要</b><small>生成有首有尾的中文简短总结</small></span></label>
               <label><input id="aiFeatureEvent" type="checkbox"/><span><b>事件聚类</b><small>把不同信源的同一件事关联起来</small></span></label>
               <label><input id="aiFeatureRanking" type="checkbox"/><span><b>精选辅助</b><small>AI 只占部分权重，不单独决定头条</small></span></label>
+              <label><input id="aiFeatureReason" type="checkbox"/><span><b>AI 精选理由</b><small>为入选新闻生成可解释的精选理由</small></span></label>
             </div>
 
             <details class="ai-advanced">
@@ -1763,6 +1764,7 @@
     $('#aiFeatureSummarize').checked = config.features && config.features.summarize !== false;
     $('#aiFeatureEvent').checked = config.features && config.features.eventCluster !== false;
     $('#aiFeatureRanking').checked = config.features && config.features.ranking !== false;
+    $('#aiFeatureReason').checked = !config.features || config.features.featuredReason !== false;
     $('#aiKeyHint').textContent = config.apiKeyConfigured
       ? `服务器已安全保存：${config.apiKeyHint}。留空不会覆盖现有密钥。`
       : '尚未配置密钥。密钥保存后不会再次完整显示。';
@@ -1809,6 +1811,7 @@
         summarize: $('#aiFeatureSummarize').checked,
         eventCluster: $('#aiFeatureEvent').checked,
         ranking: $('#aiFeatureRanking').checked,
+        featuredReason: $('#aiFeatureReason').checked,
       },
     }, key ? { apiKey:key } : {}, overrides || {});
   }

@@ -48,8 +48,23 @@ const CHROME_PATH = process.env.PUPPETEER_EXECUTABLE_PATH
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+function normalizeWechatLink(link) {
+  const raw = String(link || '').trim();
+  try {
+    const url = new URL(raw);
+    url.hash = '';
+    for (const key of ['scene', 'clicktime', 'isappinstalled', 'from', 'chksm', 'clicktag', 'source']) {
+      url.searchParams.delete(key);
+    }
+    url.searchParams.sort();
+    return url.toString();
+  } catch (error) {
+    return raw;
+  }
+}
+
 function extractItemId(link) {
-  return 'pv' + crypto.createHash('sha1').update(link).digest('hex').slice(0, 14);
+  return 'pv' + crypto.createHash('sha1').update(normalizeWechatLink(link)).digest('hex').slice(0, 14);
 }
 
 function normalizeAccountName(value) {
@@ -249,7 +264,7 @@ async function searchWechat(keyword, page, targetAccount = null) {
     }
     items.push({
       title: raw.title,
-      link: raw.link,
+      link: normalizeWechatLink(raw.link),
       summary: raw.summary,
       account: raw.account || '微信公众号',
       avatar: raw.avatar || '',
@@ -312,7 +327,9 @@ async function searchAccountWechat(account, page) {
     items,
     rawCount,
     terms,
-    status: items.length ? 'ok' : (blocked ? 'captcha' : (parseError ? 'error' : 'empty')),
+    status: items.length
+      ? 'ok'
+      : (blocked ? 'captcha' : (parseError ? 'parse_failed' : (rawCount ? 'account_not_matched' : 'not_indexed'))),
   };
 }
 
@@ -384,10 +401,16 @@ async function runMain() {
           id: `topic:${kw}`,
           name: kw,
           kind: 'topic',
-          status: result.status === 'captcha' ? 'captcha' : (trustedItems.length ? 'ok' : 'empty'),
+          status: result.status === 'captcha'
+            ? 'captcha'
+            : (trustedItems.length ? 'ok' : (result.rawCount ? 'account_not_matched' : 'not_indexed')),
           raw: result.rawCount,
+          rawSearchCount: result.rawCount,
+          accountMatchCount: trustedItems.length,
           candidateFresh: result.items.length,
           fresh: trustedItems.length,
+          freshItemCount: trustedItems.length,
+          lastPolledAt: new Date().toISOString(),
         });
         for (const it of trustedItems) {
           const monitoredAccount = findMonitoredAccount(it.account);
@@ -431,7 +454,11 @@ async function runMain() {
           tier: account.tier || 2,
           status: result.status,
           raw: result.rawCount,
+          rawSearchCount: result.rawCount,
+          accountMatchCount: result.items.length,
           fresh: result.items.length,
+          freshItemCount: result.items.length,
+          lastPolledAt: new Date().toISOString(),
           queryTerms: result.terms,
         });
         for (const it of result.items) {
@@ -480,10 +507,13 @@ async function runMain() {
 
   // Deduplicate by id，新结果优先。
   const seen = new Set();
+  const seenLinks = new Set();
   const deduped = [...allItems, ...previousItems].filter(it => {
     if (!isFresh(it.pubDate)) return false;
-    if (seen.has(it.id)) return false;
+    const linkKey = normalizeWechatLink(it.link);
+    if (seen.has(it.id) || (linkKey && seenLinks.has(linkKey))) return false;
     seen.add(it.id);
+    if (linkKey) seenLinks.add(linkKey);
     return true;
   }).sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
 
@@ -523,5 +553,7 @@ if (require.main === module) {
 module.exports = {
   accountSearchTerms,
   expandAccountAliases,
+  extractItemId,
+  normalizeWechatLink,
   selectCustomAccountsForRun,
 };

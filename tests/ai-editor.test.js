@@ -108,6 +108,7 @@ test('AI editor enriches and clusters articles, then reuses its cache', async ()
     assert.equal(firstItems[0].category, '组件');
     assert.equal(firstItems[0].eventArticleCount, 2);
     assert.equal(firstItems[0].related.length, 1);
+    assert.equal(firstItems[0].reason.length > 0, true);
 
     const secondItems = [article('a','公司发布高效组件','来源甲'), article('b','高效组件正式上市','来源乙')];
     const second = await applyAiEditorial(secondItems, config(), { ...files, fetchImpl:fakeFetch, batchSize:4 });

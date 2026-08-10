@@ -132,7 +132,7 @@ const PRIMARY_PV_RE = /光伏|太阳能|多晶硅|硅料|硅片|电池片|光伏
 const HARD_NOISE_RE = /A股|个股|牛股|涨停|选股|炒股|算力|存储芯片|先进封装|半导体|GPU|英伟达|风电|风力发电|波浪能|煤炭|原油|石油|核电|绿色甲醇|白银|银价|美联储|\b(?:stock picks?|semiconductor|chipmaker|gpu|nvidia|wind farm|wind turbine|wave energy|crude oil|nuclear power|silver|fed|hawkish|federal reserve)\b/i;
 const LOW_QUALITY_SOURCE_RE = /marketbeat|yahoo[!\s-]*finance|motley fool|seeking alpha|tradingview|barchart|marketscreener|simplywall|stock titan|gurufocus|streetinsider|moomoo|quartr|24\/7 wall|finance\.biggo|富途牛牛|investing\.com|tipranks|scanx\.trade|stockhouse|morningstar|hdfc sky|kavout|dalal street|trade brains|东方财富|新浪财经|openpr|pr newswire/i;
 const GENERIC_SOCIAL_SOURCE_RE = /微博搜索|微信搜索光伏/i;
-const TRUSTED_SOURCE_RE = /pv[\s-]?(?:tech|magazine)|solarbe|bjx|北极星|ne21|reuters|clean ?technica|solar power world|taiyangnews|mercom|energy-storage\.news|ess news|公众号/i;
+const TRUSTED_SOURCE_RE = /pv[\s-]?(?:tech|magazine)|solarbe|bjx|北极星|ne21|reuters|clean ?technica|solar power world|taiyangnews|mercom|energy-storage\.news|ess news|huasun|公众号/i;
 function isTrustedSource(source) {
   const normalized = cleanText(source || '').toLowerCase();
   return TRUSTED_SOURCE_RE.test(normalized)
@@ -326,7 +326,8 @@ function selectAcrossDays(items, limit) {
 }
 
 function classify(text) {
-  const t = (text || '').toLowerCase();
+  const input = String(text || '');
+  const t = input.toLowerCase();
   // 排除：Silicon Valley / 硅谷 / 半导体芯片等非光伏 silicon 误命中
   const EXCLUDE = ['silicon valley', 'silicon photonics', 'silicon quantum', 'silicon-carbon battery',
     'silicon anode', 'silicon metal', 'silicon wafer (semiconductor)', 'chip', 'semiconductor',
@@ -334,12 +335,15 @@ function classify(text) {
   for (const ex of EXCLUDE) {
     if (t.includes(ex)) return '行情'; // 非光伏 silicon → 归行情（通用）
   }
+  const scores = new Map(CATS.map((c) => [c.cat, 0]));
   for (const c of CATS) {
     for (const k of c.keys) {
-      if (t.indexOf(k.toLowerCase()) !== -1) return c.cat;
+      const key = String(k).toLowerCase();
+      if (!key || !t.includes(key)) continue;
+      scores.set(c.cat, scores.get(c.cat) + Math.max(1, Math.min(8, key.length / 2)));
     }
   }
-  return '行情';
+  return [...scores.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '行情';
 }
 
 function pickUser(cat) {
@@ -1343,34 +1347,8 @@ function extractTopics(text) {
       }
     }
   }
-  if (matched.length >= 2) return matched;
-
-  // 2. 词典不足 2 个时，用 4-gram 补充（做位置去重，过滤末尾碎片字符）
-  const need = 2 - matched.length;
-  const FRAG_TAIL = new Set('的了在是有和与或也但就都还又再已将被把给向到从对为以及其所而则且着过即引等把将此因由至为以免设建者所'.split(''));
-  const candidates = [];
-  for (let i = 0; i <= t.length - 4; i++) {
-    if ([0,1,2,3].some(j => usedPos.has(i + j))) continue;
-    const g = t.slice(i, i + 4);
-    if ([...g].some(c => STOP_CHARS.has(c))) continue;
-    if (FRAG_TAIL.has(g[3])) continue; // 末尾是碎片字符则跳过
-    candidates.push({ gram: g, pos: i, len: 4 });
-  }
-  // 按频次排序（同频取更长的），选 need 个且不重叠
-  const cnt = {};
-  candidates.forEach(c => cnt[c.gram] = (cnt[c.gram] || 0) + 1);
-  candidates.sort((a, b) => cnt[b.gram] - cnt[a.gram] || b.len - a.len);
-  const picked = [];
-  for (const c of candidates) {
-    if (picked.length >= need) break;
-    // 检查与已选 n-gram 是否重叠
-    const positions = [...Array(c.len).keys()].map(j => c.pos + j);
-    if (positions.some(p => usedPos.has(p))) continue;
-    picked.push(c.gram);
-    positions.forEach(p => usedPos.add(p));
-  }
-
-  return [...matched, ...picked].slice(0, 2);
+  // 词典没有命中就不造四字片段，宁可少标签，也不把自然语言碎片当成行业主题。
+  return matched.slice(0, 3);
 }
 
 /* ---------- 强力去尾源 ---------- */
@@ -2294,6 +2272,8 @@ async function runMain() {
     const id = 'pv' + crypto.createHash('sha1').update(it.link || it.title || String(i)).digest('hex').slice(0, 14);
     const sourceCount = it._sourceCount || 1;
     const sources = it._sources || [it.source || 'google-news'];
+    const credibilityLevel = it._customSourceId ? 'C' : (isTrustedItem(it) ? 'A' : (sourceCount > 1 ? 'B' : 'B'));
+    const credibilityLabel = credibilityLevel === 'A' ? '高可信' : (credibilityLevel === 'B' ? '行业来源' : '自定义来源');
     const sourceName = it.author || sources[0] || '行业信源';
     const user = {
       name: sourceName,
@@ -2316,6 +2296,8 @@ async function runMain() {
       source: sources[0],
       sourceCount,
       sources,
+      credibilityLevel,
+      credibilityLabel,
       heat,
       tags: [...new Set([cat, ...extractTopics(it.title_cn || it.title)])].slice(0, 3),
       pubTime: bj ? bj.pubTime : '--:--',
@@ -2392,8 +2374,13 @@ async function runMain() {
   const todayItems = items
     .filter((it) => it.dateKey === todayKey)
     .sort((a, b) => b.score - a.score || b.sourceCount - a.sourceCount || b.pubDate.localeCompare(a.pubDate));
-  const featuredCap = Math.min(20, Math.max(8, Math.ceil(todayItems.length * .22)));
-  const featuredIds = new Set(todayItems.slice(0, featuredCap).map((it) => it.id));
+  const featuredMinScore = Math.max(1, Math.min(100, Number(process.env.PVHOT_FEATURED_MIN_SCORE || 70)));
+  const featuredMaxItems = Math.max(1, Math.min(20, Number(process.env.PVHOT_FEATURED_MAX_ITEMS || 12)));
+  const featuredCap = Math.min(featuredMaxItems, Math.max(1, Math.ceil(todayItems.length * .22)));
+  const featuredIds = new Set(todayItems
+    .filter((it) => Number(it.score) >= featuredMinScore)
+    .slice(0, featuredCap)
+    .map((it) => it.id));
   items.forEach((it) => { it.featured = it.dateKey === todayKey && featuredIds.has(it.id); });
   const dayCounts = {};
   items.forEach((it) => { dayCounts[it.dateKey] = (dayCounts[it.dateKey] || 0) + 1; });
@@ -2415,6 +2402,8 @@ async function runMain() {
     }).format(new Date()).replace('T', ' '),
     generator: `光伏 HOT (source registry ${REGISTRY_VERSION} · Google News + RSS + Scrape + WeChat + X)`,
     sourceRegistryVersion: REGISTRY_VERSION,
+    featuredMinScore,
+    featuredMaxItems,
     monitoredSources: health.configured,
     aiEditorial: {
       enabled: aiEditorial.enabled,
@@ -2475,11 +2464,13 @@ if (require.main === module) {
 
 module.exports = {
   main,
+  classify,
   decodeGoogleNewsUrl,
   dedupeXArticleSignals,
   filterPostEnrichmentFresh,
   selectArticleEnrichmentCandidates,
   extractArticleDetails,
+  extractTopics,
   summarizeArticleText,
   buildBody,
   computeScoreDetails,
