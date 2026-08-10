@@ -132,7 +132,7 @@ const PRIMARY_PV_RE = /光伏|太阳能|多晶硅|硅料|硅片|电池片|光伏
 const HARD_NOISE_RE = /A股|个股|牛股|涨停|选股|炒股|算力|存储芯片|先进封装|半导体|GPU|英伟达|风电|风力发电|波浪能|煤炭|原油|石油|核电|绿色甲醇|白银|银价|美联储|\b(?:stock picks?|semiconductor|chipmaker|gpu|nvidia|wind farm|wind turbine|wave energy|crude oil|nuclear power|silver|fed|hawkish|federal reserve)\b/i;
 const LOW_QUALITY_SOURCE_RE = /marketbeat|yahoo[!\s-]*finance|motley fool|seeking alpha|tradingview|barchart|marketscreener|simplywall|stock titan|gurufocus|streetinsider|moomoo|quartr|24\/7 wall|finance\.biggo|富途牛牛|investing\.com|tipranks|scanx\.trade|stockhouse|morningstar|hdfc sky|kavout|dalal street|trade brains|东方财富|新浪财经|openpr|pr newswire/i;
 const GENERIC_SOCIAL_SOURCE_RE = /微博搜索|微信搜索光伏/i;
-const TRUSTED_SOURCE_RE = /pv[\s-]?(?:tech|magazine)|solarbe|bjx|北极星|ne21|reuters|clean ?technica|solar power world|taiyangnews|mercom|energy-storage\.news|ess news|huasun|公众号/i;
+const TRUSTED_SOURCE_RE = /pv[\s-]?(?:tech|magazine)|solarbe|bjx|北极星|ne21|reuters|clean ?technica|solar power world|taiyangnews|mercom|energy-storage\.news|ess news|huasun|saur-energy|utility-dive|公众号/i;
 function isTrustedSource(source) {
   const normalized = cleanText(source || '').toLowerCase();
   return TRUSTED_SOURCE_RE.test(normalized)

@@ -8,8 +8,8 @@ test('source catalog separates publishers, collection channels and discovery rul
   const catalog = buildSourceCatalog();
   assert.equal(catalog.schemaVersion, 1);
   assert.ok(catalog.publishers.length > 40);
-  assert.equal(catalog.channels.length, 65);
-  assert.equal(catalog.discoveryRules.length, 26);
+  assert.equal(catalog.channels.length, 71);
+  assert.equal(catalog.discoveryRules.length, 28);
 
   const pvTechChannels = catalog.channels.filter((channel) =>
     channel.publisherId === 'publisher:pv-tech-org'
