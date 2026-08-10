@@ -13,6 +13,17 @@
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 
   let DATA = null;
+  const DATA_CACHE_KEY = "pvhot-data-cache-v1";
+  function saveDataCache(json) {
+    if (!json || !Array.isArray(json.items) || json.items.length === 0) return;
+    try { localStorage.setItem(DATA_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), data: json })); } catch (e) {}
+  }
+  function loadDataCache() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(DATA_CACHE_KEY) || "null");
+      return saved && saved.data && Array.isArray(saved.data.items) ? saved.data : null;
+    } catch (e) { return null; }
+  }
   let TEXTS = null;  // 关于 / Agent / 反馈 / 更新日志 4 段可编辑文本
   let state = { view: "featured", cat: "全部", tag: null, kw: "", dailyTab: "day", dailyDate: null, dailyWeek: null, dailyMonth: null };
 
@@ -393,6 +404,7 @@
   };
   /* ---------- 收藏（localStorage 持久化） ---------- */
   const FAV_KEY = "pvhot-favs";
+  const DISMISS_KEY = "pvhot-dismissed";
   const getFavs = () => {
     try { const a = JSON.parse(localStorage.getItem(FAV_KEY)); return Array.isArray(a) ? a : []; }
     catch (e) { return []; }
@@ -407,6 +419,42 @@
     return i < 0; // 返回「现在是否收藏」
   };
   const favItems = () => DATA.items.filter(it => isFav(it.id));
+  const getDismissed = () => {
+    try { const a = JSON.parse(localStorage.getItem(DISMISS_KEY)); return Array.isArray(a) ? a : []; }
+    catch (e) { return []; }
+  };
+  const isDismissed = id => !!id && getDismissed().includes(id);
+  const dismissItem = id => {
+    if (!id) return;
+    const ids = getDismissed();
+    if (!ids.includes(id)) ids.push(id);
+    try { localStorage.setItem(DISMISS_KEY, JSON.stringify(ids.slice(-500))); } catch (e) {}
+  };
+  const clearDismissed = () => { try { localStorage.removeItem(DISMISS_KEY); } catch (e) {} };
+  function exportFavs() {
+    const payload = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), ids: getFavs() }, null, 2);
+    const url = URL.createObjectURL(new Blob([payload], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url; link.download = "pvhot-my-intel.json"; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  function importFavs(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        const ids = Array.isArray(parsed) ? parsed : parsed.ids;
+        if (!Array.isArray(ids)) throw new Error("invalid");
+        const valid = new Set((DATA.items || []).map(it => it.id));
+        const merged = [...new Set([...getFavs(), ...ids.filter(id => valid.has(id))])];
+        localStorage.setItem(FAV_KEY, JSON.stringify(merged));
+        updateFavBadge();
+        if (state.view === "fav") renderFeed();
+      } catch (e) { window.alert("导入失败：文件格式不正确"); }
+    };
+    reader.readAsText(file);
+  }
   const updateFavBadge = () => {
     const el = document.querySelector("#sbFavBadge");
     if (el) {
@@ -585,6 +633,7 @@
   function filtered() {
     const kw = state.kw.trim().toLowerCase();
     return DATA.items.filter(it => {
+      if (isDismissed(it.id)) return false;
     if (state.cat !== "全部" && it.category !== state.cat) return false;
       if (state.tag && !(it.tags || []).includes(state.tag)) return false;
       if (kw) {
@@ -647,6 +696,13 @@
       } else {
         body.innerHTML = `<div id="feedTimeline">${renderTimeline(items)}</div>`;
       }
+      body.insertAdjacentHTML("afterbegin", `<div class="intel-tools" role="group" aria-label="My intelligence management">
+        <span>My intelligence · ${getFavs().length} saved locally</span>
+        <button type="button" data-fav-action="export">Export</button>
+        <button type="button" data-fav-action="import">Import</button>
+        <button type="button" data-fav-action="clear-dismissed">Restore hidden</button>
+        <input type="file" accept="application/json" data-fav-import hidden />
+      </div>`);
     } else {
       await renderInfoView(state.view);
     }
@@ -1078,6 +1134,13 @@
     return `<div class="tl-reason"><b>推荐理由</b>${hl(r, state.kw)}</div>`;
   }
 
+  function impactHTML(it) {
+    const impact = it.impact || (it.ai && it.ai.impact) || '';
+    const value = typeof impact === 'string' ? impact.trim() : '';
+    if (value.length < 8) return '';
+    return `<div class="tl-impact"><b>影响判断</b>${hl(value.replace(/\s+/g, ' '), state.kw)}</div>`;
+  }
+
   function renderItem(it) {
     const userObj = it.user || { name: '媒体', handle: it.source || 'media', color: '#3a7bd5' };
     const srcName = esc(userObj.name);
@@ -1092,16 +1155,20 @@
     /* v3.5：来源标记标签 */
     const srcLabel = it.srcLabel || '资讯';
     const srcColor = it.srcColor || '#3a7bd5';
+    const credibilityHTML = it.credibilityLabel
+      ? `<span class="tl-credibility" title="来源可信度：${esc(it.credibilityLabel)}">${esc(it.credibilityLabel)}</span>`
+      : '';
     /* v3b：精选徽标 = AI 推荐分 >= 60 */
     const score = it.score || it.heat || 50;
     const featured = (it.featured === true) ? true
       : (it.featured === false) ? false
-      : (score >= 60);
+      : (score >= 70);
     const featHTML = (featured && state.view === "featured") ? `<span class="tl-featured">精选</span>` : '';
     const xSignalHTML = /^https:\/\/x\.com\/[A-Za-z0-9_]{1,15}\/status\/\d+$/i.test(it.xPostUrl || '')
       ? `<a class="tl-x-signal" href="${esc(it.xPostUrl)}" target="_blank" rel="noopener" title="查看发现这篇文章的 X 原帖">X 线索</a>`
       : '';
     const numStr = String(Math.max(1, score));
+    const dismissHTML = `<button class="tl-dismiss" data-dismiss="${esc(it.id)}" title="不感兴趣" aria-label="不感兴趣">×</button>`;
     const pubTime = it.pubTime || (it.pubDate || '').slice(11, 16) || '--:--';
     const relatedHTML = (it.related && it.related.length)
       ? `<div class="tl-related"><b>同事件还有精选：</b>${it.related.map(r => `<a href="${esc(r.link)}">《${hl(r.title, state.kw)}》</a>`).join(" ")}</div>`
@@ -1116,8 +1183,10 @@
               <span class="tl-srcname">${srcName}</span>
               ${srcType ? `<span class="tl-srctype">${srcType}</span>` : ''}
               <span class="tl-src-badge" style="background:${srcColor};color:#fff">${esc(srcLabel)}</span>
+              ${credibilityHTML}
               ${xSignalHTML}
               ${featHTML}
+              ${dismissHTML}
             </div>
             <div class="tl-head-r">
               <span class="tl-num" title="AI 推荐分">AI ${numStr}</span>
@@ -1128,6 +1197,7 @@
           ${mediaHTML(it)}
           ${bodyHTML(it)}
           <div class="tl-tags">${(it.tags || []).map(t => `<span class="tl-tag" data-tag="${esc(t)}"># ${hl(t, state.kw)}</span>`).join("")}</div>
+          ${impactHTML(it)}
           ${reasonHTML(it) ? `<div class="tl-divider"></div>${reasonHTML(it)}` : ''}
           ${relatedHTML}
         </article>
@@ -1878,10 +1948,13 @@ ${restUrl}
 
   /* ---------- 侧栏点击 → 切换视图 ---------- */
   /* ---------- 切换视图（侧栏 + 底部 tab 共用） ---------- */
-  function goToView(view) {
+  function goToView(view, options = {}) {
     if (!view) return;
     // 顶部状态
     state.view = view;
+    if (options.history !== false && location.hash !== `#${view}`) {
+      history.pushState({ view }, "", `#${view}`);
+    }
     state.cat = "全部"; state.tag = null; state.kw = "";
     const search = $("#search"); if (search) search.value = "";
     // 同步侧栏高亮
@@ -1985,6 +2058,53 @@ ${restUrl}
   }
 
   /* ---------- 时间线 合并/分开 切换（v18.4：按天） ---------- */
+  function bindDismissed() {
+    document.addEventListener("click", e => {
+      const b = e.target.closest("[data-dismiss]");
+      if (!b) return;
+      e.preventDefault();
+      dismissItem(b.dataset.dismiss);
+      const card = b.closest(".tl-item");
+      if (card) card.remove();
+    });
+  }
+
+  function bindIntelTools() {
+    document.addEventListener("click", e => {
+      const b = e.target.closest("[data-fav-action]");
+      if (!b) return;
+      e.preventDefault();
+      if (b.dataset.favAction === "export") exportFavs();
+      if (b.dataset.favAction === "import") {
+        const input = document.querySelector("[data-fav-import]");
+        if (input) input.click();
+      }
+      if (b.dataset.favAction === "clear-dismissed") { clearDismissed(); renderFeed(); }
+    });
+    document.addEventListener("change", e => {
+      if (e.target.matches("[data-fav-import]")) importFavs(e.target.files && e.target.files[0]);
+    });
+  }
+
+  function bindShare() {
+    const share = $("#shareBtn");
+    const back = $("#backBtn");
+    if (share) share.addEventListener("click", async () => {
+      const url = `${location.origin}${location.pathname}#${state.view}`;
+      const title = `PV HOT · ${(VIEW_META[state.view] || VIEW_META.featured).title}`;
+      try {
+        if (navigator.share) await navigator.share({ title, text: "光伏行业情报", url });
+        else if (navigator.clipboard) await navigator.clipboard.writeText(url);
+        share.textContent = "✓";
+        setTimeout(() => { share.textContent = "↗"; }, 1400);
+      } catch (e) {}
+    });
+    if (back) back.addEventListener("click", () => {
+      if (history.length > 1) history.back();
+      else goToView("featured");
+    });
+  }
+
   function bindMergeToggle() {
     document.addEventListener("click", e => {
       const b = e.target.closest(".dh-toggle");
@@ -2060,7 +2180,7 @@ ${restUrl}
     const v = (location.hash || "").replace(/^#/, "");
     if (!v) return;
     const target = $$(".sb-item").find(x => x.dataset.view === v);
-    if (target) target.click();
+    if (target) goToView(target.dataset.view, { history: false });
   }
 
   /* ---------- 启动：照搬 aihot「拉取数据 → 渲染」 ----------
@@ -2085,6 +2205,7 @@ ${restUrl}
   }
   const useData = (json, fromFallback) => {
     DATA = json;
+    saveDataCache(json);
     preprocessData(DATA);
     ensureDerived(DATA.items);
     renderMeta();
@@ -2096,6 +2217,9 @@ ${restUrl}
     bindPriceTabs();
     bindDark();
     bindFav();
+    bindDismissed();
+    bindIntelTools();
+    bindShare();
     bindMergeToggle();
     bindToTop();
     bindCopy();
@@ -2104,6 +2228,7 @@ ${restUrl}
     updateFavBadge();
     applyHash();
     window.addEventListener("hashchange", applyHash);
+    window.addEventListener("popstate", applyHash);
     loadTexts();
     if (fromFallback) {
       // 注意：不再追加“当前使用内嵌数据”底部提示条
@@ -2114,6 +2239,7 @@ ${restUrl}
 
   const upgradeToFullData = (json) => {
     DATA = json;
+    saveDataCache(json);
     preprocessData(DATA);
     ensureDerived(DATA.items);
     document.documentElement.dataset.fullData = "ready";
@@ -2177,14 +2303,24 @@ ${restUrl}
           .catch(err => console.warn("[PV-HOT] 完整数据后台加载失败：", err.message));
       }, 0);
     })
-    .catch(err => loadFallbackData()
+    .catch(err => {
+      const cached = loadDataCache();
+      if (cached) {
+        console.warn("[PV-HOT] 网络数据不可用，先使用本地缓存：", err.message);
+        useData(cached, true);
+        return loadFallbackData().then((json) => {
+          if (json && json.items && json.items.length > cached.items.length) useData(json, true);
+        }).catch(() => {});
+      }
+      return loadFallbackData()
       .then(json => {
         console.warn("[PV-HOT] 实时数据不可用，已加载兜底数据：", err.message);
         useData(json, true);
       })
       .catch(fallbackErr => {
         $("#viewBody").innerHTML = `<div class="empty">数据加载失败：${esc(fallbackErr.message)}<br/>请稍后刷新重试。</div>`;
-      }));
+      });
+    });
 
   /* ---------- 加载可编辑 texts（关于/Agent/反馈/更新日志） ---------- */
   function loadTexts() {

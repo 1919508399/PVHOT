@@ -86,6 +86,11 @@ const SOURCE_HEALTH_LOCK_OPTIONS = {
   timeoutMs: Number(process.env.PVHOT_SOURCE_HEALTH_LOCK_TIMEOUT_MS || 30_000),
   staleMs: Number(process.env.PVHOT_SOURCE_HEALTH_LOCK_STALE_MS || 15 * 60_000),
 };
+const TRUSTED_PROXY_IPS = new Set(
+  String(process.env.PVHOT_TRUSTED_PROXY_IPS || '127.0.0.1,::1')
+    .split(',').map((value) => value.trim()).filter(Boolean)
+);
+const STATS_SALT = String(process.env.PVHOT_STATS_SALT || `pvhot:${ROOT}:stats`);
 // 允许 3MB 图片经过 base64 膨胀后的 JSON 请求，同时拦截异常大请求。
 const MAX_BODY_BYTES = 5 * 1024 * 1024;
 const MAX_SOURCE_BODY_BYTES = 32 * 1024;
@@ -101,13 +106,22 @@ function saveStats(s) {
   try { atomicWriteJsonSync(STATS_FILE, s); }
   catch (e) { console.error('[stats] save error', e); }
 }
+function requestIp(req) {
+  const peer = String(req.socket?.remoteAddress || 'unknown').replace(/^::ffff:/, '');
+  if (!TRUSTED_PROXY_IPS.has(peer)) return peer;
+  return String(req.headers['x-forwarded-for'] || peer).split(',')[0].trim().replace(/^::ffff:/, '') || peer;
+}
+function privacyId(value) {
+  return crypto.createHmac('sha256', STATS_SALT).update(String(value || 'unknown')).digest('hex');
+}
 function recordVisit(ip, path, referrer) {
+  const visitorId = privacyId(ip);
   const s = loadStats();
   const dk = todayKey();
   if (!s.days[dk]) s.days[dk] = { pv: 0, uv: 0, ips: [], paths: {}, refs: {} };
   const d = s.days[dk];
   d.pv++;
-  if (!d.ips.includes(ip)) { d.ips.push(ip); d.uv = d.ips.length; }
+  if (!d.ips.includes(visitorId)) { d.ips.push(visitorId); d.uv = d.ips.length; }
   // 保留最多 500 个 IP（防内存膨胀）
   if (d.ips.length > 500) d.ips = d.ips.slice(-500);
   // 路径统计
@@ -122,7 +136,7 @@ function recordVisit(ip, path, referrer) {
   // 总计
   s.total.pv = (s.total.pv || 0) + 1;
   if (!s.total.ips) s.total.ips = [];
-  if (!s.total.ips.includes(ip)) { s.total.ips.push(ip); s.total.uv = s.total.ips.length; }
+  if (!s.total.ips.includes(visitorId)) { s.total.ips.push(visitorId); s.total.uv = s.total.ips.length; }
   if (s.total.ips.length > 2000) s.total.ips = s.total.ips.slice(-2000);
   // 清理 90 天前的旧数据
   const cutoff = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
@@ -909,8 +923,7 @@ let sourceProbeBusy = false;
 const aiTestRate = new Map();
 let aiTestBusy = false;
 function sourceProbeAllowed(req) {
-  const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown')
-    .split(',')[0].trim().slice(0, 80);
+  const ip = requestIp(req);
   const now = Date.now();
   const recent = (sourceProbeRate.get(ip) || []).filter((time) => now - time < 60000);
   if (recent.length >= 5) {
@@ -923,8 +936,7 @@ function sourceProbeAllowed(req) {
 }
 
 function aiTestAllowed(req) {
-  const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown')
-    .split(',')[0].trim().slice(0, 80);
+  const ip = requestIp(req);
   const now = Date.now();
   const recent = (aiTestRate.get(ip) || []).filter((time) => now - time < 60000);
   if (recent.length >= 3) {
@@ -1208,7 +1220,7 @@ const server = http.createServer(async (req, res) => {
   /* ---------- 登录 / 退出（无需登录） ---------- */
   if (p === '/admin/api/login' && method === 'POST') {
     const body = await getBodyOrReject(req, res); if (!body) return;
-    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
+    const ip = requestIp(req);
     if (!loginAllowed(ip)) {
       send(res, 429, { error: '尝试次数过多，请 15 分钟后再试' });
       return;
@@ -1369,7 +1381,7 @@ const server = http.createServer(async (req, res) => {
 
   /* ---------- 公共：用户提交反馈（无需登录） ---------- */
   if (p === '/api/feedback' && method === 'POST') {
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    const ip = requestIp(req);
     if (!rateOk(ip)) { send(res, 429, { error: '请求过于频繁，1 分钟后再试' }); return; }
     const body = await getBodyOrReject(req, res); if (!body) return;
     const msg = (body.msg || '').toString().trim();
@@ -1387,7 +1399,7 @@ const server = http.createServer(async (req, res) => {
       email,
       page: (body.page || '').toString().slice(0, 200),
       ua: (body.ua || '').toString().slice(0, 200),
-      ip: String(ip).slice(0, 60),
+      ipHash: privacyId(ip),
       read: false,
     };
     list.unshift(item);
@@ -1395,7 +1407,7 @@ const server = http.createServer(async (req, res) => {
     if (list.length > 1000) list = list.slice(0, 1000);
     try { atomicWriteJsonSync(FEEDBACK_FILE, list, { space: 2, trailingNewline: true }); }
     catch (e) { send(res, 500, { error: '写入失败' }); return; }
-    console.log('[fb] from', ip, 'len', msg.length, 'email?', !!email);
+    console.log('[fb] received len', msg.length, 'email?', !!email);
     send(res, 200, { ok: true, id: item.id });
     return;
   }
@@ -1403,7 +1415,7 @@ const server = http.createServer(async (req, res) => {
 
   /* ---------- 公共：访问统计上报（无需登录） ---------- */
   if (p === '/api/track' && method === 'POST') {
-    const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').replace(/^::ffff:/, '').slice(0, 60);
+    const ip = requestIp(req);
     const body = await getBodyOrReject(req, res); if (!body) return;
     const visitedPath = (body.path || '/').toString().slice(0, 120);
     const referrer = (body.ref || '').toString().slice(0, 200);

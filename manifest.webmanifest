@@ -1,0 +1,19 @@
+{
+  "name": "PV HOT 光伏行业情报",
+  "short_name": "PV HOT",
+  "description": "光伏产业链新闻、价格与研究简报",
+  "lang": "zh-CN",
+  "start_url": "./#featured",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f8f7f3",
+  "theme_color": "#f8f7f3",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%230b172a'/%3E%3Ccircle cx='45' cy='18' r='8' fill='%23f6b73c'/%3E%3Ctext x='8' y='44' font-family='Arial Black,sans-serif' font-size='27' font-weight='900' fill='white'%3EPV%3C/text%3E%3C/svg%3E",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

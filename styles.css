@@ -364,6 +364,29 @@ body.dark .wp-eyebrow { color: #5fb5c4; }
   .daily-section .ds-item .ds-time, .daily-section .ds-item .ds-heat { display: none; }
 }
 
+/* v7.0 navigation and local intelligence controls */
+.topbar-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.topbar-action {
+  width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 9px;
+  background: var(--card); color: var(--ink-2); cursor: pointer; font-size: 17px; line-height: 1;
+}
+.topbar-action:hover { color: var(--emerald); border-color: var(--emerald); }
+.intel-tools {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 14px;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--card);
+  color: var(--ink-2); font-size: 12px;
+}
+.intel-tools span { margin-right: auto; font-weight: 600; }
+.intel-tools button { border: 0; background: transparent; color: var(--emerald); cursor: pointer; padding: 4px 6px; }
+.tl-dismiss { border: 0; background: transparent; color: var(--ink-3); cursor: pointer; font-size: 16px; padding: 0 2px; }
+.tl-dismiss:hover { color: #b44b4b; }
+.tl-credibility { color: var(--ink-3); font-size: 10px; border: 1px solid var(--border); border-radius: 999px; padding: 1px 5px; }
+@media (max-width: 640px) {
+  .topbar-actions { gap: 4px; }
+  .topbar-action { width: 30px; height: 30px; }
+  .intel-tools { margin-left: 0; margin-right: 0; }
+}
+
 /* ===================== 当前热点 TOP 5 ===================== */
 .block { margin-top: 18px; }
 .block-head { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
@@ -686,6 +709,13 @@ body.dark .wp-eyebrow { color: #5fb5c4; }
   line-height: 1.7;
 }
 .tl-reason b { color: var(--cyan); font-weight: 800; margin-right: 4px; }
+.tl-impact {
+  font-size: 12.5px; color: var(--ink-2); line-height: 1.7;
+  padding: 9px 12px; border-radius: 0 6px 6px 0;
+  background: color-mix(in srgb, var(--emerald) 7%, transparent);
+  border-left: 3px solid var(--emerald); margin-top: 8px;
+}
+.tl-impact b { color: var(--emerald); font-weight: 800; margin-right: 4px; }
 
 /* —— 主题视图分组标题 —— */
 .cat-head {

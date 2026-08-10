@@ -8,7 +8,7 @@ test('source catalog separates publishers, collection channels and discovery rul
   const catalog = buildSourceCatalog();
   assert.equal(catalog.schemaVersion, 1);
   assert.ok(catalog.publishers.length > 40);
-  assert.equal(catalog.channels.length, 64);
+  assert.equal(catalog.channels.length, 65);
   assert.equal(catalog.discoveryRules.length, 26);
 
   const pvTechChannels = catalog.channels.filter((channel) =>
