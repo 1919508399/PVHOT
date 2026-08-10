@@ -10,6 +10,7 @@ const {
   STATUS_BLOCKED,
   STATUS_PARSE_ERROR,
   STATUS_STALE,
+  STATUS_PENDING,
   advanceHealthEntry,
   buildHealthEntry,
   defaultStaleAfterHours,
@@ -23,13 +24,14 @@ function hoursBefore(hours) {
   return new Date(NOW.getTime() - hours * HOUR).toISOString();
 }
 
-test('exports the five stable source-health statuses', () => {
+test('exports the stable source-health statuses including pending', () => {
   assert.deepEqual(HEALTH_STATUS, {
     NORMAL: 'normal',
     NO_NEW: 'no_new',
     BLOCKED: 'blocked',
     PARSE_ERROR: 'parse_error',
     STALE: 'stale',
+    PENDING: 'pending',
   });
   assert.deepEqual(HEALTH_STATUSES, [
     STATUS_NORMAL,
@@ -37,6 +39,7 @@ test('exports the five stable source-health statuses', () => {
     STATUS_BLOCKED,
     STATUS_PARSE_ERROR,
     STATUS_STALE,
+    STATUS_PENDING,
   ]);
 });
 
@@ -257,6 +260,7 @@ test('summarizeHealth counts every state and exposes compatibility totals', () =
     blocked: 1,
     parse_error: 1,
     stale: 1,
+    pending: 0,
   });
   assert.equal(summary.total, 6);
   assert.equal(summary.checked, 6);

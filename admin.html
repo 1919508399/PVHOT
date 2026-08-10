@@ -211,7 +211,7 @@
   .fb-foot{display:flex; gap:6px; margin-top:10px; flex-wrap:wrap;}
 
   /* 信源健康中心 */
-  .source-summary-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:16px;}
+  .source-summary-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:16px;}
   .source-summary-card{--source-tone:var(--ink-3);appearance:none;text-align:left;border:1px solid var(--border);
     border-radius:16px;background:var(--card);color:var(--ink);padding:15px 16px;box-shadow:var(--shadow-1);
     transition:.16s;min-width:0;}
@@ -222,6 +222,7 @@
   .source-summary-card[data-tone="blocked"]{--source-tone:#c56642;}
   .source-summary-card[data-tone="parse-error"]{--source-tone:#c64d54;}
   .source-summary-card[data-tone="stale"]{--source-tone:#ae7b26;}
+  .source-summary-card[data-tone="pending"]{--source-tone:#6c83a2;}
   .source-summary-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
   .source-summary-dot{width:9px;height:9px;border-radius:50%;background:var(--source-tone);
     box-shadow:0 0 0 5px color-mix(in srgb,var(--source-tone) 12%,transparent);}
@@ -255,6 +256,7 @@
   .source-status-badge.blocked{color:#ad532f;background:#fbf0e9;border-color:#f3dacb;}
   .source-status-badge.parse-error{color:#b53f47;background:#faecee;border-color:#f1d2d5;}
   .source-status-badge.stale{color:#95681d;background:#f8f1df;border-color:#ecdfbc;}
+  .source-status-badge.pending{color:#58708f;background:#eef3f8;border-color:#d8e2ed;}
   .source-metrics{display:grid;grid-template-columns:repeat(3,max-content);gap:2px 10px;white-space:nowrap;}
   .source-metrics span{display:flex;flex-direction:column;color:var(--ink-3);font-size:9.5px;}
   .source-metrics b{color:var(--ink);font-size:12px;margin-top:2px;}
@@ -931,6 +933,10 @@
             <span class="source-summary-top"><span class="source-summary-label">长期未更新</span><i class="source-summary-dot"></i></span>
             <strong id="sourceCountStale">—</strong><small>超过设定时间没有新文章</small>
           </button>
+          <button class="source-summary-card" data-source-summary="pending" data-tone="pending" type="button">
+            <span class="source-summary-top"><span class="source-summary-label">待首次检查</span><i class="source-summary-dot"></i></span>
+            <strong id="sourceCountPending">—</strong><small>尚未完成真实抓取，不计入无新稿</small>
+          </button>
         </div>
 
         <div class="source-toolbar">
@@ -945,6 +951,7 @@
             <option value="blocked">被拦截</option>
             <option value="parseError">解析失败</option>
             <option value="stale">长期未更新</option>
+            <option value="pending">待首次检查</option>
           </select>
           <select class="cat" id="sourceKindFilter" aria-label="按抓取方式筛选">
             <option value="">全部类型</option>
@@ -1855,6 +1862,7 @@
     blocked: { label:'被拦截', cls:'blocked', help:'来源限制访问，或所需接口尚未配置' },
     parseError: { label:'解析失败', cls:'parse-error', help:'网络或页面格式需要处理' },
     stale: { label:'长期未更新', cls:'stale', help:'超过设定时间没有新文章' },
+    pending: { label:'待首次检查', cls:'pending', help:'尚未完成真实抓取，不计入无新稿' },
   };
 
   function normalizeSourceStatus(value){
@@ -1863,6 +1871,7 @@
     if (['nonew','empty','none','noitem','noitems'].includes(compact)) return 'noNew';
     if (['blocked','captcha','forbidden','ratelimited','denied'].includes(compact)) return 'blocked';
     if (['stale','outdated','longinactive'].includes(compact)) return 'stale';
+    if (['pending','unchecked','waiting','notchecked'].includes(compact)) return 'pending';
     if (['parseerror','error','failed','failure','timeout','unhealthy'].includes(compact)) return 'parseError';
     return 'parseError';
   }
@@ -1919,7 +1928,7 @@
   }
 
   function sourceStatusCounts(items){
-    const counts = { normal:0, noNew:0, blocked:0, parseError:0, stale:0 };
+    const counts = { normal:0, noNew:0, blocked:0, parseError:0, stale:0, pending:0 };
     items.forEach(source => { counts[normalizeSourceStatus(source.status)]++; });
     return counts;
   }
@@ -1934,8 +1943,12 @@
     $('#sourceCountBlocked').textContent = count('blocked');
     $('#sourceCountParseError').textContent = count('parseError');
     $('#sourceCountStale').textContent = count('stale');
+    $('#sourceCountPending').textContent = count('pending');
     const checked = summary.checked == null ? items.length : sourceNumber(summary.checked);
-    $('#sourceCheckedText').textContent = checked ? `已检查 ${checked} 个信源` : '尚无检查结果';
+    const total = summary.total == null ? items.length : sourceNumber(summary.total);
+    $('#sourceCheckedText').textContent = checked
+      ? `已检查 ${checked} / ${total} 个信源`
+      : (total ? `等待首次检查（共 ${total} 个信源）` : '尚无检查结果');
     const xApiText = data.integrations && data.integrations.xApiConfigured
       ? 'X 官方 API 已配置'
       : (data.integrations && data.integrations.xIndirectEnabled
@@ -1959,7 +1972,7 @@
     const status = sourceState.status;
     const kind = sourceState.kind;
     const origin = sourceState.origin;
-    const statusOrder = { blocked:0, parseError:1, stale:2, noNew:3, normal:4 };
+    const statusOrder = { blocked:0, parseError:1, stale:2, pending:3, noNew:4, normal:5 };
     return sourceState.items.filter(source => {
       const currentStatus = normalizeSourceStatus(source.status);
       if (status && currentStatus !== status) return false;
