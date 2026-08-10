@@ -24,7 +24,8 @@
       return saved && saved.data && Array.isArray(saved.data.items) ? saved.data : null;
     } catch (e) { return null; }
   }
-  let TEXTS = null;  // 关于 / Agent / 反馈 / 更新日志 4 段可编辑文本
+  let TEXTS = null;  // 关于 / Agent / 反馈 / 更新日志 / 精选公告可编辑文本
+  let dismissedAnnouncementSignature = "";
   let state = { view: "featured", cat: "全部", tag: null, kw: "", dailyTab: "day", dailyDate: null, dailyWeek: null, dailyMonth: null };
 
   /* ---------- 时间线「合并/分开」状态（v18.4：按天持久化） ---------- */
@@ -67,6 +68,10 @@
       eyebrow: "反 馈",
       title_html: "<span class=\"abt-emerald\">说说</span>你的想法",
       sub_html: "发现 bug、想要的功能、看<span class=\"abt-emerald\">不顺眼</span>的地方——都可以告诉我。<br/>我都会看到。"
+    },
+    announcement: {
+      title: "",
+      body: ""
     },
     changelog: {
       items: [
@@ -757,6 +762,65 @@
     } else {
       await renderInfoView(state.view);
     }
+    renderFeaturedAnnouncement();
+  }
+
+  /* ---------- 精选页弹窗公告 ---------- */
+  function getFeaturedAnnouncement() {
+    const value = TEXTS && TEXTS.announcement;
+    if (!value || typeof value !== "object") return null;
+    const title = String(value.title || "").trim();
+    const body = String(value.body || "").trim();
+    if (!title && !body) return null;
+    return {
+      title: title || "重要公告",
+      body,
+      signature: title + "\n" + body,
+    };
+  }
+
+  function hideFeaturedAnnouncement() {
+    const modal = $("#featuredAnnouncementModal");
+    if (!modal) return;
+    modal.classList.remove("show");
+    modal.setAttribute("aria-hidden", "true");
+  }
+
+  function renderFeaturedAnnouncement() {
+    const modal = $("#featuredAnnouncementModal");
+    if (!modal) return;
+    const announcement = getFeaturedAnnouncement();
+    if (!announcement || state.view !== "featured") {
+      hideFeaturedAnnouncement();
+      return;
+    }
+    const title = $("#featuredAnnouncementTitle");
+    const body = $("#featuredAnnouncementBody");
+    if (title) title.textContent = announcement.title;
+    if (body) {
+      body.textContent = announcement.body;
+      body.hidden = !announcement.body;
+    }
+    const shouldShow = dismissedAnnouncementSignature !== announcement.signature;
+    modal.classList.toggle("show", shouldShow);
+    modal.setAttribute("aria-hidden", shouldShow ? "false" : "true");
+  }
+
+  function dismissFeaturedAnnouncement() {
+    const announcement = getFeaturedAnnouncement();
+    if (announcement) dismissedAnnouncementSignature = announcement.signature;
+    hideFeaturedAnnouncement();
+  }
+
+  function bindFeaturedAnnouncement() {
+    const modal = $("#featuredAnnouncementModal");
+    if (!modal) return;
+    $$('[data-announcement-dismiss]', modal).forEach(button => {
+      button.onclick = dismissFeaturedAnnouncement;
+    });
+    modal.onclick = event => {
+      if (event.target === modal) dismissFeaturedAnnouncement();
+    };
   }
 
   function renderTimeline(list) {
@@ -2276,6 +2340,7 @@ ${restUrl}
     bindCopy();
     bindGoView();
     bindMbTab();
+    bindFeaturedAnnouncement();
     updateFavBadge();
     applyHash();
     window.addEventListener("hashchange", applyHash);
@@ -2380,6 +2445,8 @@ ${restUrl}
       // 当前如果停在某个 info 视图，重渲一次让最新内容生效
       if (state.view === "about" || state.view === "agent" || state.view === "feedback" || state.view === "changelog") {
         renderInfoView(state.view);
+      } else if (state.view === "featured") {
+        renderFeed();
       }
     };
     if (window.__PV_FALLBACK_TEXTS) { apply(window.__PV_FALLBACK_TEXTS); return; }

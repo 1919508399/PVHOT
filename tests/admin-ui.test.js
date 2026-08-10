@@ -181,4 +181,24 @@ test('admin request body keeps Chinese text intact when UTF-8 bytes arrive in se
   assert.equal(safeSave.status, 200);
   const savedTexts = JSON.parse(fs.readFileSync(path.join(sandbox, 'site_texts.json'), 'utf8'));
   assert.deepEqual(savedTexts.about, safeValue);
+
+  const announcementValue = {
+    title:'本周行业公告',
+    body:'精选页会优先展示这条重要提醒。',
+  };
+  const announcementSave = await fetch(`http://127.0.0.1:${port}/admin/api/texts/announcement`, {
+    method:'PUT', headers:{ 'Content-Type':'application/json', Cookie:cookie },
+    body:JSON.stringify({ value:announcementValue }),
+  });
+  assert.equal(announcementSave.status, 200);
+  const withAnnouncement = JSON.parse(fs.readFileSync(path.join(sandbox, 'site_texts.json'), 'utf8'));
+  assert.deepEqual(withAnnouncement.announcement, announcementValue);
+
+  const announcementClear = await fetch(`http://127.0.0.1:${port}/admin/api/texts/announcement`, {
+    method:'PUT', headers:{ 'Content-Type':'application/json', Cookie:cookie },
+    body:JSON.stringify({ value:{ title:'', body:'' } }),
+  });
+  assert.equal(announcementClear.status, 200);
+  const clearedTexts = JSON.parse(fs.readFileSync(path.join(sandbox, 'site_texts.json'), 'utf8'));
+  assert.deepEqual(clearedTexts.announcement, { title:'', body:'' });
 });

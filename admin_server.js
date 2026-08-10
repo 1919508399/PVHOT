@@ -421,6 +421,12 @@ function validateEditableTextPayload(key, value) {
     ]);
     if (fieldError) return fieldError;
   }
+  if (key === 'announcement') {
+    const fieldError = checkFields([
+      ['title','公告标题',120,false], ['body','公告正文',2000,false],
+    ]);
+    if (fieldError) return fieldError;
+  }
   if (key === 'changelog') {
     if (!Array.isArray(value.items) || value.items.length > 500) return '更新日志格式不正确';
     for (const item of value.items) {
@@ -1697,7 +1703,7 @@ const server = http.createServer(async (req, res) => {
   if (p.startsWith('/admin/api/texts/') && method === 'PUT') {
     const seg = p.split('/').filter(Boolean); // ['admin','api','texts',':key']
     const key = decodeURIComponent(seg[3] || '');
-    if (!['about','agent','changelog'].includes(key)) { send(res, 400, { error: '当前只允许编辑 about / agent / changelog' }); return; }
+    if (!['about','agent','announcement','changelog'].includes(key)) { send(res, 400, { error: '当前只允许编辑 about / agent / announcement / changelog' }); return; }
     const body = await getBodyOrReject(req, res); if (!body) return;
     let t;
     try { t = JSON.parse(fs.readFileSync(TEXTS_FILE, 'utf8')); } catch (e) { t = { about: {}, agent: {}, changelog: { items: [] } }; }

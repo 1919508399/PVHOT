@@ -1138,6 +1138,7 @@
 
         <nav class="content-nav" aria-label="页面内容分类">
           <button class="content-nav-item on" type="button" data-content-tab="about"><span class="content-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 10v6M12 7h.01"/></svg></span><span><b>关于我们</b><small>品牌介绍与页脚说明</small></span></button>
+          <button class="content-nav-item" type="button" data-content-tab="announcement"><span class="content-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v10H4z"/><path d="m8 7 1.5-3h5L16 7M8 11h8M8 14h5"/></svg></span><span><b>精选公告</b><small>精选页弹窗公告</small></span></button>
           <button class="content-nav-item" type="button" data-content-tab="agent"><span class="content-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8v3H8zM5 8h14v11H5zM9 12h.01M15 12h.01M9 16h6"/></svg></span><span><b>智能助手接入</b><small>接入介绍与示例问题</small></span></button>
           <button class="content-nav-item" type="button" data-content-tab="qrcode"><span class="content-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM15 14h2v2h-2zM18 14h2v6h-6v-2"/></svg></span><span><b>公众号二维码</b><small>更换关于页展示图片</small></span></button>
           <button class="content-nav-item" type="button" data-content-tab="changelog"><span class="content-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span><span><b>更新日志</b><small>发布网站更新记录</small></span></button>
@@ -1154,6 +1155,17 @@
               <div class="field"><label>版权与联系说明</label><textarea data-field="fineprint_html" data-format="html-block" aria-label="关于页版权与联系说明" maxlength="800" class="ta-big" placeholder="说明内容来源和联系办法"></textarea></div>
             </div>
             <aside class="content-preview" aria-label="关于页文字预览"><span>效果预览</span><small id="aboutPreviewEyebrow">关于这个站</small><h3 id="aboutPreviewTitle">PV HOT</h3><p id="aboutPreviewSub">页面介绍会显示在这里。</p><div id="aboutPreviewPoem" class="preview-lines"></div><div id="aboutPreviewFine" class="preview-fine"></div></aside>
+          </div>
+        </section>
+
+        <section class="content-pane" data-content-pane="announcement" hidden>
+          <div class="editor-layout">
+            <div class="text-block" data-key="announcement">
+              <div class="block-heading"><div><h3>精选页弹窗公告</h3><p>填写后会在精选页打开时突出显示；标题和正文都留空时，前台不会显示公告。</p></div><span class="publish-badge">前台可见</span></div>
+              <div class="field"><label>公告标题</label><input data-field="title" aria-label="精选页公告标题" maxlength="120" placeholder="例如：本周光伏行业重点观察" /></div>
+              <div class="field"><label>公告正文</label><textarea data-field="body" aria-label="精选页公告正文" maxlength="2000" class="ta-big" placeholder="填写希望访客优先看到的公告内容"></textarea><small class="field-help">支持换行。填写标题或正文后，精选页会自动弹出公告。</small></div>
+            </div>
+            <aside class="content-preview announcement-preview" aria-label="精选页公告预览"><span>精选页弹窗预览</span><small>重要公告</small><h3 id="announcementPreviewTitle">公告标题</h3><p id="announcementPreviewBody">公告正文会显示在这里。</p><div class="preview-question"><b>显示方式</b><span>精选页打开时自动出现，可由访客关闭。</span></div></aside>
           </div>
         </section>
 
@@ -1363,7 +1375,7 @@
   let state = { q:'', cat:'', page:1, pageSize:20, total:0, tab: 'news' };
   let sourceState = { items:[], q:'', status:'', kind:'', origin:'', loaded:false };
   let feedbackState = { items:[], filter:'all', q:'' };
-  let contentState = { active:'about', dirty:{ about:false, agent:false } };
+  let contentState = { active:'about', dirty:{ about:false, agent:false, announcement:false } };
   let sourceSearchTimer = null;
   let editingId = null;
   let TEXTS_DATA = null; // 内容管理加载到的整组数据
@@ -2483,7 +2495,7 @@
     if (!r.ok || !r.data.texts){ $('#txtMeta').textContent = '暂时无法读取，请稍后重试'; return; }
     TEXTS_DATA = r.data.texts;
     fillTextPanels();
-    contentState.dirty = { about:false, agent:false };
+    contentState.dirty = { about:false, agent:false, announcement:false };
     updateContentControls();
     $('#txtMeta').textContent = '页面内容已同步';
   }
@@ -2495,6 +2507,9 @@
     setTextBlock('agent', TEXTS_DATA.agent || {}, (v) => ({
       eyebrow: v.eyebrow, title_html: v.title_html, sub_html: v.sub_html,
       verify_q: v.verify_q,
+    }));
+    setTextBlock('announcement', TEXTS_DATA.announcement || {}, (v) => ({
+      title: v.title, body: v.body,
     }));
     renderContentPreviews();
     loadQrcode();
@@ -2528,6 +2543,9 @@
       verify_q: m.verify_q,
       skill_md: (TEXTS_DATA && TEXTS_DATA.agent && TEXTS_DATA.agent.skill_md) || '',
     }));
+    out.announcement = readTextBlock('announcement', (m) => ({
+      title: m.title, body: m.body,
+    }));
     return out;
   }
   function readTextBlock(key, mapper){
@@ -2558,10 +2576,12 @@
     $('#agentPreviewTitle').textContent = value('agent','title_html') || '让智能助手直接使用 PV HOT';
     $('#agentPreviewSub').textContent = value('agent','sub_html') || '接入说明会显示在这里。';
     $('#agentPreviewQuestion').textContent = value('agent','verify_q') || '今天光伏行业最重要的 5 件事是什么？';
+    $('#announcementPreviewTitle').textContent = value('announcement','title') || '公告标题';
+    $('#announcementPreviewBody').textContent = value('announcement','body') || '公告正文会显示在这里。';
   }
   function updateContentControls(){
     const save = $('#txtSaveAll');
-    const editable = contentState.active === 'about' || contentState.active === 'agent';
+    const editable = ['about','agent','announcement'].includes(contentState.active);
     save.style.display = editable ? '' : 'none';
     save.disabled = !editable || !contentState.dirty[contentState.active];
     save.textContent = '保存并发布';
@@ -2588,7 +2608,7 @@
   $$('#panelContent [data-field]').forEach(field => {
     field.addEventListener('input', () => {
       const block = field.closest('.text-block');
-      if (block && (block.dataset.key === 'about' || block.dataset.key === 'agent')) {
+      if (block && ['about','agent','announcement'].includes(block.dataset.key)) {
         contentState.dirty[block.dataset.key] = true;
         renderContentPreviews();
         updateContentControls();
@@ -2597,7 +2617,7 @@
   });
   $('#txtSaveAll').onclick = async () => {
     const key = contentState.active;
-    if (!['about','agent'].includes(key) || !contentState.dirty[key]) return;
+    if (!['about','agent','announcement'].includes(key) || !contentState.dirty[key]) return;
     let payload;
     try { payload = readTextPanels()[key]; }
     catch (e) { toast(e.message); return; }
@@ -2606,11 +2626,14 @@
     if (r.ok) {
       TEXTS_DATA[key] = payload;
       contentState.dirty[key] = false;
-      setTextBlock(key, payload, key === 'about'
+      const mapper = key === 'about'
         ? (v) => ({ eyebrow:v.eyebrow, title_html:v.title_html, sub:v.sub, poem:Array.isArray(v.poem)?v.poem.join('\n'):(v.poem||''), fineprint_html:v.fineprint_html })
-        : (v) => ({ eyebrow:v.eyebrow, title_html:v.title_html, sub_html:v.sub_html, verify_q:v.verify_q }));
+        : key === 'agent'
+          ? (v) => ({ eyebrow:v.eyebrow, title_html:v.title_html, sub_html:v.sub_html, verify_q:v.verify_q })
+          : (v) => ({ title:v.title, body:v.body });
+      setTextBlock(key, payload, mapper);
       renderContentPreviews();
-      toast(key === 'about' ? '关于页面已发布' : '智能助手接入页已发布');
+      toast(key === 'about' ? '关于页面已发布' : key === 'agent' ? '智能助手接入页已发布' : '精选页公告已发布');
     } else {
       toast('保存失败，请稍后重试');
     }

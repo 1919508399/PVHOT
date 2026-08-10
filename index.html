@@ -37,7 +37,7 @@
   <!-- Favicon -->
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%230b172a'/%3E%3Ccircle cx='45' cy='18' r='8' fill='%23f6b73c'/%3E%3Ctext x='8' y='44' font-family='Arial Black,sans-serif' font-size='27' font-weight='900' fill='white'%3EPV%3C/text%3E%3C/svg%3E" />
   <link rel="preload" href="data_bootstrap.json?v=20260727-v55" as="fetch" type="application/json" crossorigin="anonymous" media="(max-width: 900px)" />
-  <link rel="stylesheet" href="styles.css?v=20260727-v54" />
+  <link rel="stylesheet" href="styles.css?v=20260810-v56" />
   <!-- JSON-LD 结构化数据 -->
   <script type="application/ld+json">
   {
@@ -247,11 +247,22 @@
 
   <button class="to-top" id="toTop" aria-label="回到顶部">↑</button>
 
+  <!-- 精选页公告：只有后台填写公告标题或正文时才会显示。 -->
+  <div class="featured-announcement" id="featuredAnnouncementModal" aria-hidden="true">
+    <section class="featured-announcement-dialog" role="dialog" aria-modal="true" aria-labelledby="featuredAnnouncementTitle">
+      <button class="featured-announcement-close" type="button" data-announcement-dismiss aria-label="关闭公告">×</button>
+      <div class="featured-announcement-mark"><span>!</span><b>重要公告</b></div>
+      <h2 id="featuredAnnouncementTitle"></h2>
+      <p id="featuredAnnouncementBody"></p>
+      <button class="featured-announcement-ok" type="button" data-announcement-dismiss>知道了</button>
+    </section>
+  </div>
+
   <!-- 移动端遮罩 -->
   <div class="sb-overlay" id="sbOverlay"></div>
 
   <!-- 实时数据失败时由 app.js 按需加载 data_fallback.js，避免首屏重复下载。 -->
-  <script src="app.js?v=20260727-v55"></script>
+  <script src="app.js?v=20260810-v56"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol !== 'file:') {
       window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}), { once: true });
