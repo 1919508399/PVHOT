@@ -645,7 +645,7 @@ function looksBlocked(body) {
 }
 
 /* ---------- 通用 URL 抓取（跟随 30x 重定向，按声明字符集解码）---------- */
-function fetchURL(url, useHTTP, timeout, diagnostics) {
+function fetchURL(url, useHTTP, timeout, diagnostics, options = {}) {
   const reqTimeout = timeout || 15000;
   const health = diagnostics || {};
   const startedAt = Date.now();
@@ -664,8 +664,9 @@ function fetchURL(url, useHTTP, timeout, diagnostics) {
       const req = mod.get(u, {
         headers: {
           'User-Agent': UA,
-          'Accept': 'text/html,application/rss+xml,application/xml,text/xml,*/*',
+          'Accept': options.accept || 'text/html,application/rss+xml,application/xml,text/xml,*/*',
           'Accept-Encoding': 'identity',
+          ...(options.headers || {}),
         }
       }, (res) => {
         health.httpStatus = Number(res.statusCode) || null;
@@ -1194,13 +1195,112 @@ async function fetchRSS(query) {
   return attachHealthDiagnostics(items, diagnostics);
 }
 
-/* ---------- 直接 RSS 抓取（PV Magazine / PV-Tech / CleanTechnica）---------- */
-async function fetchDirectRSS(url) {
+function siteQueryForUrl(rawUrl, explicitQuery = '') {
+  if (explicitQuery) return explicitQuery;
+  try {
+    const hostname = new URL(rawUrl).hostname.replace(/^www\./i, '');
+    return hostname ? `site:${hostname}` : '';
+  } catch (error) {
+    return '';
+  }
+}
+
+async function fetchGoogleNewsFallback(rawUrl, directDiagnostics, explicitQuery = '') {
+  const query = siteQueryForUrl(rawUrl, explicitQuery);
+  if (!query) return null;
+  const fallbackItems = await fetchRSS({ q: query, locale: 'en' });
+  const fallbackHealth = fallbackItems && fallbackItems._health ? fallbackItems._health : {};
+  if (fallbackHealth.blocked || fallbackHealth.parseError || fallbackHealth.ok === false) return null;
+  return attachHealthDiagnostics(fallbackItems, {
+    ...fallbackHealth,
+    blocked: false,
+    parseError: false,
+    errorCode: null,
+    fallbackUsed: true,
+    fallbackMode: 'google-news-site-rss',
+    directErrorCode: directDiagnostics && directDiagnostics.errorCode || null,
+    detail: `直连被限制，已切换为 ${query} 定向 RSS 监控`,
+  });
+}
+
+async function fetchWordPressFallback(feed, directDiagnostics) {
+  let origin;
+  try {
+    origin = new URL(feed.url).origin;
+  } catch (error) {
+    return null;
+  }
+  const since = new Date(Date.now() - MAX_AGE_DAYS * 24 * 3600 * 1000).toISOString();
+  const apiUrl = `${origin}/wp-json/wp/v2/posts?per_page=30&after=${encodeURIComponent(since)}&_fields=date,modified,link,title,excerpt`;
+  const profiles = [
+    {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36',
+      'Accept-Language': 'en-US,en;q=0.9',
+      Referer: origin + '/',
+    },
+    {
+      'User-Agent': 'Googlebot/2.1 (+http://www.google.com/bot.html)',
+      Referer: origin + '/',
+    },
+  ];
+  let diagnostics = {};
+  let body = '';
+  for (const headers of profiles) {
+    diagnostics = {};
+    body = await fetchURL(apiUrl, false, 15000, diagnostics, {
+      accept: 'application/json,text/plain,*/*',
+      headers,
+    });
+    if (body) break;
+  }
+  if (!body) return null;
+  let posts;
+  try { posts = JSON.parse(body); } catch (error) { return null; }
+  if (!Array.isArray(posts)) return null;
+  const items = posts
+    .filter((post) => post && post.link && post.title && post.title.rendered)
+    .map((post) => ({
+      title: stripHtml(post.title.rendered),
+      link: post.link,
+      pubDate: post.date_gmt || post.date || post.modified_gmt || post.modified,
+      source: feed.source || feed.id || '',
+      summary: stripHtml(post.excerpt && post.excerpt.rendered || ''),
+    }));
+  return attachHealthDiagnostics(items, {
+    ok: true,
+    blocked: false,
+    parseError: false,
+    errorCode: null,
+    fallbackUsed: true,
+    fallbackMode: 'wordpress-json',
+    directErrorCode: directDiagnostics && directDiagnostics.errorCode || null,
+    detail: '直连 RSS 被限制，已切换 WordPress JSON 备用通道',
+    httpStatus: diagnostics.httpStatus || 200,
+    durationMs: diagnostics.durationMs,
+  });
+}
+
+/* ---------- 直接 RSS 抓取（直连受限时切换 Google News 定向 RSS）---------- */
+async function fetchDirectRSS(feed) {
+  const config = typeof feed === 'string' ? { url: feed } : (feed || {});
+  const url = config.url;
   const diagnostics = {};
   const xml = await fetchURL(url, false, 15000, diagnostics);
-  if (!xml) return attachHealthDiagnostics([], diagnostics);
+  if (!xml) {
+    const fallback = diagnostics.blocked
+      ? await fetchWordPressFallback(config, diagnostics)
+        || await fetchGoogleNewsFallback(url, diagnostics, config.fallbackQuery)
+      : null;
+    if (fallback) return fallback;
+    return attachHealthDiagnostics([], diagnostics);
+  }
   const items = parseGenericRSS(xml, '');
   applyFeedDiagnostics(xml, items, diagnostics);
+  if (diagnostics.blocked || diagnostics.parseError) {
+    const fallback = await fetchWordPressFallback(config, diagnostics)
+      || await fetchGoogleNewsFallback(url, diagnostics, config.fallbackQuery);
+    if (fallback) return fallback;
+  }
   return attachHealthDiagnostics(items, diagnostics);
 }
 
@@ -1234,7 +1334,13 @@ async function batchFetch(routes, batchSize, fetchFn) {
 async function fetchScrape(config) {
   const diagnostics = {};
   const html = await fetchURL(config.url, false, 15000, diagnostics);
-  if (!html) return attachHealthDiagnostics([], diagnostics);
+  if (!html) {
+    const fallback = diagnostics.blocked
+      ? await fetchGoogleNewsFallback(config.url, diagnostics, config.fallbackQuery)
+      : null;
+    if (fallback) return fallback;
+    return attachHealthDiagnostics([], diagnostics);
+  }
   const items = [];
   const seen = new Set();
   // 匹配所有 <a href="...">text</a> 标签
@@ -2016,7 +2122,7 @@ async function runMain() {
     mapLimit(runtimeQueries, GOOGLE_FETCH_CONCURRENCY, (q) => fetchRSS(q)),
     mapLimit(runtimeRssFeeds, RSS_FETCH_CONCURRENCY, (s) => s.custom
       ? fetchCustomRss(s, { maxItems: 30 })
-      : fetchDirectRSS(s.url)),
+      : fetchDirectRSS(s)),
     Promise.all(SCRAPE_SOURCES.map(s => fetchScrape(s))),
     batchFetch(RSSHUB_ROUTES, 8, (s) => fetchRSSHub(s.route)),
     fetchXSources(runtimeXAccounts, previousHealthReport, {

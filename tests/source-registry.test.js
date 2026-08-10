@@ -14,6 +14,11 @@ test('CPIA parser accepts the current StaticPage article path', () => {
   );
 });
 
+test('BJX direct scraping has a root-domain fallback query', () => {
+  const source = SCRAPE_SOURCES.find((item) => item.id === 'bjx-guangfu');
+  assert.equal(source.fallbackQuery, 'site:bjx.com.cn');
+});
+
 test('Aliyun WAF challenge pages are classified as blocked', () => {
   assert.equal(looksBlocked('<meta name="aliyun_waf_aa" content="challenge"><div id="renderData"></div>'), true);
 });
