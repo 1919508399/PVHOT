@@ -1972,7 +1972,7 @@ ${restUrl}
 
             <div class="fb-actions">
               <button type="submit" class="fb-submit" id="fbSubmit">发送反馈</button>
-              <span class="fb-hint" id="fbHint">提交后会真正发到站长后台，刷新页面再发一条也会保留。</span>
+              <span class="fb-hint" id="fbHint" aria-live="polite"></span>
             </div>
 
             <div class="fb-sent" id="fbSent" hidden>
