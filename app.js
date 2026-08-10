@@ -526,6 +526,31 @@
       fc.style.display = n ? "" : "none";
     }
   };
+  const CHANGELOG_SEEN_KEY = "pvhot-changelog-seen";
+  const getChangelogSignature = () => {
+    const items = TEXTS?.changelog?.items;
+    if (!Array.isArray(items) || !items.length) return "";
+    const latest = items[0] || {};
+    return [latest.ver, latest.date, latest.time, latest.title, latest.text]
+      .map(value => String(value || "").trim()).join("|");
+  };
+  const updateChangelogBadge = () => {
+    const dot = document.querySelector("#sbChangelogDot");
+    if (!dot) return;
+    const signature = getChangelogSignature();
+    let seen = "";
+    try { seen = localStorage.getItem(CHANGELOG_SEEN_KEY) || ""; } catch (e) {}
+    const unread = Boolean(signature && signature !== seen);
+    dot.hidden = !unread;
+    dot.setAttribute("aria-hidden", unread ? "false" : "true");
+  };
+  const markChangelogSeen = () => {
+    const signature = getChangelogSignature();
+    if (signature) {
+      try { localStorage.setItem(CHANGELOG_SEEN_KEY, signature); } catch (e) {}
+    }
+    updateChangelogBadge();
+  };
   /* 数据兜底：派生字段（pubTime / 真实信源 / related） */
   function ensureDerived(items) {
     const byCat = {};
@@ -2067,6 +2092,8 @@ ${restUrl}
     if (!view) return;
     // 顶部状态
     state.view = view;
+    if (view === "changelog") markChangelogSeen();
+    else updateChangelogBadge();
     if (options.history !== false && location.hash !== `#${view}`) {
       history.pushState({ view }, "", `#${view}`);
     }
@@ -2342,6 +2369,7 @@ ${restUrl}
     bindMbTab();
     bindFeaturedAnnouncement();
     updateFavBadge();
+    updateChangelogBadge();
     applyHash();
     window.addEventListener("hashchange", applyHash);
     window.addEventListener("popstate", applyHash);
@@ -2442,6 +2470,8 @@ ${restUrl}
   function loadTexts() {
     const apply = (t) => {
       TEXTS = sanitizePublicPayload(t || DEFAULT_TEXTS);
+      if (state.view === "changelog") markChangelogSeen();
+      else updateChangelogBadge();
       // 当前如果停在某个 info 视图，重渲一次让最新内容生效
       if (state.view === "about" || state.view === "agent" || state.view === "feedback" || state.view === "changelog") {
         renderInfoView(state.view);

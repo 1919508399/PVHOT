@@ -150,6 +150,11 @@ body.dark .sb-brand .sb-logo { background: var(--emerald); }
   border-radius: 999px; background: var(--rose); color: #fff;
   font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; flex: none;
 }
+.sb-unread-dot {
+  width: 8px; height: 8px; margin-left: auto; flex: none;
+  border-radius: 50%; background: #df5e54;
+  box-shadow: 0 0 0 3px rgba(223,94,84,.14);
+}
 
 .sb-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,.4);
