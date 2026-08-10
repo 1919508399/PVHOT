@@ -143,8 +143,8 @@ test('authenticated source health API manages a custom WeChat source safely', as
   assert.equal(initialHealth.integrations.xApiConfigured, false);
   assert.equal(initialHealth.integrations.xIndirectEnabled, true);
   assert.ok(initialHealth.catalog.publisherCount > 40);
-  assert.equal(initialHealth.catalog.channelCount, 65);
-  assert.equal(initialHealth.catalog.discoveryRuleCount, 26);
+  assert.equal(initialHealth.catalog.channelCount, 71);
+  assert.equal(initialHealth.catalog.discoveryRuleCount, 28);
   const builtInX = initialHealth.sources.filter((source) =>
     source.type === 'x' && source.custom !== true
   );
