@@ -777,13 +777,6 @@
       } else {
         body.innerHTML = `<div id="feedTimeline">${renderTimeline(items)}</div>`;
       }
-      body.insertAdjacentHTML("afterbegin", `<div class="intel-tools" role="group" aria-label="My intelligence management">
-        <span>My intelligence · ${getFavs().length} saved locally</span>
-        <button type="button" data-fav-action="export">Export</button>
-        <button type="button" data-fav-action="import">Import</button>
-        <button type="button" data-fav-action="clear-dismissed">Restore hidden</button>
-        <input type="file" accept="application/json" data-fav-import hidden />
-      </div>`);
     } else {
       await renderInfoView(state.view);
     }
