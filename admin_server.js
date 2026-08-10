@@ -683,7 +683,7 @@ function sourceHealthPayload() {
     const missingXApi = awaitingXApi && !xApiConfigured() && !indirectX;
     sources.push({
       ...source,
-      status: missingXApi ? 'blocked' : 'no_new',
+      status: missingXApi ? 'blocked' : 'pending',
       items: 0,
       itemsSeen: 0,
       todayItems: null,
@@ -715,7 +715,7 @@ function sourceHealthPayload() {
     sources.push({
       ...source,
       kind: source.type === 'website' ? 'google-news' : source.type,
-      status: missingXApi ? 'blocked' : 'no_new',
+      status: missingXApi ? 'blocked' : 'pending',
       items: 0,
       itemsSeen: 0,
       todayItems: null,
@@ -760,11 +760,13 @@ function sourceHealthPayload() {
     configError,
     summary: {
       checked: counts.checked,
+      total: counts.total,
       normal: counts.normal,
       noNew: counts.no_new,
       blocked: counts.blocked,
       parseError: counts.parse_error,
       stale: counts.stale,
+      pending: counts.pending,
       healthy: counts.healthy,
       issues: counts.issues,
     },

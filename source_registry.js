@@ -130,7 +130,7 @@ const SCRAPE_SOURCES = [
   },
   {
     id: 'cpia', url: 'https://www.chinapv.org.cn/index.html', source: '中国光伏行业协会', cat: '政策', tier: 1,
-    linkPattern: /chinapv\.org\.cn\/(?:Association|Meeting)\/content_\d+\.html/i,
+    linkPattern: /chinapv\.org\.cn\/(?:StaticPage\/)?(?:Association|Meeting)\/content_\d+\.html/i,
     dateFromUrl: null,
     dateFromContext(html, index) {
       const snippet = html.slice(Math.max(0, index - 260), index + 600);

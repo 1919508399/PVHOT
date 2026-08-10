@@ -640,7 +640,7 @@ function attachHealthDiagnostics(items, diagnostics) {
 }
 
 function looksBlocked(body) {
-  return /captcha|cloudflare|access denied|request blocked|verify you are human|安全验证|访问验证|人机验证/i
+  return /captcha|cloudflare|access denied|request blocked|verify you are human|aliyun_waf_aa|acw_sc__v2|renderData|安全验证|访问验证|人机验证/i
     .test(String(body || '').slice(0, 120000));
 }
 
@@ -2479,4 +2479,5 @@ module.exports = {
   isMojibake,
   inspectFeedStructure,
   mapLimit,
+  looksBlocked,
 };

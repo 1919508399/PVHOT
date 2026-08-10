@@ -149,7 +149,7 @@ test('authenticated source health API manages a custom WeChat source safely', as
     source.type === 'x' && source.custom !== true
   );
   assert.equal(builtInX.length, 12);
-  assert.ok(builtInX.every((source) => source.status === 'no_new'));
+  assert.ok(builtInX.every((source) => source.status === 'pending'));
   assert.ok(builtInX.every((source) => source.monitorMode === 'search-indirect'));
   assert.ok(builtInX.every((source) => source.reasonCode == null));
   assert.match(builtInX.find((source) => source.id === 'x-pvmagazine').detail, /间接监控已启用/);
@@ -240,8 +240,8 @@ test('authenticated source health API manages a custom WeChat source safely', as
   });
   const health = await healthResponse.json();
   assert.equal(healthResponse.status, 200);
-  assert.ok(health.summary.checked > 40);
-  assert.ok(health.summary.noNew >= 1);
+  assert.ok(health.summary.total > 40);
+  assert.ok(health.summary.pending > 40);
   const customHealth = health.sources.find((source) => source.id === created.source.id);
   assert.equal(customHealth.custom, true);
   assert.equal(customHealth.name, '测试光伏观察');
