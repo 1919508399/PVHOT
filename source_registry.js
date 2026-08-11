@@ -179,7 +179,7 @@ const SCRAPE_SOURCES = [
     fallbackQuery: 'site:tongwei.com/news/detail (光伏 OR 多晶硅 OR 电池 OR 组件)',
     dateFromUrl: null,
     titleFromAnchor(anchor) {
-      const match = anchor.match(/<div[^>]+class=["'][^"']*\btext\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+      const match = anchor.match(/<div[^>]+class=["'][^"']*\b(?:text|title)\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
       return match ? match[1] : '';
     },
     maxItems: 24,

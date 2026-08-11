@@ -1417,6 +1417,7 @@ async function fetchScrape(config) {
     if (!usedConfiguredTitle && titleAttr && titleAttr[1].trim().length > title.length) {
       title = titleAttr[1].trim();
     }
+    title = decodeHtmlText(title);
     // 标题太短跳过
     if (title.length < 8) continue;
     // 从 URL 解析日期

@@ -46,6 +46,12 @@ test('major PV company websites have direct article patterns and a site-search f
   }
 });
 
+test('Tongwei title parser supports both current card layouts', () => {
+  const source = SCRAPE_SOURCES.find((item) => item.id === 'tongwei-official');
+  assert.equal(source.titleFromAnchor('<div class="text">Current layout</div>'), 'Current layout');
+  assert.equal(source.titleFromAnchor('<div class="title">Legacy layout</div>'), 'Legacy layout');
+});
+
 test('Weibo keyword routes are encoded and explicitly labeled as discovery sources', () => {
   assert.equal(WEIBO_ROUTES.length, 10);
   assert.ok(WEIBO_ROUTES.every((source) => source.route.startsWith('/weibo/keyword/')));
