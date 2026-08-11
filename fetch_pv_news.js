@@ -143,7 +143,10 @@ function isTrustedSource(source) {
 }
 
 function isTrustedItem(item) {
-  return !!item && !item._customSourceId && isTrustedSource(item.source);
+  return !!item
+    && !item._customSourceId
+    && !(item._sourceChannelType === 'weibo' && item._sourceMode === 'rsshub-keyword')
+    && isTrustedSource(item.source);
 }
 
 function isRelevantItem(it) {
@@ -153,7 +156,9 @@ function isRelevantItem(it) {
   if (LOW_QUALITY_SOURCE_RE.test(source)) return false;
   if (!RELEVANCE_RE.test(body) && !STORAGE_RE.test(body)) return false;
   // 通用社交搜索最容易夹带热股/泛能源内容，标题必须直接命中行业词。
-  if (GENERIC_SOCIAL_SOURCE_RE.test(source) && !RELEVANCE_RE.test(title) && !STORAGE_RE.test(title)) return false;
+  const keywordSocial = GENERIC_SOCIAL_SOURCE_RE.test(source)
+    || (it && it._sourceChannelType === 'weibo' && it._sourceMode === 'rsshub-keyword');
+  if (keywordSocial && !RELEVANCE_RE.test(title) && !STORAGE_RE.test(title)) return false;
   // 泛能源/财经标题仅允许专业行业媒体保留，普通聚合源直接剔除。
   if (HARD_NOISE_RE.test(title) && (!PRIMARY_PV_RE.test(title) || !isTrustedItem(it))) return false;
   return true;
@@ -488,6 +493,9 @@ function parseGenericRSS(xml, sourceName) {
     // pubDate 或 dc:date（RSSHub 常用 Dublin Core）
     const pubDate = extract(/<pubDate>(?:<!\[CDATA\[(.*?)\]\]>|([\s\S]*?))<\/pubDate>/, block) ||
                     extract(/<dc:date>(?:<!\[CDATA\[(.*?)\]\]>|([\s\S]*?))<\/dc:date>/, block);
+    const author = stripHtml(
+      extract(/<(?:author|dc:creator)>(?:<!\[CDATA\[(.*?)\]\]>|([\s\S]*?))<\/(?:author|dc:creator)>/i, block)
+    );
     let desc = extract(/<description>(?:<!\[CDATA\[(.*?)\]\]>|([\s\S]*?))<\/description>/, block);
 
     if (!link || !title) continue;
@@ -498,7 +506,7 @@ function parseGenericRSS(xml, sourceName) {
     summary = summary.replace(/https?:\/\/\S+/g, ' ').replace(/\s+/g, ' ').trim();
     if (summary.length < 15) summary = '';
 
-    items.push({ title, link, pubDate, source: sourceName, summary });
+    items.push({ title, link, pubDate, source: sourceName, summary, author });
   }
   // 同时兼容 Atom，方便机构和研究站点接入。
   const entryRe = /<entry(?:\s[^>]*)?>([\s\S]*?)<\/entry>/gi;
@@ -508,9 +516,12 @@ function parseGenericRSS(xml, sourceName) {
     const linkMatch = block.match(/<link[^>]+href=["']([^"']+)["'][^>]*>/i);
     const link = linkMatch ? unescapeXml(linkMatch[1]) : '';
     const pubDate = extract(/<(?:published|updated)>(?:<!\[CDATA\[(.*?)\]\]>|([\s\S]*?))<\/(?:published|updated)>/i, block);
+    const author = stripHtml(
+      extract(/<author[^>]*>(?:<!\[CDATA\[(.*?)\]\]>|([\s\S]*?))<\/author>/i, block)
+    );
     const rawSummary = extract(/<(?:summary|content)[^>]*>(?:<!\[CDATA\[(.*?)\]\]>|([\s\S]*?))<\/(?:summary|content)>/i, block);
     const summary = stripHtml(rawSummary).slice(0, 500);
-    if (title && link) items.push({ title, link, pubDate, source: sourceName, summary });
+    if (title && link) items.push({ title, link, pubDate, source: sourceName, summary, author });
   }
   return items;
 }
@@ -1322,6 +1333,62 @@ async function fetchRSSHub(route) {
   return attachHealthDiagnostics(items, diagnostics);
 }
 
+function withoutWeiboAuthorPrefix(value, author) {
+  let text = cleanText(decodeHtmlText(stripHtml(value || '')));
+  const name = cleanText(author || '');
+  if (!text || !name) return text;
+  if (text.startsWith(name)) {
+    const rest = text.slice(name.length);
+    const separator = rest.match(/^\s*[：:]\s*/);
+    if (separator) text = rest.slice(separator[0].length).trim();
+  }
+  return text;
+}
+
+function shortenWeiboTitle(value, maxLength = 36) {
+  const body = cleanText(value || '')
+    .replace(/^(?:#微博新知计划#\s*)+/i, '')
+    .replace(/\.{3,}$/g, '')
+    .trim();
+  if (!body) return '微博动态';
+  const articleTitle = body.match(/(?:发布了头条文章[：:]?\s*)?《([^》]{6,80})》/);
+  if (articleTitle) {
+    const title = cleanText(articleTitle[1]);
+    return title.length > maxLength ? `${title.slice(0, maxLength)}…` : title;
+  }
+  const firstSentence = body.split(/(?<=[。！？!?])\s*/)[0].replace(/[。！？!?]+$/, '').trim();
+  let title = firstSentence || body;
+  if (title.length > maxLength) {
+    const window = title.slice(0, maxLength + 1);
+    const breaks = ['；', ';', '｜', '|', '：', ':', '，', ',']
+      .map((separator) => window.lastIndexOf(separator))
+      .filter((index) => index >= 18);
+    const end = breaks.length ? Math.max(...breaks) : maxLength;
+    title = `${title.slice(0, end).replace(/[；;｜|：:,，\s]+$/, '')}…`;
+  }
+  return title;
+}
+
+function normalizeWeiboItem(item, routeConfig = {}) {
+  const rawTitle = cleanText(decodeHtmlText(stripHtml(item && item.title || '')));
+  let author = cleanText(item && item.author || '');
+  if (!author) {
+    const prefix = rawTitle.match(/^(.{1,80}?)[：:]\s*(.+)$/);
+    if (prefix) author = cleanText(prefix[1]);
+  }
+  const titleBody = withoutWeiboAuthorPrefix(rawTitle, author);
+  const summaryBody = withoutWeiboAuthorPrefix(item && item.summary || '', author);
+  const body = summaryBody.length >= titleBody.length ? summaryBody : titleBody;
+  return {
+    ...item,
+    title: shortenWeiboTitle(body),
+    summary: body.slice(0, 700),
+    author: author || '微博用户',
+    source: author || '微博用户',
+    _discoveryTopic: routeConfig.source || '',
+  };
+}
+
 /* ---------- 分批并发控制（避免同时打爆 RSSHub）---------- */
 async function batchFetch(routes, batchSize, fetchFn) {
   const results = [];
@@ -1793,7 +1860,9 @@ function computeScoreDetails(it) {
   let importance = 0;
   if (/政策|监管|关税|补贴|标准|法规|反倾销|中标|招标|并网|投产|量产|收购|合作|签约|突破|效率|纪录|price|tariff|policy|acquisition|launch|record/i.test(title)) importance += 6;
   if (/\d+(?:\.\d+)?\s*(?:%|％|GW|MW|kWh|亿|万|元|美元|\/W)/i.test(title)) importance += 6;
-  const penalty = GENERIC_SOCIAL_SOURCE_RE.test(sourceText) ? 10 : 0;
+  const keywordSocial = GENERIC_SOCIAL_SOURCE_RE.test(sourceText)
+    || (it._sourceChannelType === 'weibo' && it._sourceMode === 'rsshub-keyword');
+  const penalty = keywordSocial ? 10 : 0;
   const ai = it.ai && typeof it.ai === 'object' ? it.ai : {};
   const aiConfidence = Math.max(0, Math.min(1, Number(ai.confidence) || 0));
   const aiEditorial = ai.analyzed && ai.rankingEnabled !== false && aiConfidence >= .55
@@ -2341,12 +2410,12 @@ async function runMain() {
         if (Number.isFinite(itemAge) && itemAge > MAX_AGE_DAYS * 86400 * 1000) return;
       }
       seen.add(key);
-      const classified = classify(it.title + ' ' + it.summary);
+      const normalized = normalizeWeiboItem(it, src);
+      const classified = classify(normalized.title + ' ' + normalized.summary);
       const finalCat = (src.cat !== 'ALL' && classified === '行情') ? src.cat : classified;
       merged.push({
-        ...it,
+        ...normalized,
         cat: finalCat,
-        source: src.source,
         _sourceChannelId: src.id,
         _sourceChannelType: 'weibo',
         _sourceMode: src.mode || 'rsshub-keyword',
@@ -2757,5 +2826,8 @@ module.exports = {
   isRelevantItem,
   mapLimit,
   looksBlocked,
+  normalizeWeiboItem,
+  parseGenericRSS,
   parseJsonLdListItems,
+  shortenWeiboTitle,
 };

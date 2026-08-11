@@ -17,8 +17,11 @@ const {
   isMojibake,
   isRelevantItem,
   mapLimit,
+  normalizeWeiboItem,
+  parseGenericRSS,
   parseJsonLdListItems,
   selectArticleEnrichmentCandidates,
+  shortenWeiboTitle,
 } = require('../fetch_pv_news');
 
 test('rule fallback recommendation reason preserves the concrete procurement signal', () => {
@@ -224,6 +227,27 @@ test('Weibo discovery keeps PV news and rejects stock-only chatter', () => {
     title: 'A股涨停牛股推荐',
     summary: '个股短线交易和选股观点。',
   }), false);
+});
+
+test('Weibo RSS keeps the account, uses a short title and preserves the post body as summary', () => {
+  const xml = `<?xml version="1.0"?><rss><channel><item>
+    <title>南储能源: 发布了头条文章：《自建房装太阳能光伏公司售后不踩坑选购参考》 正文内容</title>
+    <description>&lt;a href="https://weibo.com/1"&gt;南储能源&lt;/a&gt;: 发布了头条文章：《自建房装太阳能光伏公司售后不踩坑选购参考》，正文保留在摘要里。</description>
+    <link>https://weibo.com/1/example</link><pubDate>Tue, 11 Aug 2026 07:00:00 GMT</pubDate><author>南储能源</author>
+  </item></channel></rss>`;
+  const [parsed] = parseGenericRSS(xml, '');
+  const item = normalizeWeiboItem(parsed, { source: '微博：光伏行业' });
+
+  assert.equal(parsed.author, '南储能源');
+  assert.equal(item.source, '南储能源');
+  assert.equal(item.title, '自建房装太阳能光伏公司售后不踩坑选购参考');
+  assert.equal(item.summary, '发布了头条文章：《自建房装太阳能光伏公司售后不踩坑选购参考》，正文保留在摘要里。');
+});
+
+test('Weibo generated titles are bounded and do not repeat the account name', () => {
+  const title = shortenWeiboTitle('某企业今日公布了一项很长很长的光伏储能项目进展，包含项目规模、并网时间、设备采购与后续执行安排');
+  assert.ok(title.length <= 37);
+  assert.match(title, /…$/);
 });
 
 test('topic extraction never fabricates four-character fragments', () => {

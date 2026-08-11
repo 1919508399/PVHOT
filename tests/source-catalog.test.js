@@ -63,6 +63,7 @@ test('legacy collector ids resolve to readable publishers and explicit channels'
   });
   assert.equal(weibo.channelType, 'weibo');
   assert.equal(weibo.displayName, '微博：隆基绿能');
+  assert.equal(weibo.official, false);
 
   const company = resolveItemSource({
     source: '华晟新能源',
