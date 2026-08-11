@@ -47,6 +47,7 @@ function initialState() {
   return {
     version: 1,
     provider: 'weread-bridge-experimental',
+    enabled: false,
     account: null,
     sources: PROTOTYPE_SOURCES.map((source) => ({
       ...source,
@@ -82,6 +83,7 @@ class WechatGateway {
   publicState() {
     return {
       provider: this.state.provider,
+      enabled: this.state.enabled === true,
       account: this.state.account ? {
         id: this.state.account.id,
         name: this.state.account.name,
@@ -123,6 +125,7 @@ class WechatGateway {
       status: 'active',
       lastLoginAt: new Date().toISOString(),
     };
+    this.state.enabled = true;
     this.state.sources = this.state.sources.map((source) => ({
       ...source,
       status: 'pending',
@@ -218,6 +221,7 @@ class WechatGateway {
       fetchedAt: this.state.updatedAt,
       provider: this.state.provider,
       experimental: true,
+      enabled: this.state.enabled === true,
       monitoredAccounts: this.state.sources.length,
       health,
       count: this.state.articles.length,

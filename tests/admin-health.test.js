@@ -126,6 +126,8 @@ test('authenticated source health API manages a custom WeChat source safely', as
   const baseUrl = `http://127.0.0.1:${port}`;
   const anonymous = await fetch(`${baseUrl}/admin/api/source-health`);
   assert.equal(anonymous.status, 401);
+  const anonymousGateway = await fetch(`${baseUrl}/admin/api/wechat-gateway`);
+  assert.equal(anonymousGateway.status, 401);
 
   const login = await fetch(`${baseUrl}/admin/api/login`, {
     method: 'POST',
@@ -154,6 +156,15 @@ test('authenticated source health API manages a custom WeChat source safely', as
   assert.ok(builtInX.every((source) => source.reasonCode == null));
   assert.match(builtInX.find((source) => source.id === 'x-pvmagazine').detail, /间接监控已启用/);
   assert.ok(builtInX.some((source) => source.handle === 'pvmagazine'));
+
+  const gatewayResponse = await fetch(`${baseUrl}/admin/api/wechat-gateway`, {
+    headers: { Cookie: cookie },
+  });
+  const gatewayState = await gatewayResponse.json();
+  assert.equal(gatewayResponse.status, 200);
+  assert.equal(gatewayState.enabled, false);
+  assert.equal(gatewayState.account, null);
+  assert.equal(gatewayState.sources.length, 5);
 
   const duplicateBuiltInX = await fetch(`${baseUrl}/admin/api/sources`, {
     method: 'POST',

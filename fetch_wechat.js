@@ -177,7 +177,7 @@ function isFresh(pubDateStr) {
 function loadGatewayItems(filePath = GATEWAY_OUTPUT_PATH) {
   try {
     const value = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    if (!value || !Array.isArray(value.items)) return { items: [], health: [], provider: '' };
+    if (!value || !Array.isArray(value.items)) return { items: [], health: [], provider: '', enabled: false };
     return {
       items: value.items.filter((item) =>
         item
@@ -186,9 +186,10 @@ function loadGatewayItems(filePath = GATEWAY_OUTPUT_PATH) {
       ),
       health: Array.isArray(value.health) ? value.health : [],
       provider: String(value.provider || ''),
+      enabled: value.enabled === true,
     };
   } catch {
-    return { items: [], health: [], provider: '' };
+    return { items: [], health: [], provider: '', enabled: false };
   }
 }
 
@@ -515,8 +516,8 @@ async function runMain() {
   }
 
   let gatewayProvider = '';
-  if (ENABLE_WECHAT_GATEWAY) {
-    const gateway = loadGatewayItems();
+  const gateway = loadGatewayItems();
+  if (ENABLE_WECHAT_GATEWAY || gateway.enabled) {
     gatewayProvider = gateway.provider;
     allItems.push(...gateway.items.filter((item) =>
       isRegistryAccount(item.account || item.sources?.[0]?.name)

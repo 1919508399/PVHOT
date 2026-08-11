@@ -43,6 +43,7 @@ test('gateway storage encrypts the login token and never exposes it in public st
 
   const completed = await gateway.completeLogin(login.id);
   assert.equal(completed.complete, true);
+  assert.equal(gateway.publicState().enabled, true);
   assert.equal(gateway.publicState().account.name, '原型账号');
   assert.equal(JSON.stringify(gateway.publicState()).includes(sessionValue), false);
 
@@ -50,6 +51,7 @@ test('gateway storage encrypts the login token and never exposes it in public st
   assert.equal(refreshed.status, 'ok');
   const output = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
   assert.equal(output.experimental, true);
+  assert.equal(output.enabled, true);
   assert.equal(output.items.length, 1);
   assert.match(output.items[0].link, /^https:\/\/mp\.weixin\.qq\.com\/s\//);
 });

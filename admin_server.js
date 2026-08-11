@@ -37,6 +37,9 @@ const {
 } = require('./lib/ai_config');
 const { loadUsage, testAiConnection } = require('./lib/ai_editor');
 const { buildSourceCatalog } = require('./lib/source_catalog');
+const { WechatGateway } = require('./wechat_gateway/gateway');
+const { WeReadPlatformClient } = require('./wechat_gateway/platform_client');
+const { createStorage: createWechatGatewayStorage } = require('./wechat_gateway/storage');
 const {
   TOPIC_QUERIES,
   CURATED_SEARCH_QUERIES,
@@ -80,6 +83,23 @@ const ADMIN_TASK_RUNTIME_DIR = process.env.PVHOT_TASK_RUNTIME_DIR
   || (IS_CURRENT_RELEASE || HAS_SHARED_ROOT
     ? path.join(SHARED_ROOT, 'runtime', 'admin')
     : path.join(ROOT, '.runtime', 'admin'));
+const WECHAT_GATEWAY_DATA_DIR = process.env.PVHOT_WECHAT_GATEWAY_DATA_DIR
+  || (IS_CURRENT_RELEASE || HAS_SHARED_ROOT
+    ? path.join(SHARED_ROOT, 'runtime', 'wechat-gateway')
+    : path.join(ROOT, '.wechat-gateway-data'));
+const WECHAT_GATEWAY_OUTPUT = process.env.PVHOT_WECHAT_GATEWAY_OUTPUT
+  || path.join(ROOT, 'wechat_gateway_items.json');
+const wechatGatewayStorage = createWechatGatewayStorage({
+  root: WECHAT_GATEWAY_DATA_DIR,
+  sessionKey: process.env.PVHOT_WECHAT_GATEWAY_KEY,
+});
+const wechatGateway = new WechatGateway({
+  storage: wechatGatewayStorage,
+  client: new WeReadPlatformClient({ baseUrl: process.env.PVHOT_WECHAT_PLATFORM_URL }),
+  outputPath: WECHAT_GATEWAY_OUTPUT,
+  refreshHours: process.env.PVHOT_WECHAT_GATEWAY_REFRESH_HOURS || 6,
+});
+wechatGateway.startScheduler(Number(process.env.PVHOT_WECHAT_GATEWAY_SCHEDULER_MS || 60_000));
 const SOURCE_HEALTH_LOCK_OPTIONS = {
   root: ROOT,
   name: 'pvhot-source-health-write',
@@ -1528,6 +1548,53 @@ const server = http.createServer(async (req, res) => {
 
   if (p === '/admin/api/source-health' && method === 'GET') {
     send(res, 200, sourceHealthPayload());
+    return;
+  }
+
+  if (p === '/admin/api/wechat-gateway' && method === 'GET') {
+    send(res, 200, wechatGateway.publicState());
+    return;
+  }
+
+  if (p.startsWith('/admin/api/wechat-gateway/') && method === 'POST' && !mutationOriginAllowed(req)) {
+    send(res, 403, { error: '请求来源校验失败，请刷新后台页面后重试' });
+    return;
+  }
+
+  if (p === '/admin/api/wechat-gateway/login/start' && method === 'POST') {
+    try {
+      send(res, 200, await wechatGateway.startLogin());
+    } catch (error) {
+      send(res, 502, { error: `微信登录会话创建失败：${String(error.message || error).slice(0, 180)}` });
+    }
+    return;
+  }
+
+  if (p === '/admin/api/wechat-gateway/login/complete' && method === 'POST') {
+    const body = await getBodyOrReject(req, res); if (!body) return;
+    const id = String(body.id || '');
+    if (!/^[A-Za-z0-9_-]{6,80}$/.test(id)) {
+      send(res, 400, { error: '登录会话编号无效' });
+      return;
+    }
+    try {
+      send(res, 200, await wechatGateway.completeLogin(id));
+    } catch (error) {
+      send(res, 502, { error: `微信扫码确认失败：${String(error.message || error).slice(0, 180)}` });
+    }
+    return;
+  }
+
+  if (p === '/admin/api/wechat-gateway/refresh' && method === 'POST') {
+    const body = await getBodyOrReject(req, res); if (!body) return;
+    try {
+      const refreshed = body.mpId
+        ? await wechatGateway.refreshSource(String(body.mpId))
+        : await wechatGateway.refreshNextDue();
+      send(res, 200, { ok: true, refreshed, state: wechatGateway.publicState() });
+    } catch (error) {
+      send(res, 502, { error: `微信公众号刷新失败：${String(error.message || error).slice(0, 180)}` });
+    }
     return;
   }
 
