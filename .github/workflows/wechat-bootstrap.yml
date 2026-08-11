@@ -12,6 +12,7 @@ on:
           - complete
           - status
           - refresh
+          - news-refresh
       login_id:
         description: Login session id returned by the start operation
         required: false
@@ -83,6 +84,9 @@ jobs:
             payload="{\"id\":\"${login_id}\"}"
           elif [[ "${operation}" == "status" || "${operation}" == "refresh" ]]; then
             endpoint="${operation}"
+            payload='{}'
+          elif [[ "${operation}" == "news-refresh" ]]; then
+            endpoint="news-refresh"
             payload='{}'
           else
             printf 'Unsupported operation\n' >&2

@@ -1535,6 +1535,17 @@ const server = http.createServer(async (req, res) => {
       }
       return;
     }
+    if (p === '/internal/wechat-bootstrap/news-refresh') {
+      if (refreshJob) {
+        send(res, 409, { error: '抓取任务正在运行', startedAt: refreshStartedAt });
+        return;
+      }
+      refreshStartedAt = new Date().toISOString();
+      refreshLastResult = { ok: null, startedAt: refreshStartedAt, finishedAt: null };
+      refreshJob = runRefreshPipeline();
+      send(res, 202, { ok: true, startedAt: refreshStartedAt });
+      return;
+    }
     send(res, 404, { error: 'not found' });
     return;
   }

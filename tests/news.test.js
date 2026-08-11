@@ -5,6 +5,7 @@ const test = require('node:test');
 const {
   beijingDateKey,
   computeScoreDetails,
+  buildReason,
   classify,
   decodeResponseBuffer,
   dedupeXArticleSignals,
@@ -16,6 +17,17 @@ const {
   mapLimit,
   selectArticleEnrichmentCandidates,
 } = require('../fetch_pv_news');
+
+test('rule fallback recommendation reason preserves the concrete procurement signal', () => {
+  const reason = buildReason({
+    title_cn: '0.525元/Wh！河北1.2GWh储能系统采购中标人公示',
+    summary_cn: '河北1.2GWh储能系统采购公布中标结果，折合单价0.525元/Wh。',
+    category: '储能',
+  });
+  assert.match(reason, /0\.525元\/Wh/);
+  assert.match(reason, /采购|报价|收益测算/);
+  assert.doesNotMatch(reason, /信息明确|影响有限|属于企业动态|值得关注/);
+});
 
 test('beijingDateKey changes day at UTC+8 midnight', () => {
   assert.equal(beijingDateKey(new Date('2026-07-28T15:59:59Z')), '2026-07-28');

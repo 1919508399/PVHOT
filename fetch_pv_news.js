@@ -1523,6 +1523,19 @@ const REASON_CAT_MAP = {
   '组件': '组件出货与认证', '逆变器': '逆变器产品迭代', '支架BOS': '支架与 BOS',
   '储能': '光储耦合', '电站': '电站 EPC 与招标', '行情': '市场行情与产能',
 };
+const REASON_DECISION_MAP = {
+  '政策': '这会改变项目准入、合规成本或收益边界，开发商需要据此调整申报与投资节奏',
+  '价格': '这一价格信号可直接用于采购谈判、库存安排和项目收益测算',
+  '硅料': '该变化会传导至硅片与组件成本，采购和排产需要同步校准',
+  '硅片': '该变化关系到电池片厂的采购成本、库存水平与开工节奏',
+  '电池片': '其效率、产能或价格会影响组件技术路线选择和单位瓦成本',
+  '组件': '这为开发商选型、组件采购报价和同类产品对标提供了直接依据',
+  '逆变器': '其参数与交付节奏会影响系统选型、设备采购和电站建设成本',
+  '支架BOS': '其成本或技术变化会进入电站初始投资，并影响 EPC 方案选择',
+  '储能': '该规模、配置或价格可作为业主采购、集成商报价和项目收益测算的参照',
+  '电站': '该规模与建设节点会影响 EPC 排产、设备采购和后续并网节奏',
+  '行情': '这一变化会影响同环节企业的竞争判断、产能安排和订单预期',
+};
 function buildReason(it) {
   const rawSummary = ((it && it.summary_cn) || '');
   const sum = isMojibake(rawSummary) ? '' : rawSummary.replace(/\s+/g, ' ').trim();
@@ -1534,30 +1547,31 @@ function buildReason(it) {
   const numM = text.match(/\d+(?:\.\d+)?\s*(?:%|％|GW|MW|kWh|亿|万|元|美元|\/W|美元\/W|元\/W|美元\/kWh|元\/kWh)/);
   const orgM = title.match(/[A-Z][A-Za-z&]{2,18}(?:\s[A-Z][A-Za-z&]{2,18}){0,2}/);
   const firstSent = sum ? (sum.split(/[。！？!?]/)[0] || sum).trim() : '';
-  const fact = firstSent.length > 45 ? firstSent.slice(0, 45) + '…' : firstSent;
+  const fact = (firstSent.length > 88 ? firstSent.slice(0, 88) + '…' : firstSent).replace(/[；;，,。]+$/, '');
+  const decision = REASON_DECISION_MAP[cat] || `这会影响${catCn}相关企业的采购、产能和竞争判断`;
 
   if (numM && orgM) {
-    if (fact && fact.includes(numM[0])) {
-      return `数据信号明确：${fact}。${orgM[0]} 在${catCn}方向的这一量级变化，做产能规划、价格跟踪与对标分析时值得纳入参考。`;
-    }
-    return `数据信号明确${fact ? '：' + fact : ''}。${orgM[0]} 在${catCn}方向出现 ${numM[0]} 量级变化，做产能规划、价格跟踪与对标分析时值得纳入参考。`;
+    const anchor = fact || `${orgM[0]} 在${catCn}方向披露 ${numM[0]} 的关键数据`;
+    return `${anchor}；${decision}。`;
   }
   if (numM) {
-    if (fact && fact.includes(numM[0])) {
-      return `数据信号：${fact}。这一量级变化对${catCn}的供需节奏与价格走势有直接参考意义。`;
-    }
-    return `数据信号${fact ? '：' + fact : ''}。出现 ${numM[0]} 量级变化，对${catCn}的供需节奏与价格走势有直接参考意义。`;
+    const anchor = fact || `${catCn}环节出现 ${numM[0]} 的可核验变化`;
+    return `${anchor}；${decision}。`;
   }
   if (orgM) {
-    return `${orgM[0]} 在${catCn}方向的最新动向${fact ? '——' + fact : ''}。同环节企业可作对标，下游采购可关注其产品节奏与定价。`;
+    const anchor = fact || `${orgM[0]} 在${catCn}方向披露新的产品或经营动作`;
+    return `${anchor}；${decision}。`;
   }
   if (/政策|关税|补贴|标准|法规|监管|制裁|豁免|配额/.test(text)) {
-    return `政策信号${fact ? '：' + fact : ''}。影响${catCn}的准入门槛与成本结构，建议跟踪后续细则与落地节奏。`;
+    const anchor = fact || `${title.replace(/[。！？!?]+$/, '')}进入执行或征求意见阶段`;
+    return `${anchor}；${decision}。`;
   }
-  if (/发布|推出|上市|量产|投产|并网|签约|中标|收购|合作/.test(text)) {
-    return `${fact || '企业动作'}。属于${catCn}方向值得持续跟踪的新进展，建议关注后续产能释放与市场反应。`;
+  if (/发布|推出|上市|量产|投产|并网|签约|中标|招标|采购|收购|合作/.test(text)) {
+    const anchor = fact || title.replace(/[。！？!?]+$/, '');
+    return `${anchor}；${decision}。`;
   }
-  return `${fact ? fact + '。' : ''}属于${catCn}方向的新进展，建议关注后续企业动作与产业链联动效应。`;
+  const anchor = fact || title.replace(/[。！？!?]+$/, '');
+  return `${anchor}；${decision}。`;
 }
 
 // InfoLink 现货价格抓取已独立到 fetch_prices.js（每天 7am cron 单独运行）
@@ -2637,6 +2651,7 @@ module.exports = {
   extractTopics,
   summarizeArticleText,
   buildBody,
+  buildReason,
   computeScoreDetails,
   beijingDateKey,
   decodeResponseBuffer,

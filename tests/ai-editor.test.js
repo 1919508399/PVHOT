@@ -7,6 +7,7 @@ const path = require('node:path');
 const test = require('node:test');
 const {
   applyAiEditorial,
+  isSpecificRecommendationReason,
   normalizeEventKey,
   normalizeInsight,
   parseJsonContent,
@@ -70,6 +71,20 @@ test('AI editor parses fenced JSON and normalizes event keys', () => {
   assert.deepEqual(insight.entities.companies, ['隆基']);
 });
 
+test('recommendation reason quality gate rejects filler and requires a fact-to-decision link', () => {
+  const item = {
+    title_cn: '阳光电源发布 PowerStack 255CS 工商业储能系统',
+    summary_cn: '系统采用 125 kW/255 kWh 配置，面向工商业两小时储能需求。',
+  };
+  const insight = { entities: { companies: ['阳光电源'], technologies: ['PowerStack 255CS'] } };
+  assert.equal(isSpecificRecommendationReason('产品发布信息具体，但市场影响有限，属于企业动态。', item, insight), false);
+  assert.equal(isSpecificRecommendationReason(
+    'PowerStack 255CS 采用 125 kW/255 kWh 两小时配置，可供工商业业主比较系统选型、采购报价与可用容量。',
+    item,
+    insight
+  ), true);
+});
+
 test('AI editor enriches and clusters articles, then reuses its cache', async () => {
   const files = workspace();
   let calls = 0;
@@ -91,7 +106,7 @@ test('AI editor enriches and clusters articles, then reuses its cache', async ()
           importance: 82,
           novelty: 70,
           confidence: .9,
-          reason: '来自多个公开信源，具有明确产业信息。',
+          reason: '示例公司披露 182mm 高效组件上市计划，这将影响同类组件的产品选型、采购报价与市场竞争。',
           entities: { companies:['示例公司'], organizations:[], countries:['中国'], technologies:['光伏组件'] },
         })),
       }) } }],
@@ -99,7 +114,7 @@ test('AI editor enriches and clusters articles, then reuses its cache', async ()
     }), { status:200, headers:{ 'content-type':'application/json', 'x-request-id':'req-test' } });
   };
   try {
-    const firstItems = [article('a','公司发布高效组件','来源甲'), article('b','高效组件正式上市','来源乙')];
+    const firstItems = [article('a','示例公司发布 182mm 高效组件','来源甲'), article('b','示例公司 182mm 高效组件正式上市','来源乙')];
     const first = await applyAiEditorial(firstItems, config(), { ...files, fetchImpl:fakeFetch, batchSize:4 });
     assert.equal(first.analyzed, 2);
     assert.equal(first.calls, 1);
@@ -110,7 +125,7 @@ test('AI editor enriches and clusters articles, then reuses its cache', async ()
     assert.equal(firstItems[0].related.length, 1);
     assert.equal(firstItems[0].reason.length > 0, true);
 
-    const secondItems = [article('a','公司发布高效组件','来源甲'), article('b','高效组件正式上市','来源乙')];
+    const secondItems = [article('a','示例公司发布 182mm 高效组件','来源甲'), article('b','示例公司 182mm 高效组件正式上市','来源乙')];
     const second = await applyAiEditorial(secondItems, config(), { ...files, fetchImpl:fakeFetch, batchSize:4 });
     assert.equal(second.analyzed, 0);
     assert.equal(second.cacheHits, 2);
