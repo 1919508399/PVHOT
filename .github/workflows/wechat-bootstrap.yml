@@ -120,7 +120,7 @@ jobs:
             printf '\n'
           }
           if [[ "${operation}" == "refresh-all" ]]; then
-            mp_ids=(MzAxNjU2NjAyNA== MjM5MzgyMjY2MQ== MjM5MzUwNzk2Mg== Mzg2NTg0MzAxMg== MzUwOTAxNDM0Nw==)
+            mp_ids=(MP_WXS_3016566024 MP_WXS_2393822661 MP_WXS_2393507962 MP_WXS_3865843012 MP_WXS_3509014347)
             for index in "${!mp_ids[@]}"; do
               if ! call_api "{\"mpId\":\"${mp_ids[$index]}\"}"; then
                 printf '微信公众号 %s 本轮查询失败，继续下一个账号\n' "${mp_ids[$index]}" >&2

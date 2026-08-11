@@ -124,7 +124,7 @@ test('saved numeric prototype ids migrate to the original WeChat biz ids', () =>
     error: 'WeReadError400',
   }]);
   const cnesa = sources.find((source) => source.name === '中关村储能产业技术联盟');
-  assert.equal(cnesa.mpId, 'MjM5MzUwNzk2Mg==');
+  assert.equal(cnesa.mpId, 'MP_WXS_2393507962');
   assert.equal(cnesa.status, 'pending');
   assert.equal(cnesa.nextRefreshAt, new Date(0).toISOString());
   assert.equal(cnesa.error, '');
