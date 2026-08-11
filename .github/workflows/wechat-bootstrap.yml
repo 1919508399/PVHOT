@@ -67,7 +67,7 @@ jobs:
             bash -s -- "${OPERATION}" "${LOGIN_ID}" <<'REMOTE'
           set -euo pipefail
           operation="$1"
-          login_id="$2"
+          login_id="${2:-}"
           token_file="/var/www/pvhot/shared/config/wechat-bootstrap-token"
           [[ -f "${token_file}" && ! -L "${token_file}" ]]
           token="$(<"${token_file}")"
