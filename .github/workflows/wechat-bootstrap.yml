@@ -125,7 +125,7 @@ jobs:
               if ! call_api "{\"mpId\":\"${mp_ids[$index]}\"}"; then
                 printf '微信公众号 %s 本轮查询失败，继续下一个账号\n' "${mp_ids[$index]}" >&2
               fi
-              if [[ "${index}" -lt 4 ]]; then sleep 20; fi
+              if [[ "${index}" -lt 4 ]]; then sleep 60; fi
             done
             exit 0
           fi

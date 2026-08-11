@@ -159,8 +159,8 @@ class WechatGateway {
   classifyError(error) {
     const text = `${error.code || ''} ${error.message || ''}`;
     if (/401/.test(text)) return { status: 'session_invalid', delayHours: 24 };
-    if (/429/.test(text)) return { status: 'rate_limited', delayHours: 6 };
-    if (/400/.test(text)) return { status: 'risk_control', delayHours: 6 };
+    if (/429/.test(text)) return { status: 'risk_control', delayHours: 24 };
+    if (/400/.test(text)) return { status: 'upstream_bad_request', delayHours: 24 };
     return { status: 'error', delayHours: 2 };
   }
 

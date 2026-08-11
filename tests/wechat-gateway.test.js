@@ -71,21 +71,37 @@ test('normalized gateway articles preserve the official account as the source', 
   assert.equal(item.reason, '');
 });
 
-test('platform client retries transient WeReadError400 responses', async () => {
-  const client = new WeReadPlatformClient({
-    parameterRetryAttempts: 3,
-    parameterRetryDelayMs: 0,
-  });
+test('platform client does not retry deterministic WeReadError400 responses', async () => {
+  const client = new WeReadPlatformClient();
   let attempts = 0;
   client.request = async () => {
     attempts += 1;
-    if (attempts < 3) throw new PlatformError('WeReadError400', { status: 400, code: 'WeReadError400' });
-    return [{ id: 'article-ok', title: '重试后成功' }];
+    throw new PlatformError('WeReadError400', { status: 400, code: 'WeReadError400' });
   };
 
-  const rows = await client.getArticles('2393507962', { id: 'reader', token: 'secret' });
-  assert.equal(attempts, 3);
-  assert.equal(rows[0].title, '重试后成功');
+  await assert.rejects(
+    () => client.getArticles('2393507962', { id: 'reader', token: 'secret' }),
+    /WeReadError400/,
+  );
+  assert.equal(attempts, 1);
+});
+
+test('gateway only classifies WeReadError429 as risk control', (t) => {
+  const directory = temporaryDirectory(t);
+  const gateway = new WechatGateway({
+    storage: createStorage({ root: path.join(directory, 'state') }),
+    client: {},
+    outputPath: path.join(directory, 'wechat_gateway_items.json'),
+  });
+
+  assert.deepEqual(
+    gateway.classifyError(new PlatformError('WeReadError429', { code: 'WeReadError429' })),
+    { status: 'risk_control', delayHours: 24 },
+  );
+  assert.deepEqual(
+    gateway.classifyError(new PlatformError('WeReadError400', { code: 'WeReadError400' })),
+    { status: 'upstream_bad_request', delayHours: 24 },
+  );
 });
 
 test('gateway resolves an internal mp id from an official article link', async (t) => {
