@@ -13,6 +13,8 @@ class WeReadPlatformClient {
   constructor(options = {}) {
     this.baseUrl = String(options.baseUrl || 'https://weread.111965.xyz').replace(/\/$/, '');
     this.timeoutMs = Number(options.timeoutMs || 20_000);
+    this.parameterRetryAttempts = Math.max(1, Number(options.parameterRetryAttempts || 3));
+    this.parameterRetryDelayMs = Math.max(0, Number(options.parameterRetryDelayMs ?? 10_000));
   }
 
   async request(pathname, options = {}) {
@@ -56,13 +58,22 @@ class WeReadPlatformClient {
     return this.request(`/api/v2/login/platform/${encodeURIComponent(uuid)}`, { timeoutMs: 125_000 });
   }
 
-  getArticles(mpId, account, page = 1) {
-    return this.request(`/api/v2/platform/mps/${encodeURIComponent(mpId)}/articles?page=${page}`, {
-      headers: {
-        xid: String(account.id),
-        authorization: `Bearer ${account.token}`,
-      },
-    });
+  async getArticles(mpId, account, page = 1) {
+    for (let attempt = 1; attempt <= this.parameterRetryAttempts; attempt += 1) {
+      try {
+        return await this.request(`/api/v2/platform/mps/${encodeURIComponent(mpId)}/articles?page=${page}`, {
+          headers: {
+            xid: String(account.id),
+            authorization: `Bearer ${account.token}`,
+          },
+        });
+      } catch (error) {
+        const retryable = /WeReadError400/.test(`${error.code || ''} ${error.message || ''}`);
+        if (!retryable || attempt >= this.parameterRetryAttempts) throw error;
+        await new Promise((resolve) => setTimeout(resolve, this.parameterRetryDelayMs));
+      }
+    }
+    return [];
   }
 }
 

@@ -8,6 +8,7 @@ const path = require('node:path');
 const test = require('node:test');
 const { loadGatewayItems } = require('../fetch_wechat');
 const { WechatGateway, normalizeArticle } = require('../wechat_gateway/gateway');
+const { PlatformError, WeReadPlatformClient } = require('../wechat_gateway/platform_client');
 const { createStorage, decryptText, encryptText } = require('../wechat_gateway/storage');
 
 function temporaryDirectory(t) {
@@ -68,6 +69,23 @@ test('normalized gateway articles preserve the official account as the source', 
   assert.equal(item.sources[0].name, '阳光电源');
   assert.equal(item._sourceMode, 'weread-session-prototype');
   assert.equal(item.reason, '');
+});
+
+test('platform client retries transient WeReadError400 responses', async () => {
+  const client = new WeReadPlatformClient({
+    parameterRetryAttempts: 3,
+    parameterRetryDelayMs: 0,
+  });
+  let attempts = 0;
+  client.request = async () => {
+    attempts += 1;
+    if (attempts < 3) throw new PlatformError('WeReadError400', { status: 400, code: 'WeReadError400' });
+    return [{ id: 'article-ok', title: '重试后成功' }];
+  };
+
+  const rows = await client.getArticles('2393507962', { id: 'reader', token: 'secret' });
+  assert.equal(attempts, 3);
+  assert.equal(rows[0].title, '重试后成功');
 });
 
 test('fetch_wechat only accepts fresh official WeChat links from gateway output', (t) => {
