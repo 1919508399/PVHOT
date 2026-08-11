@@ -8,6 +8,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const test = require('node:test');
+const { RSS_FEEDS, SCRAPE_SOURCES, WECHAT_ACCOUNTS, WEIBO_ROUTES, X_ACCOUNTS } = require('../source_registry');
 
 function reservePort() {
   return new Promise((resolve, reject) => {
@@ -181,7 +182,10 @@ test('authenticated source health API manages a custom WeChat source safely', as
   assert.equal(initialHealth.integrations.xApiConfigured, false);
   assert.equal(initialHealth.integrations.xIndirectEnabled, true);
   assert.ok(initialHealth.catalog.publisherCount > 40);
-  assert.equal(initialHealth.catalog.channelCount, 71);
+  assert.equal(
+    initialHealth.catalog.channelCount,
+    RSS_FEEDS.length + SCRAPE_SOURCES.length + X_ACCOUNTS.length + WECHAT_ACCOUNTS.length + WEIBO_ROUTES.length
+  );
   assert.equal(initialHealth.catalog.discoveryRuleCount, 28);
   const builtInX = initialHealth.sources.filter((source) =>
     source.type === 'x' && source.custom !== true

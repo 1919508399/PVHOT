@@ -127,6 +127,9 @@ sudo install -o root -g root -m 0600 ops/config/pvhot-baidu.env.example /etc/pvh
 
 检查 Chromium 的真实路径并修改 `/etc/pvhot/pvhot-fetch.env`。这个文件同时预留了可选的 X API 凭据，因此必须保持 `root:root`、权限 `0600`，不能再按普通 `0644` 配置安装。在服务器上生成新的后台密码摘要，填入 `/etc/pvhot/pvhot-admin.env`；把轮换后的百度推送 token 只填入 `/etc/pvhot/pvhot-baidu.env`。这些文件和任何真实凭据都不得提交 Git。
 
+微博关键词发现依赖本机 `127.0.0.1:1200` 的 RSSHub。RSSHub 已配置可用微博会话时设置
+`PVHOT_ENABLE_WEIBO=1`；若路由持续返回登录或反爬错误则暂设为 `0`，官网直抓与其他渠道不受影响。
+
 先校验再安装受限 sudo 规则：
 
 ```bash

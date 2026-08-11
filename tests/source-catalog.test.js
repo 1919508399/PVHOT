@@ -3,12 +3,16 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const { buildSourceCatalog, resolveItemSource } = require('../lib/source_catalog');
+const { RSS_FEEDS, SCRAPE_SOURCES, WECHAT_ACCOUNTS, WEIBO_ROUTES, X_ACCOUNTS } = require('../source_registry');
 
 test('source catalog separates publishers, collection channels and discovery rules', () => {
   const catalog = buildSourceCatalog();
   assert.equal(catalog.schemaVersion, 2);
   assert.ok(catalog.publishers.length > 40);
-  assert.equal(catalog.channels.length, 71);
+  assert.equal(
+    catalog.channels.length,
+    RSS_FEEDS.length + SCRAPE_SOURCES.length + X_ACCOUNTS.length + WECHAT_ACCOUNTS.length + WEIBO_ROUTES.length
+  );
   assert.equal(catalog.discoveryRules.length, 28);
 
   const pvTechChannels = catalog.channels.filter((channel) =>
@@ -20,6 +24,9 @@ test('source catalog separates publishers, collection channels and discovery rul
   assert.equal(new Set(pvTechChannels.map((channel) => channel.publisherId)).size, 1);
   assert.equal(pvTechChannels.find((channel) => channel.type === 'rss').displayName, 'PV Tech（RSS）');
   assert.equal(catalog.publishers.some((publisher) => publisher.domains.includes('x.com')), false);
+  assert.ok(catalog.channels.some((channel) =>
+    channel.id === 'weibo-topic-pv' && channel.displayName === '微博：光伏行业'
+  ));
 });
 
 test('legacy collector ids resolve to readable publishers and explicit channels', () => {

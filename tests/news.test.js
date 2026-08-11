@@ -14,7 +14,9 @@ const {
   filterPostEnrichmentFresh,
   inspectFeedStructure,
   isMojibake,
+  isRelevantItem,
   mapLimit,
+  parseJsonLdListItems,
   selectArticleEnrichmentCandidates,
 } = require('../fetch_pv_news');
 
@@ -206,6 +208,19 @@ test('classification accumulates evidence instead of using the first keyword', (
   assert.equal(classify('BESS battery storage project expansion'), '储能');
 });
 
+test('Weibo discovery keeps PV news and rejects stock-only chatter', () => {
+  assert.equal(isRelevantItem({
+    source: '微博：光伏行业',
+    title: '隆基发布新一代BC光伏组件',
+    summary: '组件效率和量产计划公布。',
+  }), true);
+  assert.equal(isRelevantItem({
+    source: '微博：阳光电源关键词',
+    title: 'A股涨停牛股推荐',
+    summary: '个股短线交易和选股观点。',
+  }), false);
+});
+
 test('topic extraction never fabricates four-character fragments', () => {
   assert.deepEqual(extractTopics('今天发布了一份行业公告'), []);
   const topics = extractTopics('光伏组件价格下跌');
@@ -233,6 +248,27 @@ test('feed structure check separates a valid empty feed from broken parsing', ()
   );
   assert.equal(changed.ok, false);
   assert.equal(changed.errorCode, 'feed_items_unparsed');
+});
+
+test('company website scraper reads schema.org ItemList entries', () => {
+  const html = '<script type="application/ld+json">' + JSON.stringify({
+    '@type': 'ItemList',
+    itemListElement: [{
+      '@type': 'ListItem',
+      name: '阳光电源发布新一代光伏逆变器',
+      url: '/news/1737.html',
+      datePublished: '2026.07.09',
+    }],
+  }) + '</script>';
+  const items = parseJsonLdListItems(html, {
+    url: 'https://dl.sungrowpower.com/news.html?class_id=1',
+    source: '阳光电源',
+    linkPattern: /sungrowpower\.com\/news\/\d+\.html$/i,
+  }, new Set());
+
+  assert.equal(items.length, 1);
+  assert.equal(items[0].title, '阳光电源发布新一代光伏逆变器');
+  assert.equal(items[0].pubDate, '2026-07-09T00:00:00Z');
 });
 
 test('mapLimit caps concurrent source requests and preserves result order', async () => {

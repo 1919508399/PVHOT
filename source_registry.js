@@ -10,7 +10,7 @@
  * 4. 微信账号按小时轮询，fetch_wechat.js 会保留 7 天历史，不会因轮换丢失文章。
  */
 
-const REGISTRY_VERSION = '2026.08.10-r6';
+const REGISTRY_VERSION = '2026.08.11-r1';
 
 const TOPIC_QUERIES = [
   { id: 'topic-all', cat: 'ALL', q: 'solar OR photovoltaic OR solar panel', locale: 'en' },
@@ -155,6 +155,109 @@ const SCRAPE_SOURCES = [
     },
     maxItems: 18,
   },
+  {
+    id: 'longi-official', url: 'https://www.longi.com/cn/news/', source: '隆基绿能', cat: 'ALL', tier: 1,
+    linkPattern: /longi\.com\/cn\/news\/[^/?#]+\/?$/i,
+    fallbackQuery: 'site:longi.com/cn/news (光伏 OR 储能 OR 硅片 OR 组件)',
+    dateFromUrl: null,
+    maxItems: 24,
+  },
+  {
+    id: 'jinkosolar-official', url: 'https://www.jinkosolar.com/site/newscenter', source: '晶科能源', cat: 'ALL', tier: 1,
+    linkPattern: /jinkosolar\.com\/site\/newsdetail\/\d+\/?$/i,
+    fallbackQuery: 'site:jinkosolar.com/site/newsdetail (光伏 OR 储能 OR 组件)',
+    dateFromUrl: null,
+    titleFromAnchor(anchor) {
+      const match = anchor.match(/<div[^>]+class=["'][^"']*news-title[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+      return match ? match[1] : '';
+    },
+    maxItems: 24,
+  },
+  {
+    id: 'tongwei-official', url: 'https://www.tongwei.com/news.html', source: '通威集团', cat: 'ALL', tier: 1,
+    linkPattern: /tongwei\.com\/news\/detail\/\d+\.html$/i,
+    fallbackQuery: 'site:tongwei.com/news/detail (光伏 OR 多晶硅 OR 电池 OR 组件)',
+    dateFromUrl: null,
+    titleFromAnchor(anchor) {
+      const match = anchor.match(/<div[^>]+class=["'][^"']*\btext\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+      return match ? match[1] : '';
+    },
+    maxItems: 24,
+  },
+  {
+    id: 'gcltech-official', url: 'https://www.gcltech.com/news', source: '协鑫科技', cat: '硅料', tier: 1,
+    linkPattern: /gcltech\.com\/newsinfo\/\d+\.html$/i,
+    fallbackQuery: 'site:gcltech.com/newsinfo (光伏 OR 颗粒硅 OR 多晶硅 OR 储能)',
+    dateFromUrl: null,
+    maxItems: 24,
+  },
+  {
+    id: 'das-solar-official', url: 'https://www.das-solar.com/site/news', source: '一道新能', cat: 'ALL', tier: 1,
+    linkPattern: /das-solar\.com\/site\/news_details\/\d+\/?$/i,
+    fallbackQuery: 'site:das-solar.com/site/news_details (光伏 OR 组件 OR 电池 OR 支架)',
+    dateFromUrl: null,
+    dateFromContext(html, index) {
+      const snippet = html.slice(Math.max(0, index - 1400), index + 200);
+      const matches = [...snippet.matchAll(/(20\d{2})-(\d{2})-(\d{2})/g)];
+      const match = matches.length ? matches[matches.length - 1] : null;
+      return match ? `${match[1]}-${match[2]}-${match[3]}` : null;
+    },
+    titleFromContext(html, index) {
+      const snippet = html.slice(Math.max(0, index - 1400), index + 200);
+      const matches = [...snippet.matchAll(/<div[^>]+class=["'][^"']*news-title[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi)];
+      return matches.length ? matches[matches.length - 1][1] : '';
+    },
+    maxItems: 24,
+  },
+  {
+    id: 'sungrow-official', url: 'https://dl.sungrowpower.com/news.html?class_id=1', source: '阳光电源', cat: '逆变器', tier: 1,
+    linkPattern: /(?:dl|cn|server-china)\.sungrowpower\.com\/news\/\d+\.html$/i,
+    fallbackQuery: 'site:sungrowpower.com/news (光伏 OR 逆变器 OR 储能)',
+    dateFromUrl: null,
+    titleFromAnchor(anchor) {
+      const match = anchor.match(/<div[^>]+class=["'][^"']*\bh\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+      return match ? match[1] : '';
+    },
+    maxItems: 24,
+  },
+  {
+    id: 'huawei-solar-official', url: 'https://solar.huawei.com/cn/news/', source: '华为智能光伏', cat: '逆变器', tier: 1,
+    linkPattern: /solar\.huawei\.com\/cn\/news\/20\d{2}\/[^/?#]+\/?$/i,
+    fallbackQuery: 'site:solar.huawei.com/cn/news (光伏 OR 逆变器 OR 储能)',
+    dateFromUrl: null,
+    maxItems: 24,
+  },
+  {
+    id: 'goodwe-official', url: 'https://www.goodwe.com/news-exhibition/news', source: '固德威', cat: '逆变器', tier: 1,
+    linkPattern: /goodwe\.com\/news-exhibition\/news\/\d+\.html$/i,
+    fallbackQuery: 'site:goodwe.com/news-exhibition/news (光伏 OR 逆变器 OR 储能)',
+    dateFromUrl: null,
+    maxItems: 24,
+  },
+  {
+    id: 'trinasolar-official', url: 'https://www.trinasolar.com/cn/press-releases', source: '天合光能', cat: 'ALL', tier: 1,
+    linkPattern: /trinasolar\.com\/cn\/newsroom20\d{6}(?:\d{4})?\/?$/i,
+    fallbackQuery: 'site:trinasolar.com/cn/newsroom (光伏 OR 储能 OR 组件 OR 支架)',
+    dateFromUrl(url) {
+      const match = url.match(/\/newsroom(20\d{2})(\d{2})(\d{2})(?:\d{4})?\/?$/i);
+      return match ? `${match[1]}-${match[2]}-${match[3]}` : null;
+    },
+    maxItems: 24,
+  },
+  {
+    id: 'jasolar-official', url: 'https://www.jasolar.com/', source: '晶澳科技', cat: 'ALL', tier: 1,
+    linkPattern: /jasolar\.com\/(?:index\.php\?(?=[^#]*\bcatid=5\b)(?=[^#]*\ba=show\b)[^#]+|[^?#]*\/news[^?#]*\/[^/?#]+)\/?$/i,
+    fallbackQuery: 'site:jasolar.com (光伏 OR 储能 OR 组件) (新闻 OR news)',
+    dateFromUrl: null,
+    maxItems: 24,
+  },
+  {
+    id: 'canadian-solar-official', url: 'https://cn.csisolar.com/news-releases/', source: '阿特斯', cat: 'ALL', tier: 1,
+    linkPattern: /cn\.csisolar\.com\/press\/[^/?#]+\/?$/i,
+    fallbackQuery: 'site:cn.csisolar.com/press (光伏 OR 储能 OR 组件)',
+    dateFromUrl: null,
+    maxItems: 24,
+  },
 ];
 
 // 已核验的 X（Twitter）权威光伏媒体与机构账号。
@@ -260,6 +363,30 @@ const WECHAT_ACCOUNTS = [
 
 const WECHAT_TOPIC_QUERIES = ['光伏', '太阳能', '多晶硅', '光伏组件', '逆变器', '储能'];
 
+// 微博反爬严格，统一通过自建 RSSHub 的关键词路由做发现。企业关键词只表示
+// “讨论该企业的微博”，不能据此认定为企业官方发布；展示层会明确标注为微博来源。
+const WEIBO_QUERIES = [
+  { id: 'weibo-topic-pv', query: '光伏', name: '光伏行业', cat: 'ALL' },
+  { id: 'weibo-topic-polysilicon', query: '多晶硅', name: '多晶硅', cat: '硅料' },
+  { id: 'weibo-topic-module', query: '光伏组件', name: '光伏组件', cat: '组件' },
+  { id: 'weibo-topic-inverter', query: '光伏逆变器', name: '光伏逆变器', cat: '逆变器' },
+  { id: 'weibo-topic-storage', query: '光伏储能', name: '光伏储能', cat: '储能' },
+  { id: 'weibo-topic-project', query: '光伏电站', name: '光伏电站', cat: '电站' },
+  { id: 'weibo-company-longi', query: '隆基绿能 光伏', name: '隆基绿能关键词', cat: 'ALL' },
+  { id: 'weibo-company-jinko', query: '晶科能源 光伏', name: '晶科能源关键词', cat: 'ALL' },
+  { id: 'weibo-company-trina', query: '天合光能 光伏', name: '天合光能关键词', cat: 'ALL' },
+  { id: 'weibo-company-sungrow', query: '阳光电源 光伏', name: '阳光电源关键词', cat: '逆变器' },
+];
+
+const WEIBO_ROUTES = WEIBO_QUERIES.map((source) => ({
+  ...source,
+  route: `/weibo/keyword/${encodeURIComponent(source.query)}`,
+  source: `微博：${source.name}`,
+  kind: '社交',
+  tier: 2,
+  mode: 'rsshub-keyword',
+}));
+
 const RSSHUB_ROUTES = WECHAT_ACCOUNTS
   .filter((account) => account.profileId)
   .map((account) => ({
@@ -291,5 +418,7 @@ module.exports = {
   RSSHUB_ROUTES,
   WECHAT_ACCOUNTS,
   WECHAT_TOPIC_QUERIES,
+  WEIBO_QUERIES,
+  WEIBO_ROUTES,
   TRUSTED_SOURCE_TOKENS,
 };

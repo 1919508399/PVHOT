@@ -47,6 +47,7 @@ const {
   SCRAPE_SOURCES,
   X_ACCOUNTS,
   WECHAT_ACCOUNTS,
+  WEIBO_ROUTES,
 } = require('./source_registry');
 
 const ROOT = process.env.PVHOT_ROOT || '/var/www/pvhot';
@@ -699,6 +700,16 @@ function sourceHealthPayload() {
       tier: source.tier || 2,
       category: 'ALL',
     })),
+    ...WEIBO_ROUTES.map((source) => ({
+      id: source.id,
+      name: source.source,
+      kind: 'rsshub-weibo',
+      type: 'weibo',
+      tier: source.tier || 2,
+      category: source.cat || 'ALL',
+      route: source.route,
+      enabled: process.env.PVHOT_ENABLE_WEIBO === '1',
+    })),
   ];
   for (const source of builtInSources) {
     if (seen.has(source.id)) {
@@ -707,6 +718,7 @@ function sourceHealthPayload() {
         existing.name = source.name;
         existing.kind = source.kind;
         existing.type = source.type;
+        existing.enabled = source.enabled !== false;
         if (source.type === 'x' && !xApiConfigured() && Array.isArray(source.domains) && source.domains.length) {
           existing.monitorMode = 'search-indirect';
           if (existing.reasonCode === 'X_API_NOT_CONFIGURED' || existing.errorCode === 'x_api_not_configured') {
@@ -740,15 +752,17 @@ function sourceHealthPayload() {
       consecutiveNoNew: 0,
       errorCode: missingXApi ? 'X_API_NOT_CONFIGURED' : null,
       reasonCode: missingXApi ? 'X_API_NOT_CONFIGURED' : null,
-      detail: missingXApi
-        ? '服务器尚未配置 X 官方 API，账号已登记并等待配置'
-        : (indirectX
-          ? '无 Token 间接监控已启用，等待下一轮搜索官网文章线索'
-          : (awaitingXApi ? '等待正式抓取任务首次检查 X 账号' : '等待首次健康检查')),
+      detail: source.enabled === false
+        ? '当前未启用；在抓取环境中设置 PVHOT_ENABLE_WEIBO=1 后生效'
+        : missingXApi
+          ? '服务器尚未配置 X 官方 API，账号已登记并等待配置'
+          : (indirectX
+            ? '无 Token 间接监控已启用，等待下一轮搜索官网文章线索'
+            : (awaitingXApi ? '等待正式抓取任务首次检查 X 账号' : '等待首次健康检查')),
       monitorMode: indirectX ? 'search-indirect' : (awaitingXApi ? 'official-api' : null),
       custom: false,
       origin: 'built-in',
-      enabled: true,
+      enabled: source.enabled !== false,
     });
   }
   for (const source of customRegistry.sources) {
@@ -793,7 +807,11 @@ function sourceHealthPayload() {
     checkedAt: report.checkedAt || null,
     registryVersion: report.registryVersion || null,
     customRevision: customRegistry.revision || 0,
-    integrations: { xApiConfigured: xApiConfigured(), xIndirectEnabled: true },
+    integrations: {
+      xApiConfigured: xApiConfigured(),
+      xIndirectEnabled: true,
+      weiboEnabled: process.env.PVHOT_ENABLE_WEIBO === '1',
+    },
     catalog: {
       publisherCount: catalog.publishers.length,
       channelCount: catalog.channels.length,
