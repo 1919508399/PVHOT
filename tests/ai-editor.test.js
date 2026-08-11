@@ -189,7 +189,7 @@ test('DeepSeek calls disable thinking for predictable JSON editing', async () =>
     assert.equal(result.failures, 0);
     assert.equal(result.analyzed, 1);
     assert.deepEqual(requestBody.thinking, { type: 'disabled' });
-    assert.equal(requestBody.max_tokens, 2000);
+    assert.equal(requestBody.max_tokens, 3000);
     assert.deepEqual(requestBody.response_format, { type: 'json_object' });
   } finally {
     fs.rmSync(files.directory, { recursive:true, force:true });

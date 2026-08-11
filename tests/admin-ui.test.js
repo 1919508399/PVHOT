@@ -97,10 +97,16 @@ test('three core admin views use friendly labels and hide raw technical details'
   assert.match(app, /safeRichText\(a\.title_html\)/);
   assert.match(app, /<pre id="agtVerify">\$\{esc\(verifyQ\)\}<\/pre>/);
   assert.match(app, /const editorialReason = state\.view === "featured" && featured \? reasonHTML\(it\) : '';/);
+  assert.match(app, /document\.body\.dataset\.view = state\.view/);
+  assert.match(app, /if \(sum\.length > 440\)/);
   assert.match(app, /sourceInfo && it\.sourceInfo\.displayName/);
   assert.match(app, /另有 \$\{additionalSources\} 家信源报道/);
   assert.doesNotMatch(app, /\$\{impactHTML\(it\)\}/);
   assert.doesNotMatch(app, /\$\{relatedHTML\}/);
+
+  const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
+  assert.match(css, /body\[data-view="featured"\][\s\S]*--content-w: min\(1600px, 100%\)/);
+  assert.match(css, /body\[data-view="all"\] \.tl-body[\s\S]*max-width: none/);
 });
 
 test('admin request body keeps Chinese text intact when UTF-8 bytes arrive in separate chunks', async (t) => {

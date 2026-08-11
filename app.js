@@ -644,6 +644,7 @@
     feedback:  { title: "反馈",   sub: () => "提需求 / 报错 / 建议" },
   };
   function renderHero() {
+    document.body.dataset.view = state.view;
     const m = VIEW_META[state.view] || VIEW_META.featured;
     $("#heroTitle").textContent = m.title;
     $("#heroSub").textContent   = m.sub();
@@ -1261,8 +1262,8 @@
     let raw = (it.summary || '').replace(/^\[\d{4}-\d{2}-\d{2}\]\s*/, '');
     let sum = raw.replace(/\s+/g, ' ').trim();
     if (!sum || sum.length < 8) return '';
-    if (sum.length > 320) {
-      const sub = sum.slice(0, 320);
+    if (sum.length > 440) {
+      const sub = sum.slice(0, 440);
       const end = Math.max(sub.lastIndexOf('。'), sub.lastIndexOf('！'), sub.lastIndexOf('？'));
       sum = end >= 100 ? sub.slice(0, end + 1) : sub.replace(/[…，,；;、\s]+$/, '') + '。';
     }

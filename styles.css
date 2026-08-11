@@ -37,6 +37,26 @@
   --content-pad: 24px;
 }
 
+/* 精选/全部动态沿用 AIHot 的宽屏信息流：压缩两侧空白，其他视图保持阅读宽度。 */
+body[data-view="featured"],
+body[data-view="all"] {
+  --content-w: min(1600px, 100%);
+}
+
+@media (min-width: 1101px) {
+  body[data-view="featured"] .content-bar,
+  body[data-view="featured"] #viewBody,
+  body[data-view="all"] .content-bar,
+  body[data-view="all"] #viewBody {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+  body[data-view="featured"] .tl-body,
+  body[data-view="all"] .tl-body {
+    max-width: none;
+  }
+}
+
 /* —— 暗色 —— */
 body.dark {
   --bg: #0e1116;

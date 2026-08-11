@@ -1,10 +1,10 @@
 /* PV HOT offline shell: keep the app usable on the next open without blocking updates. */
-const CACHE_NAME = 'pvhot-shell-v1';
+const CACHE_NAME = 'pvhot-shell-v2';
 const SHELL = [
   './',
   './index.html',
-  './styles.css?v=20260727-v54',
-  './app.js?v=20260727-v55',
+  './styles.css?v=20260811-v57',
+  './app.js?v=20260811-v57',
   './manifest.webmanifest',
   './data_bootstrap.json',
   './site_texts.json?v=20260727-v55',
