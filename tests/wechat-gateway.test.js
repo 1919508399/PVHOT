@@ -88,6 +88,32 @@ test('platform client retries transient WeReadError400 responses', async () => {
   assert.equal(rows[0].title, '重试后成功');
 });
 
+test('gateway resolves an internal mp id from an official article link', async (t) => {
+  const directory = temporaryDirectory(t);
+  const storage = createStorage({ root: path.join(directory, 'state') });
+  const token = crypto.randomBytes(24).toString('base64url');
+  const client = {
+    async createLoginSession() { return { uuid: 'resolve_session', scanUrl: 'https://example.com/qr' }; },
+    async waitForLogin() { return { vid: 9, token, username: '解析账号' }; },
+    async getMpInfo(url, account) {
+      assert.equal(url, 'https://mp.weixin.qq.com/s/example');
+      assert.equal(account.id, '9');
+      return [{ id: 'internal-mp-id', name: '中关村储能产业技术联盟' }];
+    },
+  };
+  const gateway = new WechatGateway({
+    storage,
+    client,
+    outputPath: path.join(directory, 'wechat_gateway_items.json'),
+  });
+  const login = await gateway.startLogin();
+  await gateway.completeLogin(login.id);
+
+  const results = await gateway.resolveMpInfo('https://mp.weixin.qq.com/s/example');
+  assert.equal(results[0].id, 'internal-mp-id');
+  await assert.rejects(() => gateway.resolveMpInfo('https://example.com/not-wechat'), /有效的微信公众号文章链接/);
+});
+
 test('saved numeric prototype ids migrate to the original WeChat biz ids', () => {
   const sources = reconcileSources([{
     mpId: '2393507962',

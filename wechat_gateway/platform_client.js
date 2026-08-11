@@ -58,6 +58,17 @@ class WeReadPlatformClient {
     return this.request(`/api/v2/login/platform/${encodeURIComponent(uuid)}`, { timeoutMs: 125_000 });
   }
 
+  getMpInfo(url, account) {
+    return this.request('/api/v2/platform/wxs2mp', {
+      method: 'POST',
+      headers: {
+        xid: String(account.id),
+        authorization: `Bearer ${account.token}`,
+      },
+      body: { url: String(url) },
+    });
+  }
+
   async getArticles(mpId, account, page = 1) {
     for (let attempt = 1; attempt <= this.parameterRetryAttempts; attempt += 1) {
       try {

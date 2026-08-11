@@ -1556,6 +1556,15 @@ const server = http.createServer(async (req, res) => {
       }
       return;
     }
+    if (p === '/internal/wechat-bootstrap/resolve') {
+      const body = await getBodyOrReject(req, res); if (!body) return;
+      try {
+        send(res, 200, { ok: true, results: await wechatGateway.resolveMpInfo(body.url) });
+      } catch (error) {
+        send(res, 502, { error: `微信公众号解析失败：${String(error.message || error).slice(0, 180)}` });
+      }
+      return;
+    }
     if (p === '/internal/wechat-bootstrap/news-refresh') {
       if (refreshJob) {
         send(res, 409, { error: '抓取任务正在运行', startedAt: refreshStartedAt });

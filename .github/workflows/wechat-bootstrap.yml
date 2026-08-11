@@ -13,9 +13,14 @@ on:
           - status
           - refresh
           - refresh-all
+          - resolve
           - news-refresh
       login_id:
         description: Login session id returned by the start operation
+        required: false
+        type: string
+      article_url:
+        description: WeChat article URL used by the resolve operation
         required: false
         type: string
 
@@ -35,6 +40,7 @@ jobs:
       DEPLOY_USER: pvhot-deploy
       OPERATION: ${{ inputs.operation }}
       LOGIN_ID: ${{ inputs.login_id }}
+      ARTICLE_URL: ${{ inputs.article_url }}
     steps:
       - name: Configure restricted SSH identity
         shell: bash
@@ -68,10 +74,11 @@ jobs:
             -o ConnectTimeout=15
           )
           ssh "${ssh_options[@]}" "${destination}" \
-            bash -s -- "${OPERATION}" "${LOGIN_ID}" <<'REMOTE'
+            bash -s -- "${OPERATION}" "${LOGIN_ID}" "${ARTICLE_URL}" <<'REMOTE'
           set -euo pipefail
           operation="$1"
           login_id="${2:-}"
+          article_url="${3:-}"
           token_file="/var/www/pvhot/shared/config/wechat-bootstrap-token"
           [[ -f "${token_file}" && ! -L "${token_file}" ]]
           token="$(<"${token_file}")"
@@ -89,6 +96,10 @@ jobs:
           elif [[ "${operation}" == "refresh-all" ]]; then
             endpoint="refresh"
             payload='{}'
+          elif [[ "${operation}" == "resolve" ]]; then
+            [[ "${article_url}" =~ ^https://mp\.weixin\.qq\.com/s/[-A-Za-z0-9_]+$ ]]
+            endpoint="resolve"
+            payload="{\"url\":\"${article_url}\"}"
           elif [[ "${operation}" == "news-refresh" ]]; then
             endpoint="news-refresh"
             payload='{}'

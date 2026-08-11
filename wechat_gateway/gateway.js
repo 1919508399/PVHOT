@@ -164,6 +164,16 @@ class WechatGateway {
     return { status: 'error', delayHours: 2 };
   }
 
+  async resolveMpInfo(url) {
+    const account = this.activeAccount();
+    if (!account) throw new Error('微信读书账号尚未登录或会话已失效');
+    const articleUrl = String(url || '').trim();
+    if (!/^https:\/\/mp\.weixin\.qq\.com\/s\//i.test(articleUrl)) {
+      throw new Error('需要提供有效的微信公众号文章链接');
+    }
+    return this.client.getMpInfo(articleUrl, account);
+  }
+
   async refreshSource(mpId) {
     const account = this.activeAccount();
     if (!account) throw new Error('微信读书账号尚未登录或会话已失效');
