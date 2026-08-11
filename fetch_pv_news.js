@@ -1334,7 +1334,11 @@ async function fetchRSSHub(route) {
 }
 
 function withoutWeiboAuthorPrefix(value, author) {
-  let text = cleanText(decodeHtmlText(stripHtml(value || '')));
+  let text = cleanText(decodeHtmlText(stripHtml(value || '')))
+    .replace(/\[(?:图片|视频|组图|音乐)\]/g, ' ')
+    .replace(/\s*\[(?:图(?:片)?|视频|组图|音乐)(?:[^\]]{0,8})?\]?\s*$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
   const name = cleanText(author || '');
   if (!text || !name) return text;
   if (text.startsWith(name)) {
@@ -1611,6 +1615,9 @@ function buildBody(it) {
   let real = isMojibake(rawSummary)
     ? ''
     : stripTrailingSource(rawSummary.replace(/\s+/g, ' ').trim());
+  if (it && it._sourceChannelType === 'weibo') {
+    real = withoutWeiboAuthorPrefix(real, it.author || it.source);
+  }
   const category = (it && (it.cat || it.category)) || '光伏行业';
   const contextClose = `该进展涉及${category}领域，后续仍需关注项目规模、执行时间与官方披露。`;
   // 清理可能残留的 [YYYY-MM-DD] 日期前缀

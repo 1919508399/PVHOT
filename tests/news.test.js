@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const {
   beijingDateKey,
+  buildBody,
   computeScoreDetails,
   buildReason,
   classify,
@@ -242,6 +243,22 @@ test('Weibo RSS keeps the account, uses a short title and preserves the post bod
   assert.equal(item.source, '南储能源');
   assert.equal(item.title, '自建房装太阳能光伏公司售后不踩坑选购参考');
   assert.equal(item.summary, '发布了头条文章：《自建房装太阳能光伏公司售后不踩坑选购参考》，正文保留在摘要里。');
+});
+
+test('Weibo presentation removes repeated account prefixes and media placeholders', () => {
+  const item = normalizeWeiboItem({
+    title: '光伏观察员: 光伏组件最新价格 [图片]',
+    summary: '光伏观察员 : 光伏组件最新价格 [图片]',
+    author: '光伏观察员',
+  });
+  item.lang = 'zh';
+  item.cat = '组件';
+  item._sourceChannelType = 'weibo';
+  item.summary_cn = '光伏观察员 : 光伏组件最新价格 [图片]';
+
+  assert.equal(item.title, '光伏组件最新价格');
+  assert.doesNotMatch(buildBody(item), /^光伏观察员/);
+  assert.doesNotMatch(buildBody(item), /\[图片\]/);
 });
 
 test('Weibo generated titles are bounded and do not repeat the account name', () => {
