@@ -1066,7 +1066,8 @@ function loadData() {
   try { return JSON.parse(fs.readFileSync(DATA, 'utf8')); } catch (e) { return { meta: {}, categories: [], items: [] }; }
 }
 function runMerge() { try { return merge(); } catch (e) { console.error('[admin] merge error', e); return false; } }
-function publicItem(item) {
+function publicItem(item, options = {}) {
+  const includeReason = options.includeReason === true && item.featured === true;
   return {
     id: item.id,
     title: item.title_cn || item.title || '',
@@ -1075,6 +1076,9 @@ function publicItem(item) {
     category: item.category || '行情',
     featured: item.featured === true,
     source: item.source || '',
+    sourceDisplayName: item.sourceDisplayName || item.sourceInfo?.displayName || item.source || '',
+    sourceInfo: item.sourceInfo || null,
+    sourceDetails: item.sourceDetails || [],
     sourceCount: item.sourceCount || 1,
     sources: item.sources || [item.source].filter(Boolean),
     networkHeat: item.networkHeat || item.heat || 0,
@@ -1082,8 +1086,9 @@ function publicItem(item) {
     pubDate: item.pubDate || '',
     dateKey: item.dateKey || String(item.pubDate || '').slice(0, 10),
     link: item.link || '',
+    links: item.links || { original: item.link || '', discovery: item.googleNewsUrl || '' },
     image: item.image || '',
-    reason: item.reason || '',
+    reason: includeReason ? (item.recommendationReason || item.reason || '') : '',
     tags: item.tags || [],
     attribution: (item.sources || [item.source]).filter(Boolean).join(', '),
   };
@@ -1105,7 +1110,10 @@ function queryPublicNews(url, maxLimit = 100) {
   if (featured) items = items.filter((item) => item.featured === true);
   if (q) items = items.filter((item) => [
     item.title_cn, item.title, item.summary_cn, item.summary, item.source,
-    ...(item.sources || []), ...(item.tags || []),
+    item.sourceDisplayName,
+    ...(item.sources || []).map((source) => source?.name || source),
+    ...(item.sourceDetails || []).flatMap((source) => [source?.name, source?.displayName]),
+    ...(item.tags || []),
   ].filter(Boolean).join(' ').toLowerCase().includes(q));
   items.sort((a, b) => String(b.pubDate || '').localeCompare(String(a.pubDate || '')));
   const total = items.length;
@@ -1114,7 +1122,7 @@ function queryPublicNews(url, maxLimit = 100) {
     total,
     limit,
     filters: { date: date || 'all', category: category || '全部', featured, q },
-    items: items.slice(0, limit).map(publicItem),
+    items: items.slice(0, limit).map((item) => publicItem(item, { includeReason: featured })),
   };
 }
 function xmlEscape(value) {

@@ -96,13 +96,29 @@ test('three core admin views use friendly labels and hide raw technical details'
   assert.match(app, /const safeRichText =/);
   assert.match(app, /safeRichText\(a\.title_html\)/);
   assert.match(app, /<pre id="agtVerify">\$\{esc\(verifyQ\)\}<\/pre>/);
+  assert.match(app, /const editorialReason = state\.view === "featured" && featured \? reasonHTML\(it\) : '';/);
+  assert.match(app, /sourceInfo && it\.sourceInfo\.displayName/);
+  assert.match(app, /另有 \$\{additionalSources\} 家信源报道/);
+  assert.doesNotMatch(app, /\$\{impactHTML\(it\)\}/);
+  assert.doesNotMatch(app, /\$\{relatedHTML\}/);
 });
 
 test('admin request body keeps Chinese text intact when UTF-8 bytes arrive in separate chunks', async (t) => {
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'pvhot-admin-utf8-'));
   const port = await reservePort();
   const password = '管理密码甲';
-  fs.writeFileSync(path.join(sandbox, 'data.json'), JSON.stringify({ categories:[], items:[] }));
+  fs.writeFileSync(path.join(sandbox, 'data.json'), JSON.stringify({ categories:[], items:[
+    {
+      id:'featured-news', title:'Featured news', summary:'Summary', featured:true,
+      source:'PV Tech', sourceDisplayName:'PV Tech（RSS）', reason:'Featured-only reason',
+      recommendationReason:'Featured-only reason', pubDate:'2026-08-11T08:00:00+08:00',
+    },
+    {
+      id:'regular-news', title:'Regular news', summary:'Summary', featured:false,
+      source:'Solar Power World', sourceDisplayName:'Solar Power World（RSS）', reason:'Must stay hidden',
+      pubDate:'2026-08-11T07:00:00+08:00',
+    },
+  ] }));
   fs.writeFileSync(path.join(sandbox, 'admin.html'), '<!doctype html><title>admin</title>');
   fs.writeFileSync(path.join(sandbox, 'site_texts.json'), JSON.stringify({ about:{}, agent:{}, changelog:{ items:[] } }));
   fs.mkdirSync(path.join(sandbox, 'pvhot-skill'), { recursive:true });
@@ -124,6 +140,13 @@ test('admin request body keeps Chinese text intact when UTF-8 bytes arrive in se
     fs.rmSync(sandbox, { recursive:true, force:true });
   });
   await waitForReady(child);
+
+  const allNews = await fetch(`http://127.0.0.1:${port}/api/v1/news`).then((response) => response.json());
+  assert.equal(allNews.items.every((item) => item.reason === ''), true);
+  assert.equal(allNews.items[0].sourceDisplayName, 'PV Tech（RSS）');
+  const featuredNews = await fetch(`http://127.0.0.1:${port}/api/v1/news?featured=true`).then((response) => response.json());
+  assert.equal(featuredNews.items.length, 1);
+  assert.equal(featuredNews.items[0].reason, 'Featured-only reason');
 
   const payload = Buffer.from(JSON.stringify({ pass:password }), 'utf8');
   const chineseStart = payload.indexOf(Buffer.from('管', 'utf8'));

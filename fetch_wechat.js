@@ -26,6 +26,9 @@ const SHARED_ROOT = process.env.PVHOT_SHARED_DIR
   || (IS_CURRENT_RELEASE ? path.join(path.dirname(ROOT), 'shared') : ROOT);
 const MAX_PER_QUERY = 12;
 const OUTPUT_PATH = `${ROOT}/wechat_items.json`;
+const GATEWAY_OUTPUT_PATH = process.env.PVHOT_WECHAT_GATEWAY_ITEMS_FILE
+  || path.join(ROOT, 'wechat_gateway_items.json');
+const ENABLE_WECHAT_GATEWAY = process.env.PVHOT_ENABLE_WECHAT_GATEWAY === '1';
 const CUSTOM_SOURCES_FILE = process.env.PVHOT_CUSTOM_SOURCES_FILE
   || (IS_CURRENT_RELEASE || HAS_SHARED_ROOT
     ? path.join(SHARED_ROOT, 'data', 'custom_sources.json')
@@ -169,6 +172,24 @@ function isFresh(pubDateStr) {
   if (isNaN(d.getTime())) return false;
   const ageDays = (Date.now() - d.getTime()) / 86400000;
   return ageDays <= FRESH_DAYS;
+}
+
+function loadGatewayItems(filePath = GATEWAY_OUTPUT_PATH) {
+  try {
+    const value = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    if (!value || !Array.isArray(value.items)) return { items: [], health: [], provider: '' };
+    return {
+      items: value.items.filter((item) =>
+        item
+        && isFresh(item.pubDate)
+        && /^https:\/\/mp\.weixin\.qq\.com\/s\//.test(String(item.link || ''))
+      ),
+      health: Array.isArray(value.health) ? value.health : [],
+      provider: String(value.provider || ''),
+    };
+  } catch {
+    return { items: [], health: [], provider: '' };
+  }
 }
 
 async function searchWechat(keyword, page, targetAccount = null) {
@@ -493,6 +514,21 @@ async function runMain() {
     await browser.close();
   }
 
+  let gatewayProvider = '';
+  if (ENABLE_WECHAT_GATEWAY) {
+    const gateway = loadGatewayItems();
+    gatewayProvider = gateway.provider;
+    allItems.push(...gateway.items.filter((item) =>
+      isRegistryAccount(item.account || item.sources?.[0]?.name)
+    ));
+    health.push(...gateway.health.map((entry) => ({
+      ...entry,
+      id: `gateway:${entry.id || entry.name || 'wechat'}`,
+      mode: 'weread-session-prototype',
+    })));
+    console.log(`[wechat] gateway provider=${gatewayProvider || 'unknown'} items=${gateway.items.length}`);
+  }
+
   // 与前几轮结果合并。账号按小时轮询，但最近 7 天的有效文章不会因轮换丢失。
   let previousItems = [];
   try {
@@ -521,6 +557,7 @@ async function runMain() {
   const output = {
     fetchedAt: new Date().toISOString(),
     registryVersion: REGISTRY_VERSION,
+    gatewayProvider,
     monitoredAccounts: MONITORED_WECHAT_ACCOUNTS.length,
     queriedAccounts: queriedAccounts.map((account) => account.name),
     topicQueries,
@@ -555,5 +592,6 @@ module.exports = {
   expandAccountAliases,
   extractItemId,
   normalizeWechatLink,
+  loadGatewayItems,
   selectCustomAccountsForRun,
 };

@@ -449,6 +449,10 @@ initialize_shared_state() {
     "${SHARED_DIR}/data/wechat_items.json" \
     "" \
     '{"items":[]}'
+  seed_file "wechat_gateway_items.json" \
+    "${SHARED_DIR}/data/wechat_gateway_items.json" \
+    "" \
+    '{"provider":"weread-bridge-experimental","experimental":true,"health":[],"count":0,"items":[]}'
   seed_file "fetch.log" \
     "${SHARED_DIR}/log/fetch.log" \
     "" \
@@ -525,6 +529,7 @@ wire_shared_state() {
     ai_cache.json \
     ai_usage.json \
     wechat_items.json \
+    wechat_gateway_items.json \
     site_texts.json \
     site_texts_fallback.js; do
     link_shared_file "${name}" "${SHARED_DIR}/data/${name}"
@@ -573,6 +578,11 @@ preflight_release() {
     fetch_pv_news.js
     fetch_prices.js
     fetch_wechat.js
+    wechat_gateway/server.js
+    wechat_gateway/gateway.js
+    wechat_gateway/storage.js
+    wechat_gateway/platform_client.js
+    wechat_gateway/prototype_sources.js
     merge.js
     source_registry.js
     lib/safe_io.js
@@ -610,6 +620,11 @@ preflight_release() {
     fetch_pv_news.js \
     fetch_prices.js \
     fetch_wechat.js \
+    wechat_gateway/server.js \
+    wechat_gateway/gateway.js \
+    wechat_gateway/storage.js \
+    wechat_gateway/platform_client.js \
+    wechat_gateway/prototype_sources.js \
     merge.js \
     source_registry.js \
     lib/safe_io.js \
@@ -632,7 +647,7 @@ NODE
   if [[ "${verify_dependencies}" == "1" ]]; then
     (
       cd "${release_dir}"
-      "${NODE_BIN}" -e "require('puppeteer'); require('./lib/safe_io'); require('./lib/process_lock'); require('./lib/x_sources')"
+      "${NODE_BIN}" -e "require('puppeteer'); require('qrcode'); require('./lib/safe_io'); require('./lib/process_lock'); require('./lib/x_sources'); require('./wechat_gateway/gateway')"
     )
   fi
 

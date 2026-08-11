@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const { atomicWriteJsonSync, atomicWriteUtf8Sync } = require('./lib/safe_io');
 const { withProcessLockSync } = require('./lib/process_lock');
+const { resolveItemSource } = require('./lib/source_catalog');
 
 const ROOT = process.env.PVHOT_ROOT || '/var/www/pvhot';
 const RAW = path.join(ROOT, 'data_raw.json');
@@ -54,6 +55,34 @@ function sanitizeItem(item) {
   }
   if (isMojibake(out.reason)) {
     out.reason = `该事件涉及${category}方向的经营与产能变化，建议关注后续企业动作及产业链影响。`;
+  }
+  const primarySource = out.sourceInfo && out.sourceInfo.id
+    ? { ...out.sourceInfo }
+    : resolveItemSource(out);
+  const details = Array.isArray(out.sourceDetails) && out.sourceDetails.length
+    ? out.sourceDetails.filter((sourceItem) => sourceItem && sourceItem.id)
+    : [primarySource];
+  out.source = primarySource.name;
+  out.sourceDisplayName = primarySource.displayName;
+  out.sourceInfo = primarySource;
+  out.sourceDetails = details;
+  out.sources = details.map((sourceItem) => sourceItem.name);
+  out.sourceCount = details.length;
+  out.links = {
+    original: String(out.links?.original || primarySource.originalUrl || ''),
+    discovery: String(out.links?.discovery || primarySource.discoveryUrl || out.googleNewsUrl || ''),
+  };
+  out.user = {
+    ...(out.user || {}),
+    name: primarySource.displayName,
+    handle: primarySource.handle ? `@${primarySource.handle}` : '',
+  };
+  if (out.featured === true) {
+    out.recommendationReason = String(out.recommendationReason || out.reason || '');
+    out.reason = out.recommendationReason;
+  } else {
+    out.recommendationReason = '';
+    out.reason = '';
   }
   return out;
 }

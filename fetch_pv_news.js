@@ -29,6 +29,7 @@ const { safeFetch } = require('./lib/safe_remote_fetch');
 const { fetchXSources, normalizeExternalArticleUrl } = require('./lib/x_sources');
 const { loadAiConfig, resolveAiConfigPath } = require('./lib/ai_config');
 const { applyAiEditorial } = require('./lib/ai_editor');
+const { resolveItemSource } = require('./lib/source_catalog');
 const {
   advanceHealthEntry,
   buildHealthEntry,
@@ -1625,16 +1626,21 @@ function aggregateMultiSource(items) {
 
   return clusters.map(c => {
     const rep = c.rep;
-    const sources = [];
+    const sourceDetails = [];
     const seenSrc = new Set();
-    for (const m of c.members) {
-      const src = (m.source || 'google-news').toLowerCase().replace(/\s+/g, '-').slice(0, 24);
-      if (!seenSrc.has(src)) { seenSrc.add(src); sources.push(src); }
+    const orderedMembers = [rep, ...c.members.filter((member) => member !== rep)];
+    for (const m of orderedMembers) {
+      const detail = resolveItemSource(m);
+      if (!seenSrc.has(detail.id)) {
+        seenSrc.add(detail.id);
+        sourceDetails.push(detail);
+      }
     }
     // 如果只有一个成员，直接返回（sourceCount=1）
     if (c.members.length === 1) {
       rep._sourceCount = 1;
-      rep._sources = sources;
+      rep._sources = sourceDetails.map((source) => source.name);
+      rep._sourceDetails = sourceDetails;
       rep._pubDate = c.repPubDate;
       return rep;
     }
@@ -1676,8 +1682,9 @@ function aggregateMultiSource(items) {
       if (!rep.summary_cn && richest.summary_cn) rep.summary_cn = richest.summary_cn;
     }
     // 多成员：在 rep 上附加聚合信息
-    rep._sourceCount = sources.length;
-    rep._sources = sources;
+    rep._sourceCount = sourceDetails.length;
+    rep._sources = sourceDetails.map((source) => source.name);
+    rep._sourceDetails = sourceDetails;
     rep._pubDate = c.repPubDate;
     rep._allTitles = c.members.map(m => m.title_cn || m.title);
     return rep;
@@ -2150,6 +2157,9 @@ async function runMain() {
       merged.push({
         ...it,
         cat: finalCat,
+        _sourceChannelId: queryConfig.id,
+        _sourceChannelType: 'google-news',
+        _sourceMode: queryConfig.custom ? 'custom-site-search' : 'news-search',
         ...(queryConfig.custom ? {
           source: queryConfig.name,
           _customSourceId: queryConfig.id,
@@ -2178,6 +2188,9 @@ async function runMain() {
         ...it,
         cat: finalCat,
         source: src.source,
+        _sourceChannelId: src.id,
+        _sourceChannelType: 'rss',
+        _sourceMode: 'direct-rss',
         ...(src.custom ? { _customSourceId: src.id, _customSourceType: 'rss' } : {}),
       });
       rcount++;
@@ -2194,7 +2207,14 @@ async function runMain() {
       seen.add(key);
       const classified = classify(it.title + ' ' + it.summary);
       const finalCat = (src.cat !== 'ALL' && classified === '行情') ? src.cat : classified;
-      merged.push({ ...it, cat: finalCat, source: src.source });
+      merged.push({
+        ...it,
+        cat: finalCat,
+        source: src.source,
+        _sourceChannelId: src.id,
+        _sourceChannelType: 'website',
+        _sourceMode: 'direct-website',
+      });
       scount++;
     });
   });
@@ -2216,7 +2236,14 @@ async function runMain() {
       seen.add(key);
       const classified = classify(it.title + ' ' + it.summary);
       const finalCat = (src.cat !== 'ALL' && classified === '行情') ? src.cat : classified;
-      merged.push({ ...it, cat: finalCat, source: src.name || src.source });
+      merged.push({
+        ...it,
+        cat: finalCat,
+        source: src.name || src.source,
+        _sourceChannelId: src.id || `wechat:${src.name || src.source}`,
+        _sourceChannelType: 'wechat',
+        _sourceMode: 'rsshub-profile',
+      });
       hcount++;
     });
   });
@@ -2249,6 +2276,9 @@ async function runMain() {
         ...it,
         cat: finalCat,
         source: src.name || it.source,
+        _sourceChannelId: src.id,
+        _sourceChannelType: 'x',
+        _sourceMode: it._xIndirect ? 'search-indirect' : 'x-api',
       };
       merged.push(item);
       mergedByCanonicalLink.set(key, item);
@@ -2275,7 +2305,17 @@ async function runMain() {
           }
           seen.add(key);
           const classified = classify(it.title + ' ' + (it.summary || ''));
-          merged.push({ ...it, cat: classified, source: '公众号', author: (it.sources && it.sources[0] && it.sources[0].name) || it.account || '', avatar: it.avatar || (it.sources && it.sources[0] && it.sources[0].avatar) || '' });
+          const account = (it.sources && it.sources[0] && it.sources[0].name) || it.account || '';
+          merged.push({
+            ...it,
+            cat: classified,
+            source: '公众号',
+            author: account,
+            avatar: it.avatar || (it.sources && it.sources[0] && it.sources[0].avatar) || '',
+            _sourceChannelId: `wechat:${account}`,
+            _sourceChannelType: 'wechat',
+            _sourceMode: 'wechat-search',
+          });
           wcount++;
         });
       }
@@ -2377,13 +2417,16 @@ async function runMain() {
     const heat = Math.max(42, Math.min(96, Math.round(92 - ageH * 1.4)));
     const id = 'pv' + crypto.createHash('sha1').update(it.link || it.title || String(i)).digest('hex').slice(0, 14);
     const sourceCount = it._sourceCount || 1;
-    const sources = it._sources || [it.source || 'google-news'];
+    const sourceDetails = Array.isArray(it._sourceDetails) && it._sourceDetails.length
+      ? it._sourceDetails
+      : [resolveItemSource(it)];
+    const sources = sourceDetails.map((source) => source.name);
+    const primarySource = sourceDetails[0];
     const credibilityLevel = it._customSourceId ? 'C' : (isTrustedItem(it) ? 'A' : (sourceCount > 1 ? 'B' : 'B'));
     const credibilityLabel = credibilityLevel === 'A' ? '高可信' : (credibilityLevel === 'B' ? '行业来源' : '自定义来源');
-    const sourceName = it.author || sources[0] || '行业信源';
     const user = {
-      name: sourceName,
-      handle: sourceCount > 1 ? `${sourceCount} 个信源聚合` : '原文信源',
+      name: primarySource.displayName,
+      handle: primarySource.handle ? `@${primarySource.handle}` : '',
       color: pickUser(cat).color,
     };
     const obj = {
@@ -2399,7 +2442,14 @@ async function runMain() {
       lang: it.lang || 'zh',
       pubDate: bj ? bj.iso : new Date().toISOString().slice(0, 19),
       dateKey: bj ? bj.dateKey : new Date().toISOString().slice(0, 10),
-      source: sources[0],
+      source: primarySource.name,
+      sourceDisplayName: primarySource.displayName,
+      sourceInfo: primarySource,
+      sourceDetails,
+      links: {
+        original: primarySource.originalUrl || '',
+        discovery: primarySource.discoveryUrl || '',
+      },
       sourceCount,
       sources,
       credibilityLevel,
@@ -2487,7 +2537,15 @@ async function runMain() {
     .filter((it) => Number(it.score) >= featuredMinScore)
     .slice(0, featuredCap)
     .map((it) => it.id));
-  items.forEach((it) => { it.featured = it.dateKey === todayKey && featuredIds.has(it.id); });
+  items.forEach((it) => {
+    it.featured = it.dateKey === todayKey && featuredIds.has(it.id);
+    if (it.featured) {
+      it.recommendationReason = it.reason || '';
+    } else {
+      it.recommendationReason = '';
+      it.reason = '';
+    }
+  });
   const dayCounts = {};
   items.forEach((it) => { dayCounts[it.dateKey] = (dayCounts[it.dateKey] || 0) + 1; });
   log(`selection: today=${todayItems.length} featured=${featuredIds.size} history=${JSON.stringify(dayCounts)}`);

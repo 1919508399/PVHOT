@@ -26,6 +26,8 @@ fetch.log
 
 # Runtime state and release artifacts
 .locks/
+.wechat-gateway-data/
+wechat_gateway_items.json
 .env
 .env.*
 !.env.example

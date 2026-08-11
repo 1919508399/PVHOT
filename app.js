@@ -551,13 +551,58 @@
     }
     updateChangelogBadge();
   };
+  const SOURCE_NAME_MAP = {
+    "pv-magazine": "PV Magazine Global", "pv-magazine-global": "PV Magazine Global",
+    "pv-tech": "PV Tech", "solar-power-world": "Solar Power World",
+    "energy-storage": "Energy-Storage.news", "energy-storage-news": "Energy-Storage.news",
+    "solarquarter": "SolarQuarter", "latitude-media": "Latitude Media",
+    "cleantechnica": "CleanTechnica", "mercom-india": "Mercom India",
+    "saur-energy": "Saur Energy", "ofweek太阳能光伏网": "OFweek太阳能光伏网",
+    "solarbe": "索比光伏网", "bjx-guangfu": "北极星太阳能光伏网",
+    "ne21": "世纪新能源网", "nea-renewable": "国家能源局", "cpia": "中国光伏行业协会"
+  };
+  const RSS_SOURCE_IDS = new Set([
+    "pv-magazine", "pv-magazine-global", "pv-tech", "solar-power-world", "energy-storage",
+    "energy-storage-news", "solarquarter", "cleantechnica", "mercom-india", "saur-energy"
+  ]);
+  function fallbackSourceInfo(it) {
+    const raw = String(it.author || it.source || "行业信源").trim();
+    const key = raw.toLowerCase();
+    const name = SOURCE_NAME_MAP[key] || raw.replace(/[_-]+/g, " ").replace(/\b\w/g, ch => ch.toUpperCase());
+    const isWechat = /公众号|wechat/i.test(String(it.source || ""));
+    const isWeibo = /微博|weibo/i.test(String(it.source || "")) || /(^|\.)weibo\.com$/i.test((() => { try { return new URL(it.link).hostname; } catch (e) { return ""; } })());
+    const channelType = isWechat ? "wechat"
+      : isWeibo ? "weibo"
+      : it.googleNewsUrl ? "google-news"
+      : it.xPostUrl ? "x"
+      : RSS_SOURCE_IDS.has(key) ? "rss" : "website";
+    const channelLabel = isWechat ? "公众号"
+      : isWeibo ? "微博"
+      : channelType === "google-news" ? "Google News"
+      : channelType === "x" ? "X"
+      : channelType === "rss" ? "RSS" : "原文网站";
+    const displayName = isWechat ? `公众号：${name}`
+      : isWeibo ? `微博：${name}`
+      : channelType === "x" ? `X：${name}${it.xHandle ? ` (@${String(it.xHandle).replace(/^@/, "")})` : ""}`
+      : `${name}（${channelLabel}）`;
+    return { id: `legacy:${key}`, name, displayName, channelType, channelLabel, handle: it.xHandle || "" };
+  }
+
   /* 数据兜底：派生字段（pubTime / 真实信源 / related） */
   function ensureDerived(items) {
     const byCat = {};
     items.forEach((it, i) => (byCat[it.category] = byCat[it.category] || []).push({ ...it, _i: i }));
     items.forEach((it, i) => {
       if (!it.pubTime) it.pubTime = fmtHHMM(it.pubDate);
-      const sourceName = (it.author || it.source || "行业信源").trim();
+      const sourceInfo = it.sourceInfo && it.sourceInfo.displayName ? it.sourceInfo : fallbackSourceInfo(it);
+      const sourceDetails = Array.isArray(it.sourceDetails) && it.sourceDetails.length
+        ? it.sourceDetails : [sourceInfo];
+      it.sourceInfo = sourceInfo;
+      it.sourceDetails = sourceDetails;
+      it.sourceDisplayName = sourceInfo.displayName;
+      it.source = sourceInfo.name;
+      it.sources = sourceDetails.map(source => source.name || source.displayName).filter(Boolean);
+      it.sourceCount = sourceDetails.length;
       const colorByCat = {
         "政策": "#805ad5", "硅料": "#0e7490", "硅片": "#2563eb",
         "电池片": "#0284c7", "组件": "#0f766e", "逆变器": "#2563eb",
@@ -565,34 +610,11 @@
       };
       // 始终以真实来源覆盖旧版的虚拟编辑账号，避免用户误认为是原作者。
       it.user = {
-        name: sourceName,
-        handle: (it.sourceCount || 1) > 1 ? `${it.sourceCount} 个信源聚合` : "原文信源",
-        color: colorByCat[it.category] || "#0f766e"
+        name: sourceInfo.displayName,
+        handle: sourceInfo.handle ? `@${sourceInfo.handle}` : "",
+        color: colorByCat[it.category] || "#0f766e",
+        avatar: it.avatar || ""
       };
-      /* v3.5：来源标记 — 按源头类型分配标签和颜色 */
-      if (!it.srcLabel) {
-        const s = (it.source || '').toLowerCase();
-        const srcs = ((it.sources || []).join(' ') || '').toLowerCase();
-        if (s.includes('微信') || s.includes('wechat') || s.includes('公众号') || srcs.includes('公众号')) {
-          it.srcLabel = '公众号'; it.srcColor = '#07c160';
-        } else if (s.includes('微博') || s.includes('weibo') || srcs.includes('微博')) {
-          it.srcLabel = '微博'; it.srcColor = '#e6162d';
-        } else if (['solarbe', 'ne21', 'bjx', '索比', '北极星', '世纪新能源'].some(k => s.includes(k) || srcs.includes(k))) {
-          it.srcLabel = '光伏媒体'; it.srcColor = '#ff6b35';
-        } else if (['pv magazine', 'pv tech', 'pv-tech', 'cleantechnica', 'solar power world', 'reuters', 'bloomberg', 'pv-magazine', 'renewables now', 'taiyangnews', 'solarquarter', 'mercom', 'saur energy', 'energy-storage', 'solar power portal', 'businesskorea', 'financial times', 'wsj', 's&p global', 'bbc'].some(k => s.includes(k) || srcs.includes(k))) {
-          it.srcLabel = '外媒'; it.srcColor = '#6c757d';
-        } else {
-          it.srcLabel = '资讯'; it.srcColor = '#3a7bd5';
-        }
-      }
-      /* v3.5：微信文章使用真实公众号名称 + 头像 */
-      if (it.source === '公众号' || it.source === '微信公众号' || it.source === 'wechat') {
-        const acctName = it.author || '';
-        if (acctName) {
-          const avatarUrl = it.avatar || '';
-          it.user = { name: acctName, handle: 'wechat_mp', color: '#07c160', avatar: avatarUrl };
-        }
-      }
       if (!it.related) {
         const sibs = (byCat[it.category] || []).filter(s => s._i !== i);
         sibs.sort((a, b) => (b.tags || []).filter(t => (it.tags || []).includes(t)).length
@@ -1262,7 +1284,7 @@
   }
   /* v18.10：推荐理由段（淡色独立段，"推荐理由"前缀，与 aihot 风格一致） */
   function reasonHTML(it) {
-    const r = (it.reason || '').replace(/\s+/g, ' ').trim();
+    const r = (it.recommendationReason || it.reason || '').replace(/\s+/g, ' ').trim();
     if (!r || r.length < 8) return '';
     return `<div class="tl-reason"><b>推荐理由</b>${hl(r, state.kw)}</div>`;
   }
@@ -1284,12 +1306,6 @@
     /* v3.5：头像 — 有真实头像用 img，否则用文字圆 */
     const avatarHTML = userObj.avatar
       ? `<img class="tl-avatar-img" src="${esc(userObj.avatar)}" alt="${srcName}" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()" /><span class="tl-avatar" style="background:${avatarBg}">${esc(avatarChar)}</span>`
-      : `<span class="tl-avatar" style="background:${avatarBg}">${esc(avatarChar)}</span>`;
-    /* v3.5：来源标记标签 */
-    const srcLabel = it.srcLabel || '资讯';
-    const srcColor = it.srcColor || '#3a7bd5';
-    const credibilityHTML = it.credibilityLabel
-      ? `<span class="tl-credibility" title="来源可信度：${esc(it.credibilityLabel)}">${esc(it.credibilityLabel)}</span>`
       : '';
     /* v3b：精选徽标 = AI 推荐分 >= 60 */
     const score = it.score || it.heat || 50;
@@ -1303,21 +1319,22 @@
     const numStr = String(Math.max(1, score));
     const dismissHTML = `<button class="tl-dismiss" data-dismiss="${esc(it.id)}" title="不感兴趣" aria-label="不感兴趣">×</button>`;
     const pubTime = it.pubTime || (it.pubDate || '').slice(11, 16) || '--:--';
-    const relatedHTML = (it.related && it.related.length)
-      ? `<div class="tl-related"><b>同事件还有精选：</b>${it.related.map(r => `<a href="${esc(r.link)}">《${hl(r.title, state.kw)}》</a>`).join(" ")}</div>`
-      : "";
+    const additionalSources = Math.max(0, (it.sourceCount || 1) - 1);
+    const sourceList = (it.sourceDetails || []).slice(1)
+      .map(source => source.displayName || source.name).filter(Boolean).join('、');
+    const sourceMoreHTML = additionalSources
+      ? `<div class="tl-source-more" title="${esc(sourceList)}">另有 ${additionalSources} 家信源报道</div>` : '';
+    const editorialReason = state.view === "featured" && featured ? reasonHTML(it) : '';
     return `
       <div class="tl-item">
         <div class="tl-time" title="${esc(it.pubDate || '')}">${esc(pubTime)}</div>
         <article class="tl-card">
           <header class="tl-head">
             <div class="tl-head-l">
-              ${avatarHTML}
-              <span class="tl-srcname">${srcName}</span>
-              ${srcType ? `<span class="tl-srctype">${srcType}</span>` : ''}
-              <span class="tl-src-badge" style="background:${srcColor};color:#fff">${esc(srcLabel)}</span>
-              ${credibilityHTML}
-              ${xSignalHTML}
+               ${avatarHTML}
+               <span class="tl-srcname">${srcName}</span>
+               ${srcType ? `<span class="tl-srctype">${srcType}</span>` : ''}
+               ${xSignalHTML}
               ${featHTML}
               ${dismissHTML}
             </div>
@@ -1327,13 +1344,12 @@
             </div>
           </header>
           <a class="tl-title" href="${esc(it.link)}" title="${esc(it.orig_title || '')}" target="_blank" rel="noopener">${hl(it.title, state.kw)}</a>
-          ${mediaHTML(it)}
-          ${bodyHTML(it)}
-          <div class="tl-tags">${(it.tags || []).map(t => `<span class="tl-tag" data-tag="${esc(t)}"># ${hl(t, state.kw)}</span>`).join("")}</div>
-          ${impactHTML(it)}
-          ${reasonHTML(it) ? `<div class="tl-divider"></div>${reasonHTML(it)}` : ''}
-          ${relatedHTML}
-        </article>
+           ${mediaHTML(it)}
+           ${bodyHTML(it)}
+           ${sourceMoreHTML}
+           <div class="tl-tags">${(it.tags || []).map(t => `<span class="tl-tag" data-tag="${esc(t)}"># ${hl(t, state.kw)}</span>`).join("")}</div>
+           ${editorialReason ? `<div class="tl-divider"></div>${editorialReason}` : ''}
+         </article>
       </div>`;
   }
 

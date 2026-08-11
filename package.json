@@ -14,10 +14,12 @@
     "smoke": "node scripts/smoke.js",
     "security": "node scripts/scan-secrets.js",
     "security:history": "node scripts/scan-secrets.js --history",
+    "wechat:gateway": "node wechat_gateway/server.js",
     "ci": "npm run check && npm test && npm run smoke && npm run security:history"
   },
   "dependencies": {
-    "puppeteer": "25.3.0"
+    "puppeteer": "25.3.0",
+    "qrcode": "1.5.4"
   },
   "license": "UNLICENSED"
 }

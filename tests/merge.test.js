@@ -23,9 +23,26 @@ test('sanitizeItem preserves a healthy title and replaces a broken summary', () 
   });
 
   assert.equal(item.title, 'Solar capacity reaches a new record');
-  assert.equal(item.source, 'pv-magazine');
+  assert.equal(item.source, 'PV Magazine Global');
+  assert.equal(item.sourceDisplayName, 'PV Magazine Global（网页）');
+  assert.equal(item.sourceInfo.domain, 'pv-magazine.com');
+  assert.equal(item.reason, '');
   assert.equal(item.summaryMode, 'headline');
   assert.ok(item.summary.length > 20);
+});
+
+test('sanitizeItem retains recommendation reasons only for featured items', () => {
+  const featured = sanitizeItem({
+    id: 'featured', title: 'Featured item', source: 'pv-tech',
+    link: 'https://www.pv-tech.org/example', featured: true, reason: 'A useful reason for selection.',
+  });
+  const regular = sanitizeItem({
+    id: 'regular', title: 'Regular item', source: 'pv-tech',
+    link: 'https://www.pv-tech.org/example-2', featured: false, reason: 'Must not leak.',
+  });
+  assert.equal(featured.recommendationReason, 'A useful reason for selection.');
+  assert.equal(regular.recommendationReason, '');
+  assert.equal(regular.reason, '');
 });
 
 test('buildBootstrap prioritizes today featured and high-score items', () => {
