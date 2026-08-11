@@ -1397,17 +1397,26 @@ async function fetchScrape(config) {
     // 提取标题（strip HTML，清理空白）
     const heading = rawText.match(/<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]>/i);
     let title = stripHtml(heading ? heading[1] : rawText).trim();
+    let usedConfiguredTitle = false;
     if (config.titleFromAnchor) {
       const configuredTitle = stripHtml(config.titleFromAnchor(m[0]) || '').trim();
-      if (configuredTitle) title = configuredTitle;
+      if (configuredTitle) {
+        title = configuredTitle;
+        usedConfiguredTitle = true;
+      }
     }
     if (config.titleFromContext) {
       const configuredTitle = stripHtml(config.titleFromContext(html, m.index, m[0]) || '').trim();
-      if (configuredTitle) title = configuredTitle;
+      if (configuredTitle) {
+        title = configuredTitle;
+        usedConfiguredTitle = true;
+      }
     }
     // 也检查 title 属性（有时 <a> 的文本是缩略，title 属性是完整标题）
     const titleAttr = m[0].match(/title=["']([^"']+)["']/i);
-    if (titleAttr && titleAttr[1].trim().length > title.length) title = titleAttr[1].trim();
+    if (!usedConfiguredTitle && titleAttr && titleAttr[1].trim().length > title.length) {
+      title = titleAttr[1].trim();
+    }
     // 标题太短跳过
     if (title.length < 8) continue;
     // 从 URL 解析日期
