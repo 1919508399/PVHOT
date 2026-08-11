@@ -1522,6 +1522,19 @@ const server = http.createServer(async (req, res) => {
       }
       return;
     }
+    if (p === '/internal/wechat-bootstrap/status') {
+      send(res, 200, wechatGateway.publicState());
+      return;
+    }
+    if (p === '/internal/wechat-bootstrap/refresh') {
+      try {
+        const refreshed = await wechatGateway.refreshNextDue();
+        send(res, 200, { ok: true, refreshed, state: wechatGateway.publicState() });
+      } catch (error) {
+        send(res, 502, { error: `微信公众号刷新失败：${String(error.message || error).slice(0, 180)}` });
+      }
+      return;
+    }
     send(res, 404, { error: 'not found' });
     return;
   }

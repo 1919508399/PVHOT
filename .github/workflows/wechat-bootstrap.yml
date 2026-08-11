@@ -10,6 +10,8 @@ on:
         options:
           - start
           - complete
+          - status
+          - refresh
       login_id:
         description: Login session id returned by the start operation
         required: false
@@ -79,6 +81,9 @@ jobs:
             [[ "${login_id}" =~ ^[A-Za-z0-9_-]{6,80}$ ]]
             endpoint="complete"
             payload="{\"id\":\"${login_id}\"}"
+          elif [[ "${operation}" == "status" || "${operation}" == "refresh" ]]; then
+            endpoint="${operation}"
+            payload='{}'
           else
             printf 'Unsupported operation\n' >&2
             exit 2

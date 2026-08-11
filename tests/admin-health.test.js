@@ -156,6 +156,14 @@ test('authenticated source health API manages a custom WeChat source safely', as
     body: JSON.stringify({ id: 'bad' }),
   });
   assert.equal(invalidBootstrapSession.status, 400);
+  const bootstrapStatusResponse = await fetch(`${baseUrl}/internal/wechat-bootstrap/status`, {
+    method: 'POST',
+    headers: { 'X-PVHOT-Bootstrap-Token': bootstrapToken },
+  });
+  const bootstrapStatus = await bootstrapStatusResponse.json();
+  assert.equal(bootstrapStatusResponse.status, 200);
+  assert.equal(bootstrapStatus.enabled, false);
+  assert.equal(bootstrapStatus.account, null);
 
   const login = await fetch(`${baseUrl}/admin/api/login`, {
     method: 'POST',
