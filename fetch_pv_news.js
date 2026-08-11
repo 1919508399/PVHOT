@@ -44,6 +44,7 @@ const {
   RSSHUB_ROUTES: REGISTERED_RSSHUB_ROUTES,
   WECHAT_ACCOUNTS,
   WEIBO_ROUTES: REGISTERED_WEIBO_ROUTES,
+  WEIBO_HIGH_INFLUENCE_ACCOUNTS,
   X_ACCOUNTS,
   TRUSTED_SOURCE_TOKENS,
 } = require('./source_registry');
@@ -1394,6 +1395,32 @@ function normalizeWeiboItem(item, routeConfig = {}) {
   };
 }
 
+function weiboAccountKey(value) {
+  return cleanText(value || '')
+    .toLowerCase()
+    .replace(/[\s·_\-—（）()｜|]/g, '');
+}
+
+function weiboUidFromLink(value) {
+  try {
+    const parts = new URL(value).pathname.split('/').filter(Boolean);
+    const candidate = parts[0] === 'u' ? parts[1] : parts[0];
+    return /^\d{5,}$/.test(candidate || '') ? candidate : '';
+  } catch (error) {
+    return '';
+  }
+}
+
+function isHighInfluenceWeiboItem(item) {
+  const account = weiboAccountKey(item && (item.author || item.account || item.source));
+  if (!account) return false;
+  const uid = weiboUidFromLink(item && item.link);
+  const approved = WEIBO_HIGH_INFLUENCE_ACCOUNTS.find((entry) =>
+    [entry.name, ...(entry.aliases || [])].some((name) => weiboAccountKey(name) === account));
+  if (!approved) return false;
+  return !approved.uid || (uid && uid === approved.uid);
+}
+
 /* ---------- 分批并发控制（避免同时打爆 RSSHub）---------- */
 async function batchFetch(routes, batchSize, fetchFn) {
   const results = [];
@@ -2426,8 +2453,9 @@ async function runMain() {
         const itemAge = Date.now() - new Date(it.pubDate).getTime();
         if (Number.isFinite(itemAge) && itemAge > MAX_AGE_DAYS * 86400 * 1000) return;
       }
-      seen.add(key);
       const normalized = normalizeWeiboItem(it, src);
+      if (!isHighInfluenceWeiboItem(normalized)) return;
+      seen.add(key);
       const classified = classify(normalized.title + ' ' + normalized.summary);
       const finalCat = (src.cat !== 'ALL' && classified === '行情') ? src.cat : classified;
       merged.push({
@@ -2840,6 +2868,7 @@ module.exports = {
   decodeHtmlText,
   decodeResponseBuffer,
   isMojibake,
+  isHighInfluenceWeiboItem,
   inspectFeedStructure,
   isRelevantItem,
   mapLimit,

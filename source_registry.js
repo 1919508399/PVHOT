@@ -10,7 +10,7 @@
  * 4. 微信账号按小时轮询，fetch_wechat.js 会保留 7 天历史，不会因轮换丢失文章。
  */
 
-const REGISTRY_VERSION = '2026.08.11-r1';
+const REGISTRY_VERSION = '2026.08.11-r2';
 
 const TOPIC_QUERIES = [
   { id: 'topic-all', cat: 'ALL', q: 'solar OR photovoltaic OR solar panel', locale: 'en' },
@@ -378,6 +378,28 @@ const WEIBO_QUERIES = [
   { id: 'weibo-company-sungrow', query: '阳光电源 光伏', name: '阳光电源关键词', cat: '逆变器' },
 ];
 
+// RSSHub 的关键词路由不返回粉丝数或认证状态。微博内容因此采用人工核验的
+// 高影响力账号准入表：全国级媒体直接纳入；行业垂直账号需达到约 1 万粉以上。
+// 有稳定数字 UID 的账号同时校验 UID，避免同名小号混入。粉丝量仅记录核验时
+// 的保守下限，不作为对外展示的实时数据。
+const WEIBO_HIGH_INFLUENCE_ACCOUNTS = [
+  { name: '人民日报', uid: '2803301701', followerFloor: 100_000_000, kind: '全国媒体' },
+  { name: '央视新闻', uid: '2656274875', followerFloor: 100_000_000, kind: '全国媒体' },
+  { name: '新华网', followerFloor: 90_000_000, kind: '全国媒体' },
+  { name: '中国新闻网', uid: '1784473157', followerFloor: 80_000_000, kind: '全国媒体' },
+  { name: '经济观察报', uid: '1641561812', followerFloor: 20_000_000, kind: '财经媒体' },
+  { name: '第一财经', kind: '财经媒体' },
+  { name: '每日经济新闻', kind: '财经媒体' },
+  { name: '财联社', kind: '财经媒体' },
+  { name: '界面新闻', kind: '财经媒体' },
+  { name: '证券时报', kind: '财经媒体' },
+  { name: '中国证券报', kind: '财经媒体' },
+  { name: '中国电力企业联合会', uid: '6632760461', followerFloor: 30_000, kind: '能源机构' },
+  { name: '国家电投', followerFloor: 90_000, kind: '能源央企' },
+  { name: '铂陆帝户外电源', uid: '7242264256', followerFloor: 180_000, kind: '储能企业' },
+  { name: '新能源研究评论员-红炜', uid: '1293350964', followerFloor: 10_000, kind: '行业作者' },
+];
+
 const WEIBO_ROUTES = WEIBO_QUERIES.map((source) => ({
   ...source,
   route: `/weibo/keyword/${encodeURIComponent(source.query)}`,
@@ -420,5 +442,6 @@ module.exports = {
   WECHAT_TOPIC_QUERIES,
   WEIBO_QUERIES,
   WEIBO_ROUTES,
+  WEIBO_HIGH_INFLUENCE_ACCOUNTS,
   TRUSTED_SOURCE_TOKENS,
 };

@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { SCRAPE_SOURCES, WEIBO_ROUTES } = require('../source_registry');
+const { SCRAPE_SOURCES, WEIBO_ROUTES, WEIBO_HIGH_INFLUENCE_ACCOUNTS } = require('../source_registry');
 const { looksBlocked } = require('../fetch_pv_news');
 
 test('CPIA parser accepts the current StaticPage article path', () => {
@@ -59,5 +59,15 @@ test('Weibo keyword routes are encoded and explicitly labeled as discovery sourc
   assert.match(
     WEIBO_ROUTES.find((source) => source.id === 'weibo-company-longi').route,
     /%E9%9A%86%E5%9F%BA%E7%BB%BF%E8%83%BD/
+  );
+});
+
+test('Weibo high-influence allow-list has unique accounts and locks known profiles to UIDs', () => {
+  assert.ok(WEIBO_HIGH_INFLUENCE_ACCOUNTS.length >= 10);
+  const names = WEIBO_HIGH_INFLUENCE_ACCOUNTS.map((account) => account.name);
+  assert.equal(new Set(names).size, names.length);
+  assert.equal(
+    WEIBO_HIGH_INFLUENCE_ACCOUNTS.find((account) => account.name === '经济观察报').uid,
+    '1641561812'
   );
 });

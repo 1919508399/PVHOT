@@ -17,6 +17,7 @@ const {
   filterPostEnrichmentFresh,
   inspectFeedStructure,
   isMojibake,
+  isHighInfluenceWeiboItem,
   isRelevantItem,
   mapLimit,
   normalizeWeiboItem,
@@ -267,6 +268,25 @@ test('Weibo generated titles are bounded and do not repeat the account name', ()
   const title = shortenWeiboTitle('某企业今日公布了一项很长很长的光伏储能项目进展，包含项目规模、并网时间、设备采购与后续执行安排');
   assert.ok(title.length <= 37);
   assert.match(title, /…$/);
+});
+
+test('Weibo discovery admits only curated high-influence accounts', () => {
+  assert.equal(isHighInfluenceWeiboItem({
+    author: '经济观察报',
+    link: 'https://weibo.com/1641561812/example',
+  }), true);
+  assert.equal(isHighInfluenceWeiboItem({
+    author: '新能源研究评论员-红炜',
+    link: 'https://weibo.com/1293350964/example',
+  }), true);
+  assert.equal(isHighInfluenceWeiboItem({
+    author: '经济观察报',
+    link: 'https://weibo.com/9999999999/example',
+  }), false);
+  assert.equal(isHighInfluenceWeiboItem({
+    author: '某光伏设备小店',
+    link: 'https://weibo.com/8334648460/example',
+  }), false);
 });
 
 test('topic extraction never fabricates four-character fragments', () => {
