@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const { loadGatewayItems } = require('../fetch_wechat');
-const { WechatGateway, normalizeArticle } = require('../wechat_gateway/gateway');
+const { WechatGateway, normalizeArticle, reconcileSources } = require('../wechat_gateway/gateway');
 const { PlatformError, WeReadPlatformClient } = require('../wechat_gateway/platform_client');
 const { createStorage, decryptText, encryptText } = require('../wechat_gateway/storage');
 
@@ -86,6 +86,22 @@ test('platform client retries transient WeReadError400 responses', async () => {
   const rows = await client.getArticles('2393507962', { id: 'reader', token: 'secret' });
   assert.equal(attempts, 3);
   assert.equal(rows[0].title, '重试后成功');
+});
+
+test('saved numeric prototype ids migrate to the original WeChat biz ids', () => {
+  const sources = reconcileSources([{
+    mpId: '2393507962',
+    name: '中关村储能产业技术联盟',
+    kind: '机构',
+    tier: 1,
+    status: 'risk_control',
+    error: 'WeReadError400',
+  }]);
+  const cnesa = sources.find((source) => source.name === '中关村储能产业技术联盟');
+  assert.equal(cnesa.mpId, 'MjM5MzUwNzk2Mg==');
+  assert.equal(cnesa.status, 'pending');
+  assert.equal(cnesa.nextRefreshAt, new Date(0).toISOString());
+  assert.equal(cnesa.error, '');
 });
 
 test('fetch_wechat only accepts fresh official WeChat links from gateway output', (t) => {

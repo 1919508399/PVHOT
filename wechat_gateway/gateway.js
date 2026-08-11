@@ -62,6 +62,25 @@ function initialState() {
   };
 }
 
+function reconcileSources(savedSources) {
+  const byName = new Map((Array.isArray(savedSources) ? savedSources : [])
+    .map((source) => [String(source?.name || ''), source]));
+  return PROTOTYPE_SOURCES.map((configured) => {
+    const saved = byName.get(configured.name);
+    if (!saved || saved.mpId !== configured.mpId) {
+      return {
+        ...configured,
+        status: 'pending',
+        lastPolledAt: '',
+        lastSuccessAt: '',
+        nextRefreshAt: new Date(0).toISOString(),
+        error: '',
+      };
+    }
+    return { ...configured, ...saved, mpId: configured.mpId };
+  });
+}
+
 class WechatGateway {
   constructor(options) {
     this.storage = options.storage;
@@ -69,6 +88,7 @@ class WechatGateway {
     this.outputPath = path.resolve(options.outputPath);
     this.refreshHours = Math.max(1, Number(options.refreshHours || 6));
     this.state = this.storage.loadState(initialState());
+    this.state.sources = reconcileSources(this.state.sources);
     this.refreshing = false;
     this.scheduler = null;
     this.persist();
@@ -234,4 +254,4 @@ class WechatGateway {
   }
 }
 
-module.exports = { WechatGateway, initialState, normalizeArticle };
+module.exports = { WechatGateway, initialState, normalizeArticle, reconcileSources };
