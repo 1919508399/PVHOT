@@ -74,7 +74,7 @@ jobs:
             -o ConnectTimeout=15
           )
           ssh "${ssh_options[@]}" "${destination}" \
-            bash -s -- "${OPERATION}" "${LOGIN_ID}" "${ARTICLE_URL}" <<'REMOTE'
+            bash -s -- "${OPERATION}" "${LOGIN_ID:-_}" "${ARTICLE_URL:-_}" <<'REMOTE'
           set -euo pipefail
           operation="$1"
           login_id="${2:-}"
