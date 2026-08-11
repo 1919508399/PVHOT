@@ -428,6 +428,10 @@ function unescapeXml(s) {
   return (s || '')
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/&ldquo;/g, '“').replace(/&rdquo;/g, '”')
+    .replace(/&lsquo;/g, '‘').replace(/&rsquo;/g, '’')
+    .replace(/&mdash;/g, '—').replace(/&ndash;/g, '–')
+    .replace(/&middot;/g, '·').replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&');
 }
 
@@ -2746,6 +2750,7 @@ module.exports = {
   buildReason,
   computeScoreDetails,
   beijingDateKey,
+  decodeHtmlText,
   decodeResponseBuffer,
   isMojibake,
   inspectFeedStructure,

@@ -7,6 +7,7 @@ const {
   computeScoreDetails,
   buildReason,
   classify,
+  decodeHtmlText,
   decodeResponseBuffer,
   dedupeXArticleSignals,
   extractArticleDetails,
@@ -166,6 +167,10 @@ test('decodeResponseBuffer preserves valid UTF-8 Chinese text', () => {
   );
   assert.equal(decoded, source);
   assert.equal(isMojibake(decoded), false);
+});
+
+test('decodeHtmlText converts common named entities used by company news pages', () => {
+  assert.equal(decodeHtmlText('&ldquo;PV&rdquo;&nbsp;&mdash;&nbsp;news'), '“PV” — news');
 });
 
 test('computeScoreDetails returns a bounded score with an explainable breakdown', () => {
