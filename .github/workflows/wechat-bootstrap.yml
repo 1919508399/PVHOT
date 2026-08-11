@@ -97,7 +97,10 @@ jobs:
             endpoint="refresh"
             payload='{}'
           elif [[ "${operation}" == "resolve" ]]; then
-            [[ "${article_url}" =~ ^https://mp\.weixin\.qq\.com/s/[-A-Za-z0-9_]+$ ]]
+            case "${article_url}" in
+              https://mp.weixin.qq.com/s/*) ;;
+              *) printf 'Invalid WeChat article URL\n' >&2; exit 2 ;;
+            esac
             endpoint="resolve"
             payload="{\"url\":\"${article_url}\"}"
           elif [[ "${operation}" == "news-refresh" ]]; then
