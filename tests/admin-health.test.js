@@ -81,6 +81,7 @@ test('authenticated source health API manages a custom WeChat source safely', as
   const shared = path.join(sandbox, 'shared');
   fs.mkdirSync(root, { recursive: true });
   fs.mkdirSync(path.join(shared, 'data'), { recursive: true });
+  fs.mkdirSync(path.join(shared, 'config'), { recursive: true });
   const port = await reservePort();
   fs.writeFileSync(path.join(root, 'data.json'), JSON.stringify({
     updated: new Date().toISOString(),
@@ -103,6 +104,8 @@ test('authenticated source health API manages a custom WeChat source safely', as
       detail: '未配置 X 官方 API', items: 0, itemsSeen: 0,
     }],
   }));
+  const bootstrapToken = 'test-bootstrap-token-value-1234567890';
+  fs.writeFileSync(path.join(shared, 'config', 'wechat-bootstrap-token'), `${bootstrapToken}\n`);
 
   const testLoginValue = 'test_admin_login_value';
   const child = spawn(process.execPath, [path.join(process.cwd(), 'admin_server.js')], {
@@ -128,6 +131,31 @@ test('authenticated source health API manages a custom WeChat source safely', as
   assert.equal(anonymous.status, 401);
   const anonymousGateway = await fetch(`${baseUrl}/admin/api/wechat-gateway`);
   assert.equal(anonymousGateway.status, 401);
+  const missingBootstrapToken = await fetch(`${baseUrl}/internal/wechat-bootstrap/complete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: 'bad' }),
+  });
+  assert.equal(missingBootstrapToken.status, 403);
+  const proxiedBootstrap = await fetch(`${baseUrl}/internal/wechat-bootstrap/complete`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-PVHOT-Bootstrap-Token': bootstrapToken,
+      'X-Forwarded-For': '203.0.113.8',
+    },
+    body: JSON.stringify({ id: 'bad' }),
+  });
+  assert.equal(proxiedBootstrap.status, 403);
+  const invalidBootstrapSession = await fetch(`${baseUrl}/internal/wechat-bootstrap/complete`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-PVHOT-Bootstrap-Token': bootstrapToken,
+    },
+    body: JSON.stringify({ id: 'bad' }),
+  });
+  assert.equal(invalidBootstrapSession.status, 400);
 
   const login = await fetch(`${baseUrl}/admin/api/login`, {
     method: 'POST',

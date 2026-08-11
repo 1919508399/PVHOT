@@ -453,6 +453,28 @@ initialize_shared_state() {
     "${SHARED_DIR}/data/wechat_gateway_items.json" \
     "" \
     '{"provider":"weread-bridge-experimental","experimental":true,"health":[],"count":0,"items":[]}'
+  if [[ ! -e "${SHARED_DIR}/config/wechat-bootstrap-token" \
+        && ! -L "${SHARED_DIR}/config/wechat-bootstrap-token" ]]; then
+    local wechat_bootstrap_seed="${STAGING_DIR}/.wechat-bootstrap-token.seed"
+    "${NODE_BIN}" - "${wechat_bootstrap_seed}" <<'NODE'
+const crypto = require('crypto');
+const fs = require('fs');
+fs.writeFileSync(process.argv[2], `${crypto.randomBytes(32).toString('base64url')}\n`, {
+  encoding: 'utf8',
+  mode: 0o600,
+  flag: 'wx',
+});
+NODE
+    publish_new_shared_file \
+      "${SHARED_DIR}/config/wechat-bootstrap-token" \
+      0640 \
+      "${wechat_bootstrap_seed}" \
+      0 \
+      ""
+    rm -f -- "${wechat_bootstrap_seed}"
+  fi
+  set_or_verify_shared_file_permissions \
+    "${SHARED_DIR}/config/wechat-bootstrap-token" 0640
   seed_file "fetch.log" \
     "${SHARED_DIR}/log/fetch.log" \
     "" \

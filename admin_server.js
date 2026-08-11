@@ -89,6 +89,10 @@ const WECHAT_GATEWAY_DATA_DIR = process.env.PVHOT_WECHAT_GATEWAY_DATA_DIR
     : path.join(ROOT, '.wechat-gateway-data'));
 const WECHAT_GATEWAY_OUTPUT = process.env.PVHOT_WECHAT_GATEWAY_OUTPUT
   || path.join(ROOT, 'wechat_gateway_items.json');
+const WECHAT_BOOTSTRAP_TOKEN_FILE = process.env.PVHOT_WECHAT_BOOTSTRAP_TOKEN_FILE
+  || (IS_CURRENT_RELEASE || HAS_SHARED_ROOT
+    ? path.join(SHARED_ROOT, 'config', 'wechat-bootstrap-token')
+    : path.join(ROOT, '.wechat-bootstrap-token'));
 const wechatGatewayStorage = createWechatGatewayStorage({
   root: WECHAT_GATEWAY_DATA_DIR,
   sessionKey: process.env.PVHOT_WECHAT_GATEWAY_KEY,
@@ -130,6 +134,18 @@ function requestIp(req) {
   const peer = String(req.socket?.remoteAddress || 'unknown').replace(/^::ffff:/, '');
   if (!TRUSTED_PROXY_IPS.has(peer)) return peer;
   return String(req.headers['x-forwarded-for'] || peer).split(',')[0].trim().replace(/^::ffff:/, '') || peer;
+}
+function internalWechatBootstrapAuthorized(req) {
+  const peer = String(req.socket?.remoteAddress || '').replace(/^::ffff:/, '');
+  if (!['127.0.0.1', '::1'].includes(peer)) return false;
+  if (req.headers.forwarded || req.headers['x-forwarded-for']) return false;
+  let expected = '';
+  try { expected = fs.readFileSync(WECHAT_BOOTSTRAP_TOKEN_FILE, 'utf8').trim(); }
+  catch { return false; }
+  const provided = String(req.headers['x-pvhot-bootstrap-token'] || '').trim();
+  const left = Buffer.from(expected);
+  const right = Buffer.from(provided);
+  return left.length >= 32 && left.length === right.length && crypto.timingSafeEqual(left, right);
 }
 function privacyId(value) {
   return crypto.createHmac('sha256', STATS_SALT).update(String(value || 'unknown')).digest('hex');
@@ -1251,7 +1267,12 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (!p.startsWith('/admin/api/') && !p.startsWith('/api/')) { send(res, 404, { error: 'not found' }); return; }
+  if (!p.startsWith('/admin/api/')
+      && !p.startsWith('/api/')
+      && !p.startsWith('/internal/wechat-bootstrap/')) {
+    send(res, 404, { error: 'not found' });
+    return;
+  }
 
   /* ---------- 登录 / 退出（无需登录） ---------- */
   if (p === '/admin/api/login' && method === 'POST') {
@@ -1472,6 +1493,39 @@ const server = http.createServer(async (req, res) => {
   }
 
   /* ---------- 公共：二维码状态查询（无需登录，仅元数据） ---------- */
+  /* ---------- 服务器本机：首次微信扫码引导（不经过公网后台登录） ---------- */
+  if (p.startsWith('/internal/wechat-bootstrap/')) {
+    if (method !== 'POST') { send(res, 405, { error: 'POST required' }); return; }
+    if (!internalWechatBootstrapAuthorized(req)) {
+      send(res, 403, { error: 'internal bootstrap access denied' });
+      return;
+    }
+    if (p === '/internal/wechat-bootstrap/start') {
+      try {
+        send(res, 200, await wechatGateway.startLogin());
+      } catch (error) {
+        send(res, 502, { error: `微信登录会话创建失败：${String(error.message || error).slice(0, 180)}` });
+      }
+      return;
+    }
+    if (p === '/internal/wechat-bootstrap/complete') {
+      const body = await getBodyOrReject(req, res); if (!body) return;
+      const id = String(body.id || '');
+      if (!/^[A-Za-z0-9_-]{6,80}$/.test(id)) {
+        send(res, 400, { error: '登录会话编号无效' });
+        return;
+      }
+      try {
+        send(res, 200, await wechatGateway.completeLogin(id));
+      } catch (error) {
+        send(res, 502, { error: `微信扫码确认失败：${String(error.message || error).slice(0, 180)}` });
+      }
+      return;
+    }
+    send(res, 404, { error: 'not found' });
+    return;
+  }
+
   if (p === '/admin/api/qrcode' && method === 'GET') {
     try {
       const st = fs.statSync(QRCODE_FILE);

@@ -1,0 +1,98 @@
+name: WeChat bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Start a QR session or complete a scanned session
+        required: true
+        type: choice
+        options:
+          - start
+          - complete
+      login_id:
+        description: Login session id returned by the start operation
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    name: WeChat ${{ inputs.operation }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment:
+      name: production
+    env:
+      DEPLOY_HOST: ${{ vars.PVHOT_DEPLOY_HOST }}
+      DEPLOY_PORT: ${{ vars.PVHOT_DEPLOY_PORT || '22' }}
+      DEPLOY_USER: pvhot-deploy
+      OPERATION: ${{ inputs.operation }}
+      LOGIN_ID: ${{ inputs.login_id }}
+    steps:
+      - name: Configure restricted SSH identity
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PVHOT_DEPLOY_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PVHOT_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY}"
+          test -n "${SSH_KNOWN_HOSTS}"
+          [[ "${DEPLOY_HOST}" =~ ^[A-Za-z0-9.-]+$ ]]
+          [[ "${DEPLOY_PORT}" =~ ^[0-9]+$ ]]
+          umask 077
+          mkdir -p "${HOME}/.ssh"
+          printf '%s\n' "${SSH_PRIVATE_KEY}" >"${HOME}/.ssh/pvhot_deploy"
+          printf '%s\n' "${SSH_KNOWN_HOSTS}" >"${HOME}/.ssh/known_hosts"
+          chmod 600 "${HOME}/.ssh/pvhot_deploy" "${HOME}/.ssh/known_hosts"
+          ssh-keygen -y -f "${HOME}/.ssh/pvhot_deploy" >/dev/null
+
+      - name: Run production bootstrap operation
+        shell: bash
+        run: |
+          set -euo pipefail
+          destination="${DEPLOY_USER}@${DEPLOY_HOST}"
+          ssh_options=(
+            -i "${HOME}/.ssh/pvhot_deploy"
+            -p "${DEPLOY_PORT}"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o ConnectTimeout=15
+          )
+          ssh "${ssh_options[@]}" "${destination}" \
+            bash -s -- "${OPERATION}" "${LOGIN_ID}" <<'REMOTE'
+          set -euo pipefail
+          operation="$1"
+          login_id="$2"
+          token_file="/var/www/pvhot/shared/config/wechat-bootstrap-token"
+          [[ -f "${token_file}" && ! -L "${token_file}" ]]
+          token="$(<"${token_file}")"
+          [[ "${#token}" -ge 32 ]]
+          if [[ "${operation}" == "start" ]]; then
+            endpoint="start"
+            payload='{}'
+          elif [[ "${operation}" == "complete" ]]; then
+            [[ "${login_id}" =~ ^[A-Za-z0-9_-]{6,80}$ ]]
+            endpoint="complete"
+            payload="{\"id\":\"${login_id}\"}"
+          else
+            printf 'Unsupported operation\n' >&2
+            exit 2
+          fi
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --header "X-PVHOT-Bootstrap-Token: ${token}" \
+            --data "${payload}" \
+            "http://127.0.0.1:8777/internal/wechat-bootstrap/${endpoint}"
+          printf '\n'
+          REMOTE
+
+      - name: Remove SSH identity
+        if: always()
+        shell: bash
+        run: rm -f -- "${HOME}/.ssh/pvhot_deploy"
