@@ -1545,8 +1545,11 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     if (p === '/internal/wechat-bootstrap/refresh') {
+      const body = await getBodyOrReject(req, res); if (!body) return;
       try {
-        const refreshed = await wechatGateway.refreshNextDue();
+        const refreshed = body.mpId
+          ? await wechatGateway.refreshSource(String(body.mpId))
+          : await wechatGateway.refreshNextDue();
         send(res, 200, { ok: true, refreshed, state: wechatGateway.publicState() });
       } catch (error) {
         send(res, 502, { error: `微信公众号刷新失败：${String(error.message || error).slice(0, 180)}` });

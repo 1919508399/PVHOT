@@ -12,6 +12,7 @@ on:
           - complete
           - status
           - refresh
+          - refresh-all
           - news-refresh
       login_id:
         description: Login session id returned by the start operation
@@ -85,6 +86,9 @@ jobs:
           elif [[ "${operation}" == "status" || "${operation}" == "refresh" ]]; then
             endpoint="${operation}"
             payload='{}'
+          elif [[ "${operation}" == "refresh-all" ]]; then
+            endpoint="refresh"
+            payload='{}'
           elif [[ "${operation}" == "news-refresh" ]]; then
             endpoint="news-refresh"
             payload='{}'
@@ -92,13 +96,24 @@ jobs:
             printf 'Unsupported operation\n' >&2
             exit 2
           fi
-          curl --fail-with-body --silent --show-error \
-            --request POST \
-            --header 'Content-Type: application/json' \
-            --header "X-PVHOT-Bootstrap-Token: ${token}" \
-            --data "${payload}" \
-            "http://127.0.0.1:8777/internal/wechat-bootstrap/${endpoint}"
-          printf '\n'
+          call_api() {
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --header 'Content-Type: application/json' \
+              --header "X-PVHOT-Bootstrap-Token: ${token}" \
+              --data "$1" \
+              "http://127.0.0.1:8777/internal/wechat-bootstrap/${endpoint}"
+            printf '\n'
+          }
+          if [[ "${operation}" == "refresh-all" ]]; then
+            mp_ids=(3016566024 2393822661 2393507962 3865843012 3509014347)
+            for index in "${!mp_ids[@]}"; do
+              call_api "{\"mpId\":\"${mp_ids[$index]}\"}"
+              if [[ "${index}" -lt 4 ]]; then sleep 20; fi
+            done
+            exit 0
+          fi
+          call_api "${payload}"
           REMOTE
 
       - name: Remove SSH identity

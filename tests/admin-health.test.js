@@ -166,6 +166,18 @@ test('authenticated source health API manages a custom WeChat source safely', as
   assert.equal(bootstrapStatus.enabled, false);
   assert.equal(bootstrapStatus.account, null);
 
+  const bootstrapForcedRefresh = await fetch(`${baseUrl}/internal/wechat-bootstrap/refresh`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-PVHOT-Bootstrap-Token': bootstrapToken,
+    },
+    body: JSON.stringify({ mpId: '2393507962' }),
+  });
+  const bootstrapForcedRefreshBody = await bootstrapForcedRefresh.json();
+  assert.equal(bootstrapForcedRefresh.status, 502);
+  assert.match(bootstrapForcedRefreshBody.error, /尚未登录|会话已失效/);
+
   const login = await fetch(`${baseUrl}/admin/api/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
