@@ -5,6 +5,7 @@ const test = require('node:test');
 const {
   beijingDateKey,
   buildBody,
+  buildPublicSummaryCn,
   computeScoreDetails,
   buildReason,
   classify,
@@ -259,6 +260,7 @@ test('Weibo presentation removes repeated account prefixes and media placeholder
   assert.equal(item.title, '光伏组件最新价格');
   assert.doesNotMatch(buildBody(item), /^光伏观察员/);
   assert.doesNotMatch(buildBody(item), /\[图片\]/);
+  assert.equal(buildPublicSummaryCn(item), '光伏组件最新价格');
 });
 
 test('Weibo generated titles are bounded and do not repeat the account name', () => {

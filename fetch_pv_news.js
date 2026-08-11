@@ -1338,6 +1338,7 @@ function withoutWeiboAuthorPrefix(value, author) {
     .replace(/\[(?:图片|视频|组图|音乐)\]/g, ' ')
     .replace(/\s*\[(?:图(?:片)?|视频|组图|音乐)(?:[^\]]{0,8})?\]?\s*$/g, '')
     .replace(/\s+/g, ' ')
+    .replace(/\s+([，。；：！？])/g, '$1')
     .trim();
   const name = cleanText(author || '');
   if (!text || !name) return text;
@@ -1649,6 +1650,15 @@ function buildBody(it) {
   const lead = `据${source || '原始信源'}报道，${full.replace(/[。！？!?]+$/, '')}。`;
   const close = `现有公开信息显示，该进展涉及${category}领域；项目规模、执行时间及后续官方披露仍值得持续关注。`;
   return (lead + close).slice(0, 300);
+}
+
+function buildPublicSummaryCn(it) {
+  const raw = it && it.summary_cn;
+  if (!raw || isMojibake(raw)) return '';
+  if (it._sourceChannelType === 'weibo' || it.sourceInfo?.channelType === 'weibo') {
+    return withoutWeiboAuthorPrefix(raw, it.author || it.source);
+  }
+  return raw;
 }
 
 /* ---------- 推荐理由：基于事实(数字/机构/政策关键词)模板化生成 ---------- */
@@ -2621,7 +2631,7 @@ async function runMain() {
       link: it.link,
       googleNewsUrl: it.googleNewsUrl || '',
       summary: buildBody(it),
-      summary_cn: isMojibake(it.summary_cn) ? '' : (it.summary_cn || ''),
+      summary_cn: buildPublicSummaryCn(it),
       reason: buildReason(it),
       category: cat,
       lang: it.lang || 'zh',
@@ -2823,6 +2833,7 @@ module.exports = {
   extractTopics,
   summarizeArticleText,
   buildBody,
+  buildPublicSummaryCn,
   buildReason,
   computeScoreDetails,
   beijingDateKey,
