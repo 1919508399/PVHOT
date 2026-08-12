@@ -7,7 +7,12 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const { loadGatewayItems } = require('../fetch_wechat');
-const { WechatGateway, normalizeArticle, reconcileSources } = require('../wechat_gateway/gateway');
+const {
+  WechatGateway,
+  normalizeArticle,
+  officialArticleRows,
+  reconcileSources,
+} = require('../wechat_gateway/gateway');
 const { PlatformError, WeReadPlatformClient } = require('../wechat_gateway/platform_client');
 const { createStorage, decryptText, encryptText } = require('../wechat_gateway/storage');
 
@@ -84,6 +89,41 @@ test('platform client does not retry deterministic WeReadError400 responses', as
     /WeReadError400/,
   );
   assert.equal(attempts, 1);
+});
+
+test('official WeRead search keeps exact account articles and official links', () => {
+  const rows = officialArticleRows({
+    results: [{
+      books: [
+        { bookInfo: { title: '储能行业下午更新', author: '中关村储能产业技术联盟', originalId: 'abc~def', updateTime: 1_800_000_000, intro: '摘要' } },
+        { bookInfo: { title: '同名误匹配', author: '其他公众号', originalId: 'wrong', updateTime: 1_800_000_000 } },
+      ],
+    }],
+  }, { name: '中关村储能产业技术联盟' });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].link, 'https://mp.weixin.qq.com/s/abc_def');
+  assert.equal(rows[0].digest, '摘要');
+});
+
+test('official WeRead API key is encrypted and never returned in public state', async (t) => {
+  const directory = temporaryDirectory(t);
+  const storage = createStorage({ root: path.join(directory, 'state') });
+  const key = 'wrk-exampleOfficialKey123456';
+  const client = {
+    async searchOfficialAccounts() { return { results: [] }; },
+    async searchOfficialArticles() { return { results: [] }; },
+  };
+  const gateway = new WechatGateway({
+    storage,
+    client,
+    outputPath: path.join(directory, 'wechat_gateway_items.json'),
+    refreshHours: 12,
+  });
+  await gateway.configureOfficialApiKey(key);
+  assert.equal(gateway.publicState().provider, 'weread-official-agent-api');
+  assert.equal(gateway.publicState().account.status, 'active');
+  assert.equal(JSON.stringify(gateway.publicState()).includes(key), false);
+  assert.equal(storage.loadState({}).account.agentKeyEncrypted.includes(key), false);
 });
 
 test('gateway only classifies WeReadError429 as risk control', (t) => {

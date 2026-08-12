@@ -102,7 +102,7 @@ const wechatGateway = new WechatGateway({
   storage: wechatGatewayStorage,
   client: new WeReadPlatformClient({ baseUrl: process.env.PVHOT_WECHAT_PLATFORM_URL }),
   outputPath: WECHAT_GATEWAY_OUTPUT,
-  refreshHours: process.env.PVHOT_WECHAT_GATEWAY_REFRESH_HOURS || 6,
+  refreshHours: process.env.PVHOT_WECHAT_GATEWAY_REFRESH_HOURS || 12,
 });
 wechatGateway.startScheduler(Number(process.env.PVHOT_WECHAT_GATEWAY_SCHEDULER_MS || 60_000));
 const SOURCE_HEALTH_LOCK_OPTIONS = {
@@ -1664,7 +1664,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (p.startsWith('/admin/api/wechat-gateway/') && method === 'POST' && !mutationOriginAllowed(req)) {
+  if (p.startsWith('/admin/api/wechat-gateway/') && method !== 'GET' && !mutationOriginAllowed(req)) {
     send(res, 403, { error: '请求来源校验失败，请刷新后台页面后重试' });
     return;
   }
@@ -1702,6 +1702,22 @@ const server = http.createServer(async (req, res) => {
       send(res, 200, { ok: true, refreshed, state: wechatGateway.publicState() });
     } catch (error) {
       send(res, 502, { error: `微信公众号刷新失败：${String(error.message || error).slice(0, 180)}` });
+    }
+    return;
+  }
+
+  if (p === '/admin/api/wechat-gateway/official-key' && method === 'PUT') {
+    const body = await getBodyOrReject(req, res); if (!body) return;
+    try {
+      const result = await wechatGateway.configureOfficialApiKey(body.apiKey);
+      send(res, 200, {
+        ok: true,
+        configured: true,
+        state: result.state,
+        message: '微信读书官方接口验证成功，5 个公众号已进入低频轮询队列',
+      });
+    } catch (error) {
+      send(res, 400, { error: `微信读书官方接口配置失败：${String(error.message || error).slice(0, 180)}` });
     }
     return;
   }

@@ -16,15 +16,50 @@ function articleLink(id) {
   return `https://mp.weixin.qq.com/s/${encodeURIComponent(String(id || ''))}`;
 }
 
+function officialResultRows(payload) {
+  const root = payload && payload.data && typeof payload.data === 'object' ? payload.data : payload;
+  const groups = Array.isArray(root?.results) ? root.results : [];
+  return groups.flatMap((group) => Array.isArray(group?.books) ? group.books : []);
+}
+
+function normalizedSourceName(value) {
+  return String(value || '').toLowerCase().replace(/[\s·•｜|（）()【】\[\]_-]+/g, '');
+}
+
+function officialArticleRows(payload, source) {
+  const expected = normalizedSourceName(source.name);
+  return officialResultRows(payload).map((entry) => {
+    const info = entry?.bookInfo || entry?.articleInfo || entry || {};
+    const author = String(info.author || info.mpName || info.accountName || entry?.author || '').trim();
+    const actual = normalizedSourceName(author);
+    if (actual && expected && actual !== expected && !actual.includes(expected) && !expected.includes(actual)) return null;
+    const originalId = String(info.originalId || info.reviewId || info.articleId || '').trim();
+    const candidateLink = [info.url, info.articleUrl, info.originalUrl, info.deepLink, entry?.deepLink]
+      .map((value) => String(value || '').trim())
+      .find((value) => /^https:\/\/(?:mp\.weixin\.qq\.com|weread\.qq\.com)\//i.test(value));
+    const link = candidateLink || (originalId ? articleLink(originalId.replace(/~/g, '_')) : '');
+    const published = Number(info.publishTime || info.updateTime || info.createTime || entry?.updateTime || 0);
+    return {
+      id: originalId || info.bookId || entry?.searchIdx || crypto.randomUUID(),
+      title: String(info.title || entry?.title || '').trim(),
+      picUrl: String(info.cover || info.picUrl || info.pic_url || '').trim(),
+      publishTime: published > 10_000_000_000 ? Math.floor(published / 1000) : published,
+      digest: String(info.intro || info.digest || info.content || '').trim(),
+      link,
+      sourceMode: 'weread-official-agent-api',
+    };
+  }).filter((row) => row && row.title && row.link);
+}
+
 function normalizeArticle(raw, source) {
-  const link = articleLink(raw.id);
+  const link = String(raw.link || '').trim() || articleLink(raw.id);
   return {
     id: `pv${crypto.createHash('sha1').update(link).digest('hex').slice(0, 14)}`,
     title: String(raw.title || '').trim(),
     title_cn: String(raw.title || '').trim(),
     link,
-    summary: '',
-    summary_cn: '',
+    summary: String(raw.digest || '').trim(),
+    summary_cn: String(raw.digest || '').trim(),
     reason: '',
     category: 'ALL',
     lang: 'zh',
@@ -39,7 +74,7 @@ function normalizeArticle(raw, source) {
     avatar: String(raw.picUrl || ''),
     _sourceChannelId: `wechat:${source.name}`,
     _sourceChannelType: 'wechat',
-    _sourceMode: 'weread-session-prototype',
+    _sourceMode: raw.sourceMode || 'weread-session-prototype',
   };
 }
 
@@ -117,12 +152,45 @@ class WechatGateway {
   }
 
   activeAccount() {
-    if (!this.state.account?.tokenEncrypted || this.state.account.status !== 'active') return null;
+    if (!this.state.account || this.state.account.status !== 'active') return null;
+    if (this.state.account.agentKeyEncrypted) {
+      return {
+        id: this.state.account.id || 'official-agent',
+        name: this.state.account.name || '微信读书官方 API',
+        agentKey: decryptText(this.state.account.agentKeyEncrypted, this.storage.sessionKey),
+      };
+    }
+    if (!this.state.account.tokenEncrypted) return null;
     return {
       id: this.state.account.id,
       name: this.state.account.name,
       token: decryptText(this.state.account.tokenEncrypted, this.storage.sessionKey),
     };
+  }
+
+  async configureOfficialApiKey(value) {
+    const apiKey = String(value || '').trim();
+    if (!/^wrk-[A-Za-z0-9_-]{12,256}$/.test(apiKey)) {
+      throw new Error('微信读书 API Key 格式不正确，应以 wrk- 开头');
+    }
+    const probe = await this.client.searchOfficialAccounts(this.state.sources[0]?.name || '光伏們', apiKey, 3);
+    this.state.provider = 'weread-official-agent-api';
+    this.state.enabled = true;
+    this.state.account = {
+      id: 'official-agent',
+      name: '微信读书官方 API',
+      agentKeyEncrypted: encryptText(apiKey, this.storage.sessionKey),
+      status: 'active',
+      lastLoginAt: new Date().toISOString(),
+    };
+    this.state.sources = this.state.sources.map((source) => ({
+      ...source,
+      status: 'pending',
+      nextRefreshAt: new Date(0).toISOString(),
+      error: '',
+    }));
+    this.persist();
+    return { state: this.publicState(), probeCount: officialResultRows(probe).length };
   }
 
   async startLogin() {
@@ -158,8 +226,8 @@ class WechatGateway {
 
   classifyError(error) {
     const text = `${error.code || ''} ${error.message || ''}`;
-    if (/401/.test(text)) return { status: 'session_invalid', delayHours: 24 };
-    if (/429/.test(text)) return { status: 'risk_control', delayHours: 24 };
+    if (/401|403|invalid.*key|unauthor/i.test(text)) return { status: 'session_invalid', delayHours: 24 };
+    if (/429|-2041|-2012|-2010/.test(text)) return { status: 'risk_control', delayHours: 24 };
     if (/400/.test(text)) return { status: 'upstream_bad_request', delayHours: 24 };
     return { status: 'error', delayHours: 2 };
   }
@@ -183,7 +251,9 @@ class WechatGateway {
     const now = new Date();
     source.lastPolledAt = now.toISOString();
     try {
-      const rows = await this.client.getArticles(source.mpId, account, 1);
+      const rows = account.agentKey
+        ? officialArticleRows(await this.client.searchOfficialArticles(source.name, account.agentKey, 20), source)
+        : await this.client.getArticles(source.mpId, account, 1);
       if (!Array.isArray(rows)) throw new Error('article response is not an array');
       const incoming = rows.filter((row) => row?.id && row?.title).map((row) => normalizeArticle(row, source));
       const byId = new Map(this.state.articles.map((item) => [item.id, item]));
@@ -235,6 +305,9 @@ class WechatGateway {
   }
 
   writeOutput() {
+    const mode = this.state.provider === 'weread-official-agent-api'
+      ? 'weread-official-agent-api'
+      : 'weread-session-prototype';
     const health = this.state.sources.map((source) => ({
       id: `account:${source.name}`,
       name: source.name,
@@ -245,12 +318,12 @@ class WechatGateway {
       lastSuccessAt: source.lastSuccessAt,
       nextRefreshAt: source.nextRefreshAt,
       error: source.error,
-      mode: 'weread-session-prototype',
+      mode,
     }));
     const output = {
       fetchedAt: this.state.updatedAt,
       provider: this.state.provider,
-      experimental: true,
+      experimental: this.state.provider !== 'weread-official-agent-api',
       enabled: this.state.enabled === true,
       monitoredAccounts: this.state.sources.length,
       health,
@@ -264,4 +337,11 @@ class WechatGateway {
   }
 }
 
-module.exports = { WechatGateway, initialState, normalizeArticle, reconcileSources };
+module.exports = {
+  WechatGateway,
+  initialState,
+  normalizeArticle,
+  officialArticleRows,
+  officialResultRows,
+  reconcileSources,
+};

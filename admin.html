@@ -973,6 +973,24 @@
         </div>
         <div class="meta-line" id="sourceHealthMeta" style="margin:-5px 0 13px">加载中…</div>
 
+        <section class="workspace-card" style="margin-bottom:16px;padding:18px 20px">
+          <div class="block-heading">
+            <div>
+              <h3>微信读书官方公众号通道</h3>
+              <p>免费直连腾讯官方 Agent API。密钥仅在服务器私有目录加密保存，页面不会回显；5 个重点公众号每 12 小时轮询一次，搜狗继续作为兜底。</p>
+            </div>
+            <span class="publish-badge" id="wechatOfficialBadge">正在检查</span>
+          </div>
+          <div class="row2" style="align-items:end">
+            <div class="field" style="margin:0">
+              <label for="wechatOfficialKey">微信读书 API Key</label>
+              <input id="wechatOfficialKey" type="password" maxlength="300" autocomplete="new-password" placeholder="粘贴 wrk- 开头的新 Key；留空不会修改" />
+              <small class="field-help">在微信读书官方页面 weread.qq.com/r/weread-skills 获取。保存后输入框会立即清空。</small>
+            </div>
+            <button class="btn primary" id="wechatOfficialSave" type="button">验证并启用</button>
+          </div>
+        </section>
+
         <div class="source-table-shell">
           <div class="source-table-wrap">
             <table class="source-table">
@@ -2146,7 +2164,41 @@
     sourceState.loaded = true;
     updateSourceSummary(r.data);
     renderSourceList();
+    await loadWechatOfficialStatus();
   }
+
+  async function loadWechatOfficialStatus(){
+    const badge = $('#wechatOfficialBadge');
+    if (!badge) return;
+    const r = await api('/wechat-gateway');
+    if (!r.ok) { badge.textContent = '状态未知'; return; }
+    const configured = r.data && r.data.provider === 'weread-official-agent-api'
+      && r.data.account && r.data.account.status === 'active';
+    badge.textContent = configured ? '已配置 · 低频轮询' : '未配置';
+  }
+
+  $('#wechatOfficialSave').onclick = async () => {
+    const input = $('#wechatOfficialKey');
+    const button = $('#wechatOfficialSave');
+    const apiKey = String(input.value || '').trim();
+    if (!/^wrk-[A-Za-z0-9_-]{12,256}$/.test(apiKey)) {
+      toast('请输入有效的 wrk- 开头微信读书 API Key');
+      return;
+    }
+    button.disabled = true;
+    button.textContent = '验证中…';
+    const r = await api('/wechat-gateway/official-key', {
+      method:'PUT',
+      body:JSON.stringify({ apiKey }),
+    });
+    input.value = '';
+    button.disabled = false;
+    button.textContent = '验证并启用';
+    if (!r.ok) { toast((r.data && r.data.error) || '配置失败'); return; }
+    toast((r.data && r.data.message) || '微信读书官方通道已启用');
+    await loadWechatOfficialStatus();
+    await loadSourceHealth();
+  };
 
   async function handleSourceAction(event){
     const button = event.target.closest('[data-source-act]');
