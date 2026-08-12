@@ -10,7 +10,10 @@ const HOST = 'pvhot.bbroot.com';
 const ORIGIN = `https://${HOST}`;
 const KEY = 'cd571181bf9b237f4b5fd56a0640ad17';
 const KEY_LOCATION = `${ORIGIN}/${KEY}.txt`;
-const ENDPOINT = 'https://api.indexnow.org/indexnow';
+// Notify Bing directly. Bing shares accepted URLs with the other participating
+// IndexNow engines, while this endpoint is also reachable from the production
+// host's network.
+const ENDPOINT = 'https://www.bing.com/indexnow';
 const MAX_URLS = 10_000;
 
 function loadUrls(root = ROOT) {
