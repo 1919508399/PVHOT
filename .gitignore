@@ -25,6 +25,7 @@ Thumbs.db
 fetch.log
 
 # Runtime state and release artifacts
+.runtime/
 .locks/
 .wechat-gateway-data/
 wechat_gateway_items.json

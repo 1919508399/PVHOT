@@ -107,6 +107,7 @@ function initialState() {
       error: '',
     })),
     articles: [],
+    cooldownUntil: '',
     updatedAt: new Date(0).toISOString(),
   };
 }
@@ -161,6 +162,7 @@ class WechatGateway {
       } : null,
       sources: this.state.sources,
       articleCount: this.state.articles.length,
+      cooldownUntil: this.state.cooldownUntil || '',
       updatedAt: this.state.updatedAt,
     };
   }
@@ -210,6 +212,7 @@ class WechatGateway {
       nextRefreshAt: new Date(0).toISOString(),
       error: '',
     }));
+    this.state.cooldownUntil = '';
     this.persist();
     return { state: this.publicState(), probeCount: officialResultRows(probe).length };
   }
@@ -234,6 +237,7 @@ class WechatGateway {
       status: 'active',
       lastLoginAt: new Date().toISOString(),
     };
+    this.state.provider = 'weread-session-prototype';
     this.state.enabled = true;
     this.state.sources = this.state.sources.map((source) => ({
       ...source,
@@ -241,6 +245,7 @@ class WechatGateway {
       nextRefreshAt: new Date(0).toISOString(),
       error: '',
     }));
+    this.state.cooldownUntil = '';
     this.persist();
     return { complete: true, account: this.publicState().account };
   }
@@ -286,12 +291,26 @@ class WechatGateway {
       source.lastSuccessAt = now.toISOString();
       source.nextRefreshAt = new Date(now.getTime() + this.refreshHours * 3600_000).toISOString();
       source.error = '';
+      this.state.cooldownUntil = '';
     } catch (error) {
       const classified = this.classifyError(error);
+      const retryAt = new Date(now.getTime() + classified.delayHours * 3600_000).toISOString();
       source.status = classified.status;
-      source.nextRefreshAt = new Date(now.getTime() + classified.delayHours * 3600_000).toISOString();
+      source.nextRefreshAt = retryAt;
       source.error = String(error.message || error).slice(0, 240);
       if (classified.status === 'session_invalid') this.state.account.status = 'invalid';
+      if (classified.status === 'risk_control') {
+        // Risk control applies to the WeRead account/IP, not just one source.
+        // Stop every source immediately so the minute scheduler cannot keep
+        // hitting the same upstream account and extend the restriction.
+        this.state.cooldownUntil = retryAt;
+        this.state.sources = this.state.sources.map((candidate) => ({
+          ...candidate,
+          status: 'risk_control',
+          nextRefreshAt: retryAt,
+          error: candidate.mpId === source.mpId ? source.error : '上游账号处于统一冷却期，本轮未请求',
+        }));
+      }
       throw error;
     } finally {
       this.state.sources[index] = source;
@@ -303,6 +322,8 @@ class WechatGateway {
   async refreshNextDue() {
     if (this.refreshing || !this.activeAccount()) return null;
     const now = Date.now();
+    if (this.state.cooldownUntil && Date.parse(this.state.cooldownUntil) > now) return null;
+    if (this.state.cooldownUntil) this.state.cooldownUntil = '';
     const source = this.state.sources.find((candidate) => !candidate.nextRefreshAt || Date.parse(candidate.nextRefreshAt) <= now);
     if (!source) return null;
     this.refreshing = true;
@@ -328,9 +349,9 @@ class WechatGateway {
     this.state.articles = [...byId.values()]
       .sort((left, right) => Date.parse(right.pubDate) - Date.parse(left.pubDate))
       .slice(0, 250);
-    this.state.provider = 'wechat-desktop-local';
+    const hasServerSession = Boolean(this.activeAccount());
+    if (!hasServerSession) this.state.provider = 'wechat-desktop-local';
     this.state.enabled = true;
-    this.state.account = null;
     this.state.sources = this.state.sources.map((source, index) => sourceIndexes.has(index)
       ? source
       : {
@@ -392,6 +413,7 @@ class WechatGateway {
       experimental: !['weread-official-agent-api', 'wechat-desktop-local'].includes(this.state.provider),
       enabled: this.state.enabled === true,
       monitoredAccounts: this.state.sources.length,
+      cooldownUntil: this.state.cooldownUntil || '',
       health,
       count: this.state.articles.length,
       items: this.state.articles,

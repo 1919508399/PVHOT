@@ -103,6 +103,58 @@ test('desktop article ingestion preserves official link and marks the local prov
   assert.equal(output.items[0].link, article.link);
 });
 
+test('desktop fallback does not erase an active server login session', async (t) => {
+  const directory = temporaryDirectory(t);
+  const token = crypto.randomBytes(24).toString('base64url');
+  const gateway = new WechatGateway({
+    storage: createStorage({ root: path.join(directory, 'state') }),
+    client: {
+      async createLoginSession() { return { uuid: 'keep_session', scanUrl: 'https://example.com/qr' }; },
+      async waitForLogin() { return { vid: 9, token, username: '服务器账号' }; },
+    },
+    outputPath: path.join(directory, 'wechat_gateway_items.json'),
+  });
+  const login = await gateway.startLogin();
+  await gateway.completeLogin(login.id);
+  const source = gateway.publicState().sources[0];
+  gateway.ingestDesktopArticles([{
+    account: source.name,
+    title: '桌面补漏文章',
+    summary: '摘要',
+    pubDate: new Date().toISOString(),
+    link: 'https://mp.weixin.qq.com/s/desktopFallback123',
+  }]);
+  assert.equal(gateway.publicState().provider, 'weread-session-prototype');
+  assert.equal(gateway.publicState().account.status, 'active');
+  assert.equal(gateway.activeAccount().token, token);
+});
+
+test('risk control creates one shared 24 hour cooldown for all sources', async (t) => {
+  const directory = temporaryDirectory(t);
+  const token = crypto.randomBytes(24).toString('base64url');
+  let articleRequests = 0;
+  const gateway = new WechatGateway({
+    storage: createStorage({ root: path.join(directory, 'state') }),
+    client: {
+      async createLoginSession() { return { uuid: 'cooldown_session', scanUrl: 'https://example.com/qr' }; },
+      async waitForLogin() { return { vid: 10, token, username: '服务器账号' }; },
+      async getArticles() {
+        articleRequests += 1;
+        throw new PlatformError('WeReadError-2041', { code: 'WeReadError-2041' });
+      },
+    },
+    outputPath: path.join(directory, 'wechat_gateway_items.json'),
+  });
+  const login = await gateway.startLogin();
+  await gateway.completeLogin(login.id);
+  await assert.rejects(() => gateway.refreshNextDue(), /-2041/);
+  assert.equal(articleRequests, 1);
+  assert.equal(gateway.publicState().sources.every((source) => source.status === 'risk_control'), true);
+  assert.ok(Date.parse(gateway.publicState().cooldownUntil) > Date.now() + 23 * 3600_000);
+  assert.equal(await gateway.refreshNextDue(), null);
+  assert.equal(articleRequests, 1);
+});
+
 test('platform client does not retry deterministic WeReadError400 responses', async () => {
   const client = new WeReadPlatformClient();
   let attempts = 0;
