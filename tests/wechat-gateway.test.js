@@ -126,6 +126,23 @@ test('official WeRead API key is encrypted and never returned in public state', 
   assert.equal(storage.loadState({}).account.agentKeyEncrypted.includes(key), false);
 });
 
+test('official API setup validates the article search path rather than account search', async (t) => {
+  const directory = temporaryDirectory(t);
+  let accountSearches = 0;
+  let articleSearches = 0;
+  const gateway = new WechatGateway({
+    storage: createStorage({ root: path.join(directory, 'state') }),
+    client: {
+      async searchOfficialAccounts() { accountSearches += 1; throw new Error('-2041'); },
+      async searchOfficialArticles() { articleSearches += 1; return { results: [] }; },
+    },
+    outputPath: path.join(directory, 'wechat_gateway_items.json'),
+  });
+  await gateway.configureOfficialApiKey('wrk-exampleOfficialKey123456');
+  assert.equal(accountSearches, 0);
+  assert.equal(articleSearches, 1);
+});
+
 test('gateway only classifies WeReadError429 as risk control', (t) => {
   const directory = temporaryDirectory(t);
   const gateway = new WechatGateway({

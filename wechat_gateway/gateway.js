@@ -173,7 +173,14 @@ class WechatGateway {
     if (!/^wrk-[A-Za-z0-9_-]{12,256}$/.test(apiKey)) {
       throw new Error('微信读书 API Key 格式不正确，应以 wrk- 开头');
     }
-    const probe = await this.client.searchOfficialAccounts(this.state.sources[0]?.name || '光伏們', apiKey, 3);
+    // Validate the exact read path used by the collector. Account search
+    // (scope=2) can be independently restricted while article search
+    // (scope=4) remains available, so it is not a reliable readiness probe.
+    const probe = await this.client.searchOfficialArticles(
+      this.state.sources[0]?.name || '光伏們',
+      apiKey,
+      3,
+    );
     this.state.provider = 'weread-official-agent-api';
     this.state.enabled = true;
     this.state.account = {

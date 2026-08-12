@@ -1717,7 +1717,13 @@ const server = http.createServer(async (req, res) => {
         message: '微信读书官方接口验证成功，5 个公众号已进入低频轮询队列',
       });
     } catch (error) {
-      send(res, 400, { error: `微信读书官方接口配置失败：${String(error.message || error).slice(0, 180)}` });
+      const detail = String(error.message || error).slice(0, 180);
+      const friendly = /-2041/.test(detail)
+        ? '腾讯暂时限制了当前账号或服务器网络访问公众号文章接口（-2041）；请勿连续重试，稍后再试'
+        : (/401|403|-2010|用户不存在|unauthor/i.test(detail)
+          ? 'API Key 无效或已被重置，请从微信读书页面复制当前 Key'
+          : detail);
+      send(res, 400, { error: `微信读书官方接口配置失败：${friendly}` });
     }
     return;
   }
