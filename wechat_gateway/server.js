@@ -72,7 +72,7 @@ function adminPage() {
 <title>PVHOT 微信登录态原型</title><style>
 body{font:15px/1.6 system-ui,sans-serif;max-width:760px;margin:40px auto;padding:0 20px;color:#173c38;background:#f6f3eb}
 .card{background:#fff;border:1px solid #ddd5c7;border-radius:16px;padding:22px;margin:16px 0}input,button{font:inherit;padding:9px 12px;border-radius:8px;border:1px solid #cfc7b8}button{cursor:pointer;background:#126b5b;color:#fff}img{display:block;max-width:280px;margin:18px auto}.muted{color:#6d7773}pre{white-space:pre-wrap;word-break:break-word}</style></head>
-<body><h1>PVHOT 微信登录态原型</h1><p class="muted">仅监听本机，当前固定验证5个公众号。登录桥为实验依赖，不会替换搜狗微信通道。</p>
+<body><h1>PVHOT 微信登录态网关</h1><p class="muted">仅监听本机，直拉全部具有已验证内部 ID 的公众号；其余公众号继续使用搜狗微信公开检索。</p>
 <div class="card"><label>管理令牌 <input id="token" type="password" autocomplete="off"></label>
 <button id="save">保存到本标签页</button> <button id="login">生成登录二维码</button><div id="qr"></div></div>
 <div class="card"><button id="refresh">刷新一个到期公众号</button><button id="state">查看状态</button><pre id="out">等待操作</pre></div>

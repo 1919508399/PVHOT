@@ -1,16 +1,25 @@
 'use strict';
 
-/**
- * Five deliberately mixed sources for the isolated login-session prototype.
- * mpId is the internal identifier returned by WeWe RSS /wxs2mp. The current
- * service represents these verified accounts as MP_WXS_<decoded __biz>.
- */
-const PROTOTYPE_SOURCES = Object.freeze([
-  { mpId: 'MP_WXS_3016566024', name: '光伏們', kind: '媒体', tier: 1 },
-  { mpId: 'MP_WXS_2393822661', name: '索比光伏网', kind: '媒体', tier: 1 },
-  { mpId: 'MP_WXS_2393507962', name: '中关村储能产业技术联盟', kind: '机构', tier: 1 },
-  { mpId: 'MP_WXS_3865843012', name: '天合光能', kind: '企业', tier: 1 },
-  { mpId: 'MP_WXS_3509014347', name: '阳光电源', kind: '企业', tier: 1 },
-]);
+const { WECHAT_ACCOUNTS } = require('../source_registry');
 
-module.exports = { PROTOTYPE_SOURCES };
+/**
+ * Every built-in account with a verified WeChat profile id uses the persistent
+ * server session. Accounts without a verified id remain monitored by the
+ * public Sogou discovery channel and are never attributed as direct pulls.
+ */
+function profileMpId(profileId) {
+  const decoded = Buffer.from(String(profileId || ''), 'base64').toString('utf8').trim();
+  if (!/^\d{6,20}$/.test(decoded)) throw new Error('invalid verified WeChat profile id');
+  return `MP_WXS_${decoded}`;
+}
+
+const PROTOTYPE_SOURCES = Object.freeze(WECHAT_ACCOUNTS
+  .filter((account) => account.profileId)
+  .map((account) => Object.freeze({
+    mpId: profileMpId(account.profileId),
+    name: account.name,
+    kind: account.kind,
+    tier: account.tier,
+  })));
+
+module.exports = { PROTOTYPE_SOURCES, profileMpId };

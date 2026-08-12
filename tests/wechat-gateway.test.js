@@ -15,7 +15,20 @@ const {
   reconcileSources,
 } = require('../wechat_gateway/gateway');
 const { PlatformError, WeReadPlatformClient } = require('../wechat_gateway/platform_client');
+const { PROTOTYPE_SOURCES, profileMpId } = require('../wechat_gateway/prototype_sources');
 const { createStorage, decryptText, encryptText } = require('../wechat_gateway/storage');
+
+test('server gateway includes every built-in account with a verified profile id', () => {
+  const { WECHAT_ACCOUNTS } = require('../source_registry');
+  const verified = WECHAT_ACCOUNTS.filter((account) => account.profileId);
+  assert.equal(PROTOTYPE_SOURCES.length, verified.length);
+  assert.ok(PROTOTYPE_SOURCES.length > 5);
+  assert.deepEqual(
+    PROTOTYPE_SOURCES.map((source) => source.name),
+    verified.map((source) => source.name),
+  );
+  assert.equal(profileMpId('MjM5MzUwNzk2Mg=='), 'MP_WXS_2393507962');
+});
 
 function temporaryDirectory(t) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'pvhot-wechat-gateway-'));
@@ -97,7 +110,10 @@ test('desktop article ingestion preserves official link and marks the local prov
   assert.equal(result.accepted, 1);
   assert.equal(gateway.publicState().provider, 'wechat-desktop-local');
   assert.equal(gateway.publicState().account, null);
-  assert.equal(gateway.publicState().sources.filter((entry) => entry.status === 'pending').length, 4);
+  assert.equal(
+    gateway.publicState().sources.filter((entry) => entry.status === 'pending').length,
+    PROTOTYPE_SOURCES.length - 1,
+  );
   const output = JSON.parse(fs.readFileSync(path.join(directory, 'wechat_gateway_items.json'), 'utf8'));
   assert.equal(output.experimental, false);
   assert.equal(output.items[0].link, article.link);

@@ -244,7 +244,7 @@ test('authenticated source health API manages a custom WeChat source safely', as
   assert.equal(gatewayResponse.status, 200);
   assert.equal(gatewayState.enabled, false);
   assert.equal(gatewayState.account, null);
-  assert.equal(gatewayState.sources.length, 5);
+  assert.equal(gatewayState.sources.length, WECHAT_ACCOUNTS.filter((source) => source.profileId).length);
 
   const duplicateBuiltInX = await fetch(`${baseUrl}/admin/api/sources`, {
     method: 'POST',
