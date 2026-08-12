@@ -330,6 +330,15 @@ class WechatGateway {
       .slice(0, 250);
     this.state.provider = 'wechat-desktop-local';
     this.state.enabled = true;
+    this.state.account = null;
+    this.state.sources = this.state.sources.map((source, index) => sourceIndexes.has(index)
+      ? source
+      : {
+        ...source,
+        status: source.lastSuccessAt ? source.status : 'pending',
+        nextRefreshAt: '',
+        error: '',
+      });
     for (const index of sourceIndexes) {
       this.state.sources[index] = {
         ...this.state.sources[index],

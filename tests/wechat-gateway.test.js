@@ -96,6 +96,8 @@ test('desktop article ingestion preserves official link and marks the local prov
   const result = gateway.ingestDesktopArticles([{ ...article, account: source.name }]);
   assert.equal(result.accepted, 1);
   assert.equal(gateway.publicState().provider, 'wechat-desktop-local');
+  assert.equal(gateway.publicState().account, null);
+  assert.equal(gateway.publicState().sources.filter((entry) => entry.status === 'pending').length, 4);
   const output = JSON.parse(fs.readFileSync(path.join(directory, 'wechat_gateway_items.json'), 'utf8'));
   assert.equal(output.experimental, false);
   assert.equal(output.items[0].link, article.link);
