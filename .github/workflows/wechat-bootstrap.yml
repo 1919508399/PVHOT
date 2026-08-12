@@ -15,6 +15,7 @@ on:
           - refresh-all
           - resolve
           - news-refresh
+          - host-check
       login_id:
         description: Login session id returned by the start operation
         required: false
@@ -106,6 +107,13 @@ jobs:
           elif [[ "${operation}" == "news-refresh" ]]; then
             endpoint="news-refresh"
             payload='{}'
+          elif [[ "${operation}" == "host-check" ]]; then
+            printf 'docker='; command -v docker || true
+            printf 'podman='; command -v podman || true
+            printf 'python='; command -v python3 || true
+            printf 'docker-access='; docker info --format '{{.ServerVersion}}' 2>/dev/null || printf 'unavailable\n'
+            printf 'podman-access='; podman info --format '{{.Version.Version}}' 2>/dev/null || printf 'unavailable\n'
+            exit 0
           else
             printf 'Unsupported operation\n' >&2
             exit 2
