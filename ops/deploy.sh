@@ -622,6 +622,7 @@ preflight_release() {
     lib/ai_editor.js
     lib/source_catalog.js
     lib/seo.js
+    scripts/submit-indexnow.js
     site_texts.json
     site_texts_fallback.js
     data.json
@@ -635,6 +636,7 @@ preflight_release() {
     og-image-v4.jpg
     baidu_verify_codeva-vHjUI6fnHC.html
     c953027fa91a245e4a273f09c69bd57b.txt
+    cd571181bf9b237f4b5fd56a0640ad17.txt
   )
 
   for required in "${required_files[@]}"; do
@@ -1000,6 +1002,9 @@ main() {
   fi
 
   COMMITTED=1
+  if ! "${NODE_BIN}" "${release_dir}/scripts/submit-indexnow.js"; then
+    log "warning: IndexNow notification failed; deployment remains healthy"
+  fi
   prune_old_releases
   log "deployed ${sha}; previous=${OLD_CURRENT:-none}; retained=${KEEP_RELEASES}"
 }

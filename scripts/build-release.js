@@ -40,6 +40,7 @@ const REQUIRED_RELEASE_FILES = Object.freeze([
   'lib/ai_editor.js',
   'lib/source_catalog.js',
   'lib/seo.js',
+  'scripts/submit-indexnow.js',
   'package.json',
   'package-lock.json',
   'data.json',
@@ -55,6 +56,7 @@ const REQUIRED_RELEASE_FILES = Object.freeze([
   'qrcode_wechat.jpg',
   'baidu_verify_codeva-vHjUI6fnHC.html',
   'c953027fa91a245e4a273f09c69bd57b.txt',
+  'cd571181bf9b237f4b5fd56a0640ad17.txt',
 ]);
 
 const OPTIONAL_RELEASE_FILES = Object.freeze([
