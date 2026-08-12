@@ -37,6 +37,14 @@ const {
 } = require('./lib/ai_config');
 const { loadUsage, testAiConnection } = require('./lib/ai_editor');
 const { buildSourceCatalog } = require('./lib/source_catalog');
+const {
+  articleIdFromToken,
+  articleUrl,
+  renderArchivePage,
+  renderArticlePage,
+  renderNotFoundPage,
+  renderSitemap,
+} = require('./lib/seo');
 const { WechatGateway } = require('./wechat_gateway/gateway');
 const { WeReadPlatformClient } = require('./wechat_gateway/platform_client');
 const { createStorage: createWechatGatewayStorage } = require('./wechat_gateway/storage');
@@ -453,6 +461,18 @@ function send(res, code, obj, extra) {
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
   }, extra || {}));
   res.end(obj === undefined ? '' : JSON.stringify(obj));
+}
+function sendPublicDocument(req, res, code, contentType, body) {
+  const payload = Buffer.from(body, 'utf8');
+  res.writeHead(code, {
+    'Content-Type': contentType,
+    'Content-Length': payload.length,
+    'Cache-Control': code === 200 ? 'public, max-age=300, stale-while-revalidate=3600' : 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  });
+  res.end(req.method === 'HEAD' ? '' : payload);
 }
 const INVALID_JSON_BODY = Symbol('invalid-json-body');
 function readBody(req, limit = MAX_BODY_BYTES) {
@@ -1355,6 +1375,37 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  /* ---------- 公共 SEO：服务端渲染的新闻页与实时 sitemap ---------- */
+  if (p === '/api/v1/sitemap.xml' && (method === 'GET' || method === 'HEAD')) {
+    sendPublicDocument(req, res, 200, 'application/xml; charset=utf-8', renderSitemap(loadData()));
+    return;
+  }
+
+  if ((p === '/api/v1/archive' || p === '/api/v1/archive/') && (method === 'GET' || method === 'HEAD')) {
+    if (!p.endsWith('/')) {
+      res.writeHead(308, { Location: `/api/v1/archive/${url.search || ''}` });
+      res.end();
+      return;
+    }
+    sendPublicDocument(req, res, 200, 'text/html; charset=utf-8', renderArchivePage(loadData(), url.searchParams.get('page')));
+    return;
+  }
+
+  const articleMatch = p.match(/^\/api\/v1\/articles\/([A-Za-z0-9_-]+)\/?$/);
+  if (articleMatch && (method === 'GET' || method === 'HEAD')) {
+    if (!p.endsWith('/')) {
+      res.writeHead(308, { Location: `${p}/${url.search || ''}` });
+      res.end();
+      return;
+    }
+    const data = loadData();
+    const items = Array.isArray(data.items) ? data.items : [];
+    const id = articleIdFromToken(articleMatch[1]);
+    const item = id == null ? null : items.find((candidate) => String(candidate?.id || '') === id);
+    sendPublicDocument(req, res, item ? 200 : 404, 'text/html; charset=utf-8', item ? renderArticlePage(item, items) : renderNotFoundPage());
+    return;
+  }
+
   if (!p.startsWith('/admin/api/')
       && !p.startsWith('/api/')
       && !p.startsWith('/internal/wechat-bootstrap/')) {
@@ -1518,8 +1569,8 @@ const server = http.createServer(async (req, res) => {
       return [
         '<item>',
         `<title>${xmlEscape(item.title)}</title>`,
-        `<link>${xmlEscape(item.link || origin)}</link>`,
-        `<guid isPermaLink="false">${xmlEscape(item.id || item.link || item.title)}</guid>`,
+        `<link>${xmlEscape(item.id ? articleUrl(item.id) : (item.link || origin))}</link>`,
+        `<guid isPermaLink="true">${xmlEscape(item.id ? articleUrl(item.id) : (item.link || origin))}</guid>`,
         `<pubDate>${xmlEscape(published)}</pubDate>`,
         `<category>${xmlEscape(item.category || '光伏')}</category>`,
         `<source>${xmlEscape(item.source || 'PV HOT')}</source>`,

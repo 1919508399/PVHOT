@@ -89,6 +89,26 @@ body {
   -webkit-font-smoothing: antialiased;
   transition: background .25s, color .25s;
 }
+
+.seo-fallback {
+  max-width: 880px;
+  margin: 40px auto;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel);
+}
+
+.seo-index-links {
+  width: min(880px, calc(100% - 32px));
+  margin: 18px auto 88px;
+  padding: 18px 22px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  text-align: center;
+}
+.seo-index-links h2 { margin: 0; color: var(--ink); font-size: 16px; }
+.seo-index-links p { margin: 4px 0; }
 a { color: inherit; text-decoration: none; }
 button { font-family: inherit; }
 

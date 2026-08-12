@@ -621,6 +621,7 @@ preflight_release() {
     lib/ai_config.js
     lib/ai_editor.js
     lib/source_catalog.js
+    lib/seo.js
     site_texts.json
     site_texts_fallback.js
     data.json
@@ -662,7 +663,8 @@ preflight_release() {
     lib/x_sources.js \
     lib/ai_config.js \
     lib/ai_editor.js \
-    lib/source_catalog.js; do
+    lib/source_catalog.js \
+    lib/seo.js; do
     "${NODE_BIN}" --check "${release_dir}/${js_file}" >/dev/null
   done
 
@@ -747,6 +749,17 @@ const fs = require('fs');
 const value = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 if (!value || !Array.isArray(value.items)) throw new Error('data.json has no items array');
 NODE
+
+    curl "${curl_options[@]}" \
+      "${url}/api/v1/archive/?__pvhot_release=${expected_sha}" \
+      -o "${temporary_dir}/news.html" || exit $?
+    grep -q 'PVHOT 光伏新闻归档' "${temporary_dir}/news.html" || exit $?
+
+    curl "${curl_options[@]}" \
+      "${url}/api/v1/sitemap.xml?__pvhot_release=${expected_sha}" \
+      -o "${temporary_dir}/sitemap.xml" || exit $?
+    grep -q '<urlset' "${temporary_dir}/sitemap.xml" || exit $?
+    grep -q '/api/v1/articles/' "${temporary_dir}/sitemap.xml" || exit $?
 
     curl "${curl_options[@]}" \
       "${url}/api/healthz?__pvhot_release=${expected_sha}" \

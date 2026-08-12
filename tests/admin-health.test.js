@@ -9,6 +9,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const test = require('node:test');
 const { RSS_FEEDS, SCRAPE_SOURCES, WECHAT_ACCOUNTS, WEIBO_ROUTES, X_ACCOUNTS } = require('../source_registry');
+const { articleToken } = require('../lib/seo');
 
 function reservePort() {
   return new Promise((resolve, reject) => {
@@ -74,6 +75,67 @@ test('public health endpoint reports release and data freshness without authenti
   assert.equal(body.data.items, 1);
   assert.equal(body.data.fresh, true);
   assert.equal(body.error, null);
+});
+
+test('public SEO routes render indexable articles and a live sitemap', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pvhot-admin-seo-'));
+  const port = await reservePort();
+  const article = {
+    id: '新闻/一号',
+    title_cn: '光伏组件市场出现新变化',
+    summary_cn: '这是可由搜索引擎直接读取的中文摘要。',
+    source: '测试信源',
+    category: '组件',
+    pubDate: '2026-08-12T01:00:00.000Z',
+    link: 'https://example.com/pv-story',
+  };
+  fs.writeFileSync(path.join(root, 'data.json'), JSON.stringify({
+    meta: { updated: '2026-08-12T02:00:00.000Z' },
+    categories: ['组件'],
+    items: [article],
+  }));
+  fs.writeFileSync(path.join(root, 'admin.html'), '<!doctype html><title>admin</title>');
+
+  const child = spawn(process.execPath, [path.join(process.cwd(), 'admin_server.js')], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      PVHOT_ROOT: root,
+      PVHOT_ADMIN_HOST: '127.0.0.1',
+      PVHOT_ADMIN_PORT: String(port),
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  t.after(() => {
+    child.kill();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  await waitForReady(child);
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const archiveResponse = await fetch(`${baseUrl}/api/v1/archive/`);
+  const archive = await archiveResponse.text();
+  assert.equal(archiveResponse.status, 200);
+  assert.match(archive, /PVHOT 光伏新闻归档/);
+  assert.match(archive, /光伏组件市场出现新变化/);
+
+  const token = articleToken(article.id);
+  const articleResponse = await fetch(`${baseUrl}/api/v1/articles/${token}/`);
+  const articleHtml = await articleResponse.text();
+  assert.equal(articleResponse.status, 200);
+  assert.match(articleHtml, /<link rel="canonical" href="https:\/\/pvhot\.bbroot\.com\/api\/v1\/articles\//);
+  assert.match(articleHtml, /"@type":"NewsArticle"/);
+  assert.match(articleHtml, /这是可由搜索引擎直接读取的中文摘要/);
+
+  const sitemapResponse = await fetch(`${baseUrl}/api/v1/sitemap.xml`);
+  const sitemap = await sitemapResponse.text();
+  assert.equal(sitemapResponse.status, 200);
+  assert.match(sitemapResponse.headers.get('content-type'), /application\/xml/);
+  assert.match(sitemap, new RegExp(`/api/v1/articles/${token}/`));
+
+  const missingResponse = await fetch(`${baseUrl}/api/v1/articles/${articleToken('missing')}/`);
+  assert.equal(missingResponse.status, 404);
+  assert.match(await missingResponse.text(), /noindex, follow/);
 });
 
 test('authenticated source health API manages a custom WeChat source safely', async (t) => {

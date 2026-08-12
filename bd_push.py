@@ -6,6 +6,7 @@ This module never prints request URLs or upstream exception messages because the
 API requires the token to be carried in the request query string.
 """
 
+import base64
 import json
 import os
 import sys
@@ -80,10 +81,10 @@ def _item_public_url(value):
     ):
         return None
     try:
-        encoded = urllib.parse.quote(value, safe="")
-    except UnicodeError:
+        encoded = base64.urlsafe_b64encode(value.encode("utf-8")).decode("ascii").rstrip("=")
+    except (UnicodeError, ValueError):
         return None
-    return "{}?id={}".format(SITE_URL, encoded)
+    return "{}api/v1/articles/{}/".format(SITE_URL, encoded)
 
 
 def build_submission_urls(data, latest_limit=LATEST_LIMIT):

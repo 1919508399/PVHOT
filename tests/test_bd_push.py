@@ -56,8 +56,8 @@ class BaiduPushTests(unittest.TestCase):
 
         self.assertEqual(urls[0], bd_push.SITE_URL)
         self.assertEqual(len(urls), 10)
-        self.assertEqual(urls[1], "https://pvhot.bbroot.com/?id=news%2F11")
-        self.assertEqual(urls[-1], "https://pvhot.bbroot.com/?id=news%2F3")
+        self.assertEqual(urls[1], "https://pvhot.bbroot.com/api/v1/articles/bmV3cy8xMQ/")
+        self.assertEqual(urls[-1], "https://pvhot.bbroot.com/api/v1/articles/bmV3cy8z/")
         self.assertTrue(
             all(
                 urllib.parse.urlsplit(url).netloc == "pvhot.bbroot.com"
@@ -154,7 +154,7 @@ class BaiduPushTests(unittest.TestCase):
         self.assertEqual(query["token"], [token])
         self.assertEqual(
             captured["request"].data.decode("utf-8").splitlines(),
-            [bd_push.SITE_URL, "https://pvhot.bbroot.com/?id=latest%20item"],
+            [bd_push.SITE_URL, "https://pvhot.bbroot.com/api/v1/articles/bGF0ZXN0IGl0ZW0/"],
         )
         self.assertEqual(captured["timeout"], bd_push.REQUEST_TIMEOUT_SECONDS)
         self.assertIn("accepted=2", stdout.getvalue())

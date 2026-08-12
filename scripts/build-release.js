@@ -39,6 +39,7 @@ const REQUIRED_RELEASE_FILES = Object.freeze([
   'lib/ai_config.js',
   'lib/ai_editor.js',
   'lib/source_catalog.js',
+  'lib/seo.js',
   'package.json',
   'package-lock.json',
   'data.json',
