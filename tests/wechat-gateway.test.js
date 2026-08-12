@@ -10,6 +10,7 @@ const { loadGatewayItems } = require('../fetch_wechat');
 const {
   WechatGateway,
   normalizeArticle,
+  normalizeDesktopArticle,
   officialArticleRows,
   reconcileSources,
 } = require('../wechat_gateway/gateway');
@@ -74,6 +75,30 @@ test('normalized gateway articles preserve the official account as the source', 
   assert.equal(item.sources[0].name, '阳光电源');
   assert.equal(item._sourceMode, 'weread-session-prototype');
   assert.equal(item.reason, '');
+});
+
+test('desktop article ingestion preserves official link and marks the local provider', (t) => {
+  const directory = temporaryDirectory(t);
+  const gateway = new WechatGateway({
+    storage: createStorage({ root: path.join(directory, 'state') }),
+    client: {},
+    outputPath: path.join(directory, 'wechat_gateway_items.json'),
+  });
+  const source = gateway.publicState().sources[2];
+  const article = normalizeDesktopArticle({
+    title: '海外强制配储升温：一条政策，三种玩法',
+    summary: '文章比较菲律宾、越南和印度的强制配储政策。',
+    pubDate: new Date().toISOString(),
+    link: 'https://mp.weixin.qq.com/s/exampleArticle123',
+  }, source);
+  assert.equal(article.account, source.name);
+  assert.equal(article._sourceMode, 'wechat-desktop-local');
+  const result = gateway.ingestDesktopArticles([{ ...article, account: source.name }]);
+  assert.equal(result.accepted, 1);
+  assert.equal(gateway.publicState().provider, 'wechat-desktop-local');
+  const output = JSON.parse(fs.readFileSync(path.join(directory, 'wechat_gateway_items.json'), 'utf8'));
+  assert.equal(output.experimental, false);
+  assert.equal(output.items[0].link, article.link);
 });
 
 test('platform client does not retry deterministic WeReadError400 responses', async () => {

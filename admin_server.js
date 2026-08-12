@@ -94,6 +94,11 @@ const WECHAT_BOOTSTRAP_TOKEN_FILE = process.env.PVHOT_WECHAT_BOOTSTRAP_TOKEN_FIL
   || (IS_CURRENT_RELEASE || HAS_SHARED_ROOT
     ? path.join(SHARED_ROOT, 'config', 'wechat-bootstrap-token')
     : path.join(ROOT, '.wechat-bootstrap-token'));
+const WECHAT_DESKTOP_TOKEN_HASH_FILE = process.env.PVHOT_WECHAT_DESKTOP_TOKEN_HASH_FILE
+  || (IS_CURRENT_RELEASE || HAS_SHARED_ROOT
+    ? path.join(SHARED_ROOT, 'config', 'wechat-desktop-token.sha256')
+    : path.join(ROOT, '.wechat-desktop-token.sha256'));
+const WECHAT_ITEMS_FILE = path.join(ROOT, 'wechat_items.json');
 const wechatGatewayStorage = createWechatGatewayStorage({
   root: WECHAT_GATEWAY_DATA_DIR,
   sessionKey: process.env.PVHOT_WECHAT_GATEWAY_KEY,
@@ -147,6 +152,71 @@ function internalWechatBootstrapAuthorized(req) {
   const left = Buffer.from(expected);
   const right = Buffer.from(provided);
   return left.length >= 32 && left.length === right.length && crypto.timingSafeEqual(left, right);
+}
+function desktopWechatAuthorized(req) {
+  let expected = '';
+  try { expected = fs.readFileSync(WECHAT_DESKTOP_TOKEN_HASH_FILE, 'utf8').trim().toLowerCase(); }
+  catch { return false; }
+  if (!/^[a-f0-9]{64}$/.test(expected)) return false;
+  const authorization = String(req.headers.authorization || '');
+  const match = authorization.match(/^Bearer\s+([A-Za-z0-9_-]{32,160})$/i);
+  if (!match) return false;
+  const actual = crypto.createHash('sha256').update(match[1]).digest('hex');
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(actual));
+}
+
+function validateDesktopWechatArticles(value) {
+  const rows = Array.isArray(value?.articles) ? value.articles : [];
+  if (!rows.length || rows.length > 20) throw new Error('articles must contain 1 to 20 entries');
+  const allowedAccounts = new Set(wechatGateway.publicState().sources.map((source) => source.name));
+  const now = Date.now();
+  return rows.map((raw) => {
+    const account = String(raw?.account || '').trim();
+    const title = String(raw?.title || '').trim().replace(/\s+/g, ' ');
+    const summary = String(raw?.summary || '').trim().replace(/\s+/g, ' ');
+    const link = String(raw?.link || '').trim();
+    const pubDate = new Date(raw?.pubDate || '');
+    if (!allowedAccounts.has(account)) throw new Error(`account is not allowlisted: ${account}`);
+    if (title.length < 4 || title.length > 200) throw new Error('title length is invalid');
+    if (!summary || summary.length > 1600) throw new Error('summary length is invalid');
+    if (!/^https:\/\/mp\.weixin\.qq\.com\/s\/[A-Za-z0-9_-]{8,160}(?:[?#].*)?$/.test(link)) {
+      throw new Error('link is not an official WeChat article URL');
+    }
+    const stamp = pubDate.getTime();
+    if (!Number.isFinite(stamp) || stamp > now + 2 * 3600_000 || stamp < now - 14 * 86400_000) {
+      throw new Error('pubDate must be within the last 14 days');
+    }
+    return {
+      account,
+      title,
+      summary,
+      link: link.split('#')[0],
+      pubDate: pubDate.toISOString(),
+      avatar: /^https:\/\//.test(String(raw?.avatar || '')) ? String(raw.avatar).slice(0, 1000) : '',
+    };
+  });
+}
+
+function syncDesktopWechatItems() {
+  const gateway = JSON.parse(fs.readFileSync(WECHAT_GATEWAY_OUTPUT, 'utf8'));
+  let previous = { items: [] };
+  try { previous = JSON.parse(fs.readFileSync(WECHAT_ITEMS_FILE, 'utf8')); } catch {}
+  const cutoff = Date.now() - 14 * 86400_000;
+  const byLink = new Map();
+  for (const item of [...(gateway.items || []), ...(previous.items || [])]) {
+    if (!/^https:\/\/mp\.weixin\.qq\.com\/s\//.test(String(item?.link || ''))) continue;
+    if (Date.parse(item.pubDate) < cutoff) continue;
+    if (!byLink.has(item.link)) byLink.set(item.link, item);
+  }
+  const items = [...byLink.values()].sort((a, b) => Date.parse(b.pubDate) - Date.parse(a.pubDate));
+  atomicWriteJsonSync(WECHAT_ITEMS_FILE, {
+    fetchedAt: new Date().toISOString(),
+    gatewayProvider: 'wechat-desktop-local',
+    monitoredAccounts: gateway.monitoredAccounts || 5,
+    health: gateway.health || [],
+    count: items.length,
+    items,
+  }, { space: 2, validate: (candidate) => candidate.count === candidate.items.length });
 }
 function privacyId(value) {
   return crypto.createHmac('sha256', STATS_SALT).update(String(value || 'unknown')).digest('hex');
@@ -1289,6 +1359,31 @@ const server = http.createServer(async (req, res) => {
       && !p.startsWith('/api/')
       && !p.startsWith('/internal/wechat-bootstrap/')) {
     send(res, 404, { error: 'not found' });
+    return;
+  }
+
+  if (p === '/api/wechat-desktop/ingest' && method === 'POST') {
+    if (!desktopWechatAuthorized(req)) {
+      send(res, 401, { error: 'invalid desktop collector token' });
+      return;
+    }
+    const body = await getBodyOrReject(req, res); if (!body) return;
+    try {
+      const articles = validateDesktopWechatArticles(body);
+      const result = wechatGateway.ingestDesktopArticles(articles);
+      syncDesktopWechatItems();
+      if (!refreshJob) {
+        refreshStartedAt = new Date().toISOString();
+        refreshLastResult = { ok: null, startedAt: refreshStartedAt, finishedAt: null };
+        refreshJob = runNodeTask('fetch_pv_news.js')
+          .then(() => { merge(); refreshLastResult = { ok: true, startedAt: refreshStartedAt, finishedAt: new Date().toISOString() }; })
+          .catch((error) => { console.error('[wechat-desktop] publish failed', error); refreshLastResult = { ok: false, startedAt: refreshStartedAt, finishedAt: new Date().toISOString() }; })
+          .finally(() => { refreshJob = null; refreshStartedAt = null; });
+      }
+      send(res, 202, { ok: true, accepted: result.accepted, publishing: true });
+    } catch (error) {
+      send(res, 400, { error: String(error.message || error).slice(0, 240) });
+    }
     return;
   }
 

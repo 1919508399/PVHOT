@@ -78,6 +78,20 @@ function normalizeArticle(raw, source) {
   };
 }
 
+function normalizeDesktopArticle(raw, source) {
+  const link = String(raw?.link || '').trim();
+  const publishedAt = new Date(raw?.pubDate || '');
+  return normalizeArticle({
+    id: String(raw?.id || link),
+    title: String(raw?.title || '').trim(),
+    picUrl: String(raw?.avatar || raw?.image || '').trim(),
+    publishTime: Math.floor(publishedAt.getTime() / 1000),
+    digest: String(raw?.summary || '').trim(),
+    link,
+    sourceMode: 'wechat-desktop-local',
+  }, source);
+}
+
 function initialState() {
   return {
     version: 1,
@@ -296,6 +310,40 @@ class WechatGateway {
     finally { this.refreshing = false; }
   }
 
+  ingestDesktopArticles(rows) {
+    const incoming = [];
+    const sourceIndexes = new Set();
+    for (const raw of Array.isArray(rows) ? rows : []) {
+      const account = String(raw?.account || '').trim();
+      const index = this.state.sources.findIndex((source) => source.name === account);
+      if (index < 0) continue;
+      incoming.push(normalizeDesktopArticle(raw, this.state.sources[index]));
+      sourceIndexes.add(index);
+    }
+    if (!incoming.length) return { accepted: 0, items: [] };
+
+    const now = new Date().toISOString();
+    const byId = new Map(this.state.articles.map((item) => [item.id, item]));
+    for (const item of incoming) byId.set(item.id, item);
+    this.state.articles = [...byId.values()]
+      .sort((left, right) => Date.parse(right.pubDate) - Date.parse(left.pubDate))
+      .slice(0, 250);
+    this.state.provider = 'wechat-desktop-local';
+    this.state.enabled = true;
+    for (const index of sourceIndexes) {
+      this.state.sources[index] = {
+        ...this.state.sources[index],
+        status: 'ok',
+        lastPolledAt: now,
+        lastSuccessAt: now,
+        nextRefreshAt: '',
+        error: '',
+      };
+    }
+    this.persist();
+    return { accepted: incoming.length, items: incoming };
+  }
+
   startScheduler(intervalMs = 60_000) {
     if (this.scheduler) return;
     const tick = () => this.refreshNextDue().catch((error) => {
@@ -312,9 +360,11 @@ class WechatGateway {
   }
 
   writeOutput() {
-    const mode = this.state.provider === 'weread-official-agent-api'
-      ? 'weread-official-agent-api'
-      : 'weread-session-prototype';
+    const mode = this.state.provider === 'wechat-desktop-local'
+      ? 'wechat-desktop-local'
+      : (this.state.provider === 'weread-official-agent-api'
+        ? 'weread-official-agent-api'
+        : 'weread-session-prototype');
     const health = this.state.sources.map((source) => ({
       id: `account:${source.name}`,
       name: source.name,
@@ -330,7 +380,7 @@ class WechatGateway {
     const output = {
       fetchedAt: this.state.updatedAt,
       provider: this.state.provider,
-      experimental: this.state.provider !== 'weread-official-agent-api',
+      experimental: !['weread-official-agent-api', 'wechat-desktop-local'].includes(this.state.provider),
       enabled: this.state.enabled === true,
       monitoredAccounts: this.state.sources.length,
       health,
@@ -348,6 +398,7 @@ module.exports = {
   WechatGateway,
   initialState,
   normalizeArticle,
+  normalizeDesktopArticle,
   officialArticleRows,
   officialResultRows,
   reconcileSources,

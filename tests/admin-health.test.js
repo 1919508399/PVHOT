@@ -107,6 +107,11 @@ test('authenticated source health API manages a custom WeChat source safely', as
   }));
   const bootstrapToken = 'test-bootstrap-token-value-1234567890';
   fs.writeFileSync(path.join(shared, 'config', 'wechat-bootstrap-token'), `${bootstrapToken}\n`);
+  const desktopToken = 'test-desktop-token-value-1234567890abcdef';
+  fs.writeFileSync(
+    path.join(shared, 'config', 'wechat-desktop-token.sha256'),
+    `${crypto.createHash('sha256').update(desktopToken).digest('hex')}\n`,
+  );
 
   const testLoginValue = 'test_admin_login_value';
   const child = spawn(process.execPath, [path.join(process.cwd(), 'admin_server.js')], {
@@ -132,6 +137,29 @@ test('authenticated source health API manages a custom WeChat source safely', as
   assert.equal(anonymous.status, 401);
   const anonymousGateway = await fetch(`${baseUrl}/admin/api/wechat-gateway`);
   assert.equal(anonymousGateway.status, 401);
+  const anonymousDesktopIngest = await fetch(`${baseUrl}/api/wechat-desktop/ingest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ articles: [] }),
+  });
+  assert.equal(anonymousDesktopIngest.status, 401);
+  const authenticatedDesktopIngest = await fetch(`${baseUrl}/api/wechat-desktop/ingest`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${desktopToken}`,
+    },
+    body: JSON.stringify({
+      articles: [{
+        account: 'not allowlisted',
+        title: 'A valid-looking title',
+        summary: 'A valid-looking summary',
+        link: 'https://mp.weixin.qq.com/s/exampleArticle123',
+        pubDate: new Date().toISOString(),
+      }],
+    }),
+  });
+  assert.equal(authenticatedDesktopIngest.status, 400);
   const missingBootstrapToken = await fetch(`${baseUrl}/internal/wechat-bootstrap/complete`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

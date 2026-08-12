@@ -475,6 +475,11 @@ NODE
   fi
   set_or_verify_shared_file_permissions \
     "${SHARED_DIR}/config/wechat-bootstrap-token" 0640
+  seed_file "wechat-desktop-token.sha256" \
+    "${SHARED_DIR}/config/wechat-desktop-token.sha256" \
+    "" \
+    "" \
+    0640
   seed_file "fetch.log" \
     "${SHARED_DIR}/log/fetch.log" \
     "" \

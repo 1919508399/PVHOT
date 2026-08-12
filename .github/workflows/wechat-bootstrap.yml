@@ -16,12 +16,17 @@ on:
           - resolve
           - news-refresh
           - host-check
+          - desktop-enroll
       login_id:
         description: Login session id returned by the start operation
         required: false
         type: string
       article_url:
         description: WeChat article URL used by the resolve operation
+        required: false
+        type: string
+      token_hash:
+        description: SHA-256 hash for the local WeChat desktop collector token
         required: false
         type: string
 
@@ -42,6 +47,7 @@ jobs:
       OPERATION: ${{ inputs.operation }}
       LOGIN_ID: ${{ inputs.login_id }}
       ARTICLE_URL: ${{ inputs.article_url }}
+      TOKEN_HASH: ${{ inputs.token_hash }}
     steps:
       - name: Configure restricted SSH identity
         shell: bash
@@ -75,11 +81,12 @@ jobs:
             -o ConnectTimeout=15
           )
           ssh "${ssh_options[@]}" "${destination}" \
-            bash -s -- "${OPERATION}" "${LOGIN_ID:-_}" "${ARTICLE_URL:-_}" <<'REMOTE'
+            bash -s -- "${OPERATION}" "${LOGIN_ID:-_}" "${ARTICLE_URL:-_}" "${TOKEN_HASH:-_}" <<'REMOTE'
           set -euo pipefail
           operation="$1"
           login_id="${2:-}"
           article_url="${3:-}"
+          token_hash="${4:-}"
           token_file="/var/www/pvhot/shared/config/wechat-bootstrap-token"
           [[ -f "${token_file}" && ! -L "${token_file}" ]]
           token="$(<"${token_file}")"
@@ -116,6 +123,16 @@ jobs:
             printf 'sudo-docker='; sudo -n docker info --format '{{.ServerVersion}}' 2>&1 || true
             printf 'identity='; id
             printf 'podman-access='; podman info --format '{{.Version.Version}}' 2>/dev/null || printf 'unavailable\n'
+            exit 0
+          elif [[ "${operation}" == "desktop-enroll" ]]; then
+            [[ "${token_hash}" =~ ^[a-f0-9]{64}$ ]]
+            target="/var/www/pvhot/shared/config/wechat-desktop-token.sha256"
+            temporary="$(mktemp /var/www/pvhot/shared/config/.wechat-desktop-token.XXXXXX)"
+            printf '%s\n' "${token_hash}" >"${temporary}"
+            chgrp pvhot "${temporary}"
+            chmod 0640 "${temporary}"
+            mv -f -- "${temporary}" "${target}"
+            printf '{"ok":true,"operation":"desktop-enroll"}\n'
             exit 0
           else
             printf 'Unsupported operation\n' >&2
