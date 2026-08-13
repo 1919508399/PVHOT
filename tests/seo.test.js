@@ -35,6 +35,17 @@ test('article HTML escapes untrusted content and exposes NewsArticle metadata', 
   assert.match(html, /<link rel="canonical" href="https:\/\/pvhot\.bbroot\.com\/api\/v1\/articles\/b25l\/">/);
 });
 
+test('article HTML omits unsafe original-source URLs', () => {
+  const html = renderArticlePage({
+    id: 'unsafe-link',
+    title_cn: 'Unsafe link regression',
+    summary_cn: 'Unsafe links must not reach an href or structured data.',
+    link: 'javascript:alert(1)',
+  });
+  assert.doesNotMatch(html, /javascript:/i);
+  assert.doesNotMatch(html, /查看原始信源/);
+});
+
 test('sitemap contains unique homepage, archive and article URLs with fresh dates', () => {
   const xml = renderSitemap({
     meta: { updated: '2026-08-12T02:00:00.000Z' },

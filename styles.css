@@ -3195,13 +3195,15 @@ body.dark .agt-preview { border-color: var(--border); background: var(--card); }
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: opacity .22s ease, visibility .22s ease;
+  transition: opacity .22s ease, visibility 0s linear .22s;
 }
 .featured-announcement.show {
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
+  transition-delay: 0s;
 }
+body.announcement-open { overflow: hidden; }
 .featured-announcement-dialog {
   position: relative;
   width: min(620px, 100%);

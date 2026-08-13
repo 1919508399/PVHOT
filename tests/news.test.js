@@ -18,8 +18,10 @@ const {
   inspectFeedStructure,
   isMojibake,
   isHighInfluenceWeiboItem,
+  isFeaturedEligibleItem,
   isRelevantItem,
   mapLimit,
+  normalizeArticleImage,
   normalizeWeiboItem,
   parseGenericRSS,
   parseJsonLdListItems,
@@ -230,6 +232,106 @@ test('Weibo discovery keeps PV news and rejects stock-only chatter', () => {
     title: 'A股涨停牛股推荐',
     summary: '个股短线交易和选股观点。',
   }), false);
+});
+
+test('quality gate rejects recruitment, fund market, astronomy and event-promotion noise', () => {
+  const cases = [
+    { title: 'Solar installer jobs available: apply now', summary: 'Residential photovoltaic company vacancies.' },
+    { title: 'Top solar ETF fund performance and holdings this week', summary: 'The photovoltaic index moved higher.' },
+    { title: 'Where to watch the solar eclipse tonight', summary: 'Astronomy viewing guide.' },
+    { title: 'Solar Energy Expo registration open: save the date', summary: 'Join us at the conference.' },
+  ];
+  for (const item of cases) {
+    assert.equal(isRelevantItem({ ...item, source: 'Google News' }), false, item.title);
+  }
+});
+
+test('quality gate rechecks translations and AI editorial relevance', () => {
+  assert.equal(isRelevantItem({
+    title: 'Solar industry weekly update',
+    title_cn: '本周太阳能 ETF 基金行情与持仓排名',
+    summary: 'Solar market summary.',
+    source: 'Google News',
+  }), false);
+  assert.equal(isRelevantItem({
+    title: 'Solar module factory expands TOPCon capacity',
+    summary: 'The photovoltaic manufacturer added 5 GW of annual capacity.',
+    summary_cn: '光伏组件企业新增 5GW TOPCon 年产能。',
+    summaryMode: 'ai-editor',
+    source: 'pv-magazine',
+    ai: { relevant: false },
+  }), false);
+  assert.equal(isRelevantItem({
+    title: 'Solar module factory expands TOPCon capacity',
+    summary: 'The photovoltaic manufacturer added 5 GW of annual capacity.',
+    source: 'pv-magazine',
+    ai: { relevant: true },
+  }), true);
+  assert.equal(isRelevantItem({
+    title: 'Solar industry update',
+    summary: 'Registration open for the upcoming solar conference.',
+    summaryMode: 'article',
+    source: 'Google News',
+    ai: { relevant: true, analyzed: true },
+  }), false, 'AI 已分析但未改写摘要时仍应执行本地摘要门禁');
+});
+
+test('wind coverage can remain in the archive but cannot be automatically featured', () => {
+  const mixedRenewables = {
+    title: 'Solar and wind power projects win 2 GW renewable auction',
+    summary: 'The auction awarded 1.2 GW of photovoltaic capacity and 800 MW of wind power.',
+    source: 'Reuters',
+  };
+  assert.equal(isRelevantItem(mixedRenewables), true);
+  assert.equal(isFeaturedEligibleItem(mixedRenewables), false);
+  assert.equal(isFeaturedEligibleItem({
+    title: 'Solar module prices fall after polysilicon supply expands',
+    summary: 'Photovoltaic manufacturers adjusted quotations.',
+    source: 'pv-magazine',
+  }), true);
+  assert.equal(isRelevantItem({
+    title: '企业启动500MW风光储一体化项目',
+    summary: '项目包括300MW光伏与100MWh电化学储能系统。',
+    source: '企业官微',
+  }), true, '非权威名单来源的明确风光储项目仍应进入行业动态');
+  assert.equal(isRelevantItem({
+    title: '海上风电场完成全部风机吊装',
+    summary: '项目将增加区域风力发电装机。',
+    source: '企业官微',
+  }), false, '纯风电报道不进入光伏行业动态');
+});
+
+test('quality gate retains standalone electrochemical storage industry coverage', () => {
+  const bessProject = {
+    title: 'Grid-scale BESS project begins commercial operation',
+    summary: 'The 400 MWh battery energy storage system will provide grid balancing services.',
+    source: 'energy-storage.news',
+  };
+  assert.equal(isRelevantItem(bessProject), true);
+  assert.equal(isFeaturedEligibleItem(bessProject), true);
+});
+
+test('article image gate rejects article pages while retaining image resources', () => {
+  const article = 'https://example.com/news/solar-project.html?utm_source=rss';
+  assert.equal(normalizeArticleImage(article, article), '');
+  assert.equal(normalizeArticleImage(
+    'https://example.com/news/solar-project.html?utm_medium=feed',
+    article
+  ), '');
+  assert.equal(normalizeArticleImage(
+    'https://example.com/news/solar-project.html?image=1',
+    article
+  ), '');
+  assert.equal(normalizeArticleImage('https://cdn.example.com/story/solar-project.php', article), '');
+  assert.equal(normalizeArticleImage('https://cdn.example.com/render?output=html', article), '');
+  assert.equal(
+    normalizeArticleImage('/images/solar-project.jpg?width=1200', article),
+    'https://example.com/images/solar-project.jpg?width=1200'
+  );
+  assert.equal(
+    normalizeArticleImage('https://images.example.com/photo?id=42&format=webp', article),
+    'https://images.example.com/photo?id=42&format=webp'
+  );
 });
 
 test('Weibo RSS keeps the account, uses a short title and preserves the post body as summary', () => {

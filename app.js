@@ -25,7 +25,12 @@
     } catch (e) { return null; }
   }
   let TEXTS = null;  // 关于 / Agent / 反馈 / 更新日志 / 精选公告可编辑文本
+  const ANNOUNCEMENT_DISMISSED_KEY = "pvhot-announcement-dismissed-v1";
   let dismissedAnnouncementSignature = "";
+  let announcementReturnFocus = null;
+  let announcementFallbackSignature = "";
+  let announcementFocusToken = 0;
+  let announcementFocusTimer = 0;
   let state = { view: "featured", cat: "全部", tag: null, kw: "", dailyTab: "day", dailyDate: null, dailyWeek: null, dailyMonth: null };
 
   /* ---------- 时间线「合并/分开」状态（v18.4：按天持久化） ---------- */
@@ -433,6 +438,32 @@
     return value;
   };
   const esc = s => cleanPublicText(s, "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+  const safePublicHttpsUrl = value => {
+    try {
+      const url = new URL(String(value || "").trim());
+      if (url.protocol !== "https:" || url.username || url.password || (url.port && url.port !== "443")) return "";
+      const host = url.hostname.toLowerCase().replace(/\.$/, "");
+      if (!host || !host.includes(".") || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return "";
+      if (["localhost", "localhost.localdomain"].includes(host)
+          || [".localhost", ".local", ".internal", ".lan", ".home", ".test", ".invalid", ".onion", ".arpa"].some(suffix => host.endsWith(suffix))) return "";
+      return url.href;
+    } catch (e) { return ""; }
+  };
+  const safeHref = value => esc(safePublicHttpsUrl(value) || "#");
+  const safeImageUrl = (value, articleLink) => {
+    const imageUrl = safePublicHttpsUrl(value);
+    if (!imageUrl) return "";
+    try {
+      const image = new URL(imageUrl);
+      const article = new URL(safePublicHttpsUrl(articleLink) || "https://invalid.invalid/");
+      const imagePath = image.pathname.replace(/\/+$/, "") || "/";
+      const articlePath = article.pathname.replace(/\/+$/, "") || "/";
+      if (image.origin === article.origin && imagePath === articlePath) return "";
+      if (/\.(?:s?html?|xhtml|php\d*|aspx?|jsp)$/i.test(image.pathname)) return "";
+      if (/(?:^|[?&])(?:format|output|type)=html(?:&|$)/i.test(image.search)) return "";
+      return image.href;
+    } catch (e) { return ""; }
+  };
   const safeRichText = value => {
     const template = document.createElement("template");
     template.innerHTML = cleanPublicText(value);
@@ -764,7 +795,7 @@
       )
       .slice(0, 5);
     $("#top5").innerHTML = top.map((it, i) => `
-      <a class="row" href="${esc(it.link)}" target="_blank" rel="noopener">
+      <a class="row" href="${safeHref(it.link)}" target="_blank" rel="noopener">
         <span class="rank">${i + 1}</span>
         <span class="t-title" title="${esc(it.orig_title || '')}">${hl(it.title, state.kw)}</span>
         <span class="t-time">${it.pubTime}</span>
@@ -820,11 +851,75 @@
     };
   }
 
-  function hideFeaturedAnnouncement() {
+  function loadDismissedAnnouncementSignature() {
+    try {
+      const saved = localStorage.getItem(ANNOUNCEMENT_DISMISSED_KEY);
+      if (saved) return saved;
+    } catch (e) {}
+    try {
+      const saved = sessionStorage.getItem(ANNOUNCEMENT_DISMISSED_KEY);
+      if (saved) return saved;
+    } catch (e) {}
+    return announcementFallbackSignature;
+  }
+
+  function saveDismissedAnnouncementSignature(signature) {
+    dismissedAnnouncementSignature = signature;
+    announcementFallbackSignature = signature;
+    try {
+      localStorage.setItem(ANNOUNCEMENT_DISMISSED_KEY, signature);
+      return;
+    } catch (e) {}
+    try { sessionStorage.setItem(ANNOUNCEMENT_DISMISSED_KEY, signature); } catch (e) {}
+  }
+
+  function announcementFocusableElements(modal) {
+    return $$('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])', modal)
+      .filter(element => !element.hidden && element.getAttribute("aria-hidden") !== "true");
+  }
+
+  function hideFeaturedAnnouncement(options = {}) {
     const modal = $("#featuredAnnouncementModal");
     if (!modal) return;
+    announcementFocusToken += 1;
+    if (announcementFocusTimer) {
+      clearTimeout(announcementFocusTimer);
+      announcementFocusTimer = 0;
+    }
+    const wasOpen = modal.classList.contains("show");
     modal.classList.remove("show");
     modal.setAttribute("aria-hidden", "true");
+    modal.setAttribute("inert", "");
+    document.body.classList.remove("announcement-open");
+    if (wasOpen && options.restoreFocus !== false && announcementReturnFocus && announcementReturnFocus.isConnected) {
+      announcementReturnFocus.focus({ preventScroll: true });
+    }
+    if (wasOpen) announcementReturnFocus = null;
+  }
+
+  function showFeaturedAnnouncement(modal) {
+    if (modal.classList.contains("show")) return;
+    const active = document.activeElement;
+    announcementReturnFocus = active && active !== document.body ? active : null;
+    // Remove the attribute as well as toggling the property. This keeps focus
+    // behavior consistent in Chromium builds that implement inert natively.
+    modal.removeAttribute("inert");
+    if ("inert" in modal) modal.inert = false;
+    modal.classList.add("show");
+    modal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("announcement-open");
+    const focusToken = ++announcementFocusToken;
+    // Hand focus over in a later task, after the newly visible style has been
+    // applied. The token prevents a delayed callback from stealing focus back
+    // after the dialog has already been dismissed.
+    announcementFocusTimer = setTimeout(() => {
+      announcementFocusTimer = 0;
+      if (focusToken !== announcementFocusToken || !modal.classList.contains("show")) return;
+      const focusTarget = $(".featured-announcement-ok", modal) || announcementFocusableElements(modal)[0];
+      if (focusTarget) {
+        focusTarget.focus({ preventScroll: true });
+      }
+    }, 0);
   }
 
   function renderFeaturedAnnouncement() {
@@ -842,14 +937,22 @@
       body.textContent = announcement.body;
       body.hidden = !announcement.body;
     }
+    const dialog = $(".featured-announcement-dialog", modal);
+    if (dialog) {
+      if (announcement.body) dialog.setAttribute("aria-describedby", "featuredAnnouncementBody");
+      else dialog.removeAttribute("aria-describedby");
+    }
+    dismissedAnnouncementSignature = loadDismissedAnnouncementSignature();
     const shouldShow = dismissedAnnouncementSignature !== announcement.signature;
-    modal.classList.toggle("show", shouldShow);
-    modal.setAttribute("aria-hidden", shouldShow ? "false" : "true");
+    if (shouldShow) {
+      showFeaturedAnnouncement(modal);
+    }
+    else hideFeaturedAnnouncement();
   }
 
   function dismissFeaturedAnnouncement() {
     const announcement = getFeaturedAnnouncement();
-    if (announcement) dismissedAnnouncementSignature = announcement.signature;
+    if (announcement) saveDismissedAnnouncementSignature(announcement.signature);
     hideFeaturedAnnouncement();
   }
 
@@ -861,6 +964,32 @@
     });
     modal.onclick = event => {
       if (event.target === modal) dismissFeaturedAnnouncement();
+    };
+    modal.onkeydown = event => {
+      if (!modal.classList.contains("show")) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        dismissFeaturedAnnouncement();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = announcementFocusableElements(modal);
+      if (!focusable.length) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      } else if (!modal.contains(document.activeElement)) {
+        event.preventDefault();
+        first.focus();
+      }
     };
   }
 
@@ -913,7 +1042,7 @@
       const favOn = isFav(it.id);
       const tags = (it.tags || []).slice(0, 3).map(t => `<span># ${hl(t, state.kw)}</span>`).join(" ");
       return `
-        <a class="tl-merge-row" href="${esc(it.link)}" target="_blank" rel="noopener">
+        <a class="tl-merge-row" href="${safeHref(it.link)}" target="_blank" rel="noopener">
           <span class="tm-time">${esc(pubTime)}</span>
           <span class="tm-body">
             <span class="tm-title">${hl(it.title, state.kw)}</span>
@@ -1040,7 +1169,7 @@
                 </header>
                 <div class="ds-list">
                   ${s.items.map(it => `
-                    <a class="ds-item" href="${esc(it.link)}">
+                    <a class="ds-item" href="${safeHref(it.link)}">
                       <span class="ds-time">${it.pubTime || fmtHHMM(it.pubDate)}</span>
                       <span class="ds-title">${hl(it.title, state.kw)}</span>
                       <span class="ds-heat">+${(it.heat || 50) - 25}</span>
@@ -1130,7 +1259,7 @@
                 </header>
                 <div class="ds-list">
                   ${s.items.map(it => `
-                    <a class="ds-item" href="${esc(it.link)}">
+                    <a class="ds-item" href="${safeHref(it.link)}">
                       <span class="ds-time">${it.pubTime || fmtHHMM(it.pubDate)}</span>
                       <span class="ds-title">${hl(it.title, state.kw)}</span>
                       <span class="ds-heat">+${(it.heat || 50) - 25}</span>
@@ -1218,7 +1347,7 @@
                 </header>
                 <div class="ds-list">
                   ${s.items.map(it => `
-                    <a class="ds-item" href="${esc(it.link)}">
+                    <a class="ds-item" href="${safeHref(it.link)}">
                       <span class="ds-time">${it.pubTime || fmtHHMM(it.pubDate)}</span>
                       <span class="ds-title">${hl(it.title, state.kw)}</span>
                       <span class="ds-heat">+${(it.heat || 50) - 25}</span>
@@ -1275,9 +1404,9 @@
   }
 
   function mediaHTML(it) {
-    const image = String(it.image || '').trim();
-    if (!/^https?:\/\//i.test(image)) return '';
-    return `<a class="tl-media" href="${esc(it.link)}" target="_blank" rel="noopener" aria-label="查看原文图片">
+    const image = safeImageUrl(it.image, it.link);
+    if (!image) return '';
+    return `<a class="tl-media" href="${safeHref(it.link)}" target="_blank" rel="noopener" aria-label="查看原文图片">
       <img src="${esc(image)}" alt="${esc(it.title || '新闻配图')}" loading="lazy" decoding="async" referrerpolicy="no-referrer"
         onerror="this.closest('.tl-media').remove()" />
       <span>原文配图</span>
@@ -1344,7 +1473,7 @@
               <button class="tl-fav ${isFav(it.id) ? "on" : ""}" data-fav="${esc(it.id)}" title="收藏" aria-label="收藏">${isFav(it.id) ? "♥" : "♡"}</button>
             </div>
           </header>
-          <a class="tl-title" href="${esc(it.link)}" title="${esc(it.orig_title || '')}" target="_blank" rel="noopener">${hl(it.title, state.kw)}</a>
+          <a class="tl-title" href="${safeHref(it.link)}" title="${esc(it.orig_title || '')}" target="_blank" rel="noopener">${hl(it.title, state.kw)}</a>
            ${mediaHTML(it)}
            ${bodyHTML(it)}
            ${sourceMoreHTML}
@@ -1478,7 +1607,7 @@ ${restUrl}
         testState.className = "agt-test-state is-ok";
         preview.innerHTML = items.length
           ? `<div class="agt-preview-head"><b>实时返回预览</b><span>展示前 ${items.length} 条</span></div>
-             ${items.map((item, index) => `<a class="agt-preview-item" href="${esc(item.link || "#")}" target="_blank" rel="noopener">
+             ${items.map((item, index) => `<a class="agt-preview-item" href="${safeHref(item.link)}" target="_blank" rel="noopener">
                <i>${index + 1}</i>
                <span><b>${esc(item.title || "未命名动态")}</b><small>${esc(item.source || "PV HOT")} · ${esc(item.dateKey || "")}</small></span>
                <em>↗</em>

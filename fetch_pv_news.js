@@ -133,7 +133,12 @@ const RSS_FETCH_CONCURRENCY = Math.max(
 const RELEVANCE_RE = /光伏|太阳能|多晶硅|硅料|硅片|电池片|光伏组件|逆变器|跟踪支架|屋顶发电|分布式|钙钛矿|异质结|\b(?:solar|photovoltaic|polysilicon|pv module|solar cell|solar panel|solar inverter|solar tracker|perovskite|topcon|hjt)\b/i;
 const STORAGE_RE = /储能|光储|电化学储能|锂电池|钠离子电池|液流电池|虚拟电厂|\b(?:bess|battery storage|energy storage)\b/i;
 const PRIMARY_PV_RE = /光伏|太阳能|多晶硅|硅料|硅片|电池片|光伏组件|逆变器|跟踪支架|钙钛矿|异质结|\b(?:solar|photovoltaic|polysilicon|pv module|solar cell|solar panel|solar inverter|solar tracker|perovskite|topcon|hjt)\b/i;
-const HARD_NOISE_RE = /A股|个股|牛股|涨停|选股|炒股|算力|存储芯片|先进封装|半导体|GPU|英伟达|风电|风力发电|波浪能|煤炭|原油|石油|核电|绿色甲醇|白银|银价|美联储|\b(?:stock picks?|semiconductor|chipmaker|gpu|nvidia|wind farm|wind turbine|wave energy|crude oil|nuclear power|silver|fed|hawkish|federal reserve)\b/i;
+const HARD_NOISE_RE = /A股|个股|牛股|涨停|选股|炒股|算力|存储芯片|先进封装|半导体|GPU|英伟达|波浪能|煤炭|原油|石油|核电|绿色甲醇|白银|银价|美联储|\b(?:stock picks?|semiconductor|chipmaker|gpu|nvidia|wave energy|crude oil|nuclear power|silver|fed|hawkish|federal reserve)\b/i;
+const RECRUITMENT_NOISE_RE = /招聘|招募|职位|岗位|求职|校招|社招|应聘|简历|薪资|年薪|招聘会|人才招聘|\b(?:job (?:opening|vacancy|listing|opportunity|posting)|jobs? (?:available|near me)|vacancies|career opportunities|careers at|now hiring|we(?:'|’)re hiring|recruit(?:ing|ment)?|apply now|salary)\b/i;
+const FUND_MARKET_NOISE_RE = /\bETF(?:s)?\b|交易型开放式指数基金|指数基金|基金净值|基金行情|基金份额|基金持仓|基金评级|基金排名|\b(?:exchange[- ]traded fund|mutual fund|index fund|fund flows?|fund holdings?|fund performance)\b/i;
+const ASTRONOMY_NOISE_RE = /日食|月食|天文观测|天文奇观|观星|流星雨|极光观测|\b(?:solar eclipse|lunar eclipse|astronomy|stargazing|meteor shower|eclipse viewing)\b/i;
+const EVENT_PROMOTION_RE = /(?:活动|会议|峰会|论坛|展会|大会|研讨会|网络研讨会).{0,16}(?:报名|招募|日程|议程|门票|参会|预告)|(?:报名|立即报名|免费报名|参会指南|议程发布|展会预告).{0,16}(?:活动|会议|峰会|论坛|展会|大会|研讨会)|\b(?:register now|registration open|save the date|join us (?:at|for)|event calendar|upcoming (?:event|webinar|conference)|tickets? on sale)\b/i;
+const WIND_TOPIC_RE = /风电|风力发电|风电场|风机|海上风电|陆上风电|\b(?:wind power|wind energy|wind farm|wind turbine|offshore wind|onshore wind)\b/i;
 const LOW_QUALITY_SOURCE_RE = /marketbeat|yahoo[!\s-]*finance|motley fool|seeking alpha|tradingview|barchart|marketscreener|simplywall|stock titan|gurufocus|streetinsider|moomoo|quartr|24\/7 wall|finance\.biggo|富途牛牛|investing\.com|tipranks|scanx\.trade|stockhouse|morningstar|hdfc sky|kavout|dalal street|trade brains|东方财富|新浪财经|openpr|pr newswire/i;
 const GENERIC_SOCIAL_SOURCE_RE = /微博(?:搜索|关键词|：)|微信搜索光伏/i;
 const TRUSTED_SOURCE_RE = /pv[\s-]?(?:tech|magazine)|solarbe|bjx|北极星|ne21|reuters|clean ?technica|solar power world|taiyangnews|mercom|energy-storage\.news|ess news|huasun|saur-energy|utility-dive|公众号/i;
@@ -150,19 +155,56 @@ function isTrustedItem(item) {
     && isTrustedSource(item.source);
 }
 
+function itemQualityText(it) {
+  const title = cleanText([
+    it && it.title_cn,
+    it && it.title,
+  ].filter(Boolean).join(' '));
+  const summary = cleanText([
+    it && it.summary_cn,
+    it && it.summary,
+  ].filter(Boolean).join(' '));
+  return { title, summary, body: `${title} ${summary}`.trim() };
+}
+
+function hasExcludedContentTopic(it) {
+  const { title, body } = itemQualityText(it);
+  // 原始网页摘要可能混入招聘或活动页脚；只有 AI 编辑过的摘要才作为
+  // 强排除依据。英文翻译完成后也复检译文摘要；标题中的噪声则在每一道
+  // 门禁都直接拦截。
+  const hasTranslatedCopy = it && it.lang === 'en' && (it.title_cn || it.summary_cn);
+  const scanText = it && (it.summaryMode === 'ai-editor' || it.ai?.analyzed || hasTranslatedCopy) ? body : title;
+  return RECRUITMENT_NOISE_RE.test(scanText)
+    || FUND_MARKET_NOISE_RE.test(scanText)
+    || ASTRONOMY_NOISE_RE.test(scanText)
+    || EVENT_PROMOTION_RE.test(scanText);
+}
+
 function isRelevantItem(it) {
-  const title = cleanText((it && (it.title_cn || it.title)) || '');
-  const body = title + ' ' + cleanText((it && (it.summary_cn || it.summary)) || '');
+  if (!it || (it.ai && it.ai.relevant === false)) return false;
+  const { title, body } = itemQualityText(it);
   const source = cleanText((it && it.source) || '');
   if (LOW_QUALITY_SOURCE_RE.test(source)) return false;
+  if (hasExcludedContentTopic(it)) return false;
   if (!RELEVANCE_RE.test(body) && !STORAGE_RE.test(body)) return false;
   // 通用社交搜索最容易夹带热股/泛能源内容，标题必须直接命中行业词。
   const keywordSocial = GENERIC_SOCIAL_SOURCE_RE.test(source)
     || (it && it._sourceChannelType === 'weibo' && it._sourceMode === 'rsshub-keyword');
   if (keywordSocial && !RELEVANCE_RE.test(title) && !STORAGE_RE.test(title)) return false;
+  // Pure wind coverage is outside the archive; mixed wind + PV/storage news
+  // remains useful regardless of whether its source is on the authority list.
+  if (WIND_TOPIC_RE.test(title) && !PRIMARY_PV_RE.test(title) && !STORAGE_RE.test(title)) return false;
   // 泛能源/财经标题仅允许专业行业媒体保留，普通聚合源直接剔除。
   if (HARD_NOISE_RE.test(title) && (!PRIMARY_PV_RE.test(title) || !isTrustedItem(it))) return false;
   return true;
+}
+
+function isFeaturedEligibleItem(it) {
+  if (!isRelevantItem(it)) return false;
+  // 风光混合报道仍可进入行业动态，但含风电主题的标题不自动进入光伏精选。
+  // 这样不会因为可信行业源的高权重把泛风电内容推上首页精选。
+  const { title } = itemQualityText(it);
+  return !WIND_TOPIC_RE.test(title);
 }
 
 function canonicalArticleKey(value) {
@@ -785,7 +827,22 @@ function normalizeArticleImage(value, baseUrl) {
   if (typeof url !== 'string') return '';
   try { url = new URL(decodeHtmlText(url), baseUrl).href; } catch (e) { return ''; }
   if (!/^https?:\/\//i.test(url)) return '';
+  let parsed;
+  try { parsed = new URL(url); } catch (e) { return ''; }
   if (/logo|avatar|icon|sprite|favicon|qrcode|wechat/i.test(url)) return '';
+  // 部分 RSS/JSON-LD 错把文章页自身写进 image。跟踪参数不应掩盖同址错误。
+  if (baseUrl && canonicalArticleKey(url) === canonicalArticleKey(baseUrl)) return '';
+  if (baseUrl) {
+    try {
+      const article = new URL(baseUrl);
+      const imagePath = parsed.pathname.replace(/\/+$/, '') || '/';
+      const articlePath = article.pathname.replace(/\/+$/, '') || '/';
+      if (parsed.origin.toLowerCase() === article.origin.toLowerCase() && imagePath === articlePath) return '';
+    } catch (e) { /* baseUrl 已由文章链接校验，无法解析时只跳过同路径比较 */ }
+  }
+  // 明确以网页脚本或 HTML 后缀结尾的地址不是可展示的主图。
+  if (/\.(?:s?html?|xhtml|php\d*|aspx?|jsp)$/i.test(parsed.pathname)) return '';
+  if (/(?:^|[?&])(?:format|output|type)=html(?:&|$)/i.test(parsed.search)) return '';
   return url;
 }
 
@@ -2625,15 +2682,22 @@ async function runMain() {
   }
   log('lang: translated ' + enDone + ' english items, ' + (postEnrichmentFresh.length - enDone) + ' chinese items (no translation)');
 
+  // 英文标题中的 solar 等词可能实际指日食、ETF 或招聘；译文生成后再做一次
+  // 相关性门禁，避免这些内容绕过翻译前的规则。
+  const translatedFresh = postEnrichmentFresh.filter(isRelevantItem);
+  if (translatedFresh.length !== postEnrichmentFresh.length) {
+    log(`post-translation quality: kept=${translatedFresh.length} dropped=${postEnrichmentFresh.length - translatedFresh.length}`);
+  }
+
   // === v3b：多信源聚合（翻译后按标题相似度合并同事件）===
-  const aggregated = aggregateMultiSource(postEnrichmentFresh);
+  const aggregated = aggregateMultiSource(translatedFresh);
   const multiCount = aggregated.filter(it => (it._sourceCount || 1) > 1).length;
-  log('aggregate: ' + postEnrichmentFresh.length + ' → ' + aggregated.length + ' items (' + multiCount + ' multi-source clusters)');
+  log('aggregate: ' + translatedFresh.length + ' → ' + aggregated.length + ' items (' + multiCount + ' multi-source clusters)');
   const outputCandidates = selectAcrossDays(aggregated, MAX_ITEMS);
 
   // === 构建输出 items ===
   const now = Date.now();
-  const items = outputCandidates.map((it, i) => {
+  let items = outputCandidates.map((it, i) => {
     const bj = toBJ(it._pubDate || it.pubDate);
     const cat = it.cat;
     const ageH = Math.max(0, (now - (new Date(it._pubDate || it.pubDate).getTime() || now - 86400000)) / 3600000);
@@ -2732,13 +2796,6 @@ async function runMain() {
       batchSize: 4,
       stopOnError: true,
     });
-    // AI 可能更新分类、摘要和事件信息，因此在精选前重新计算一次综合分。
-    for (const item of items) {
-      const details = computeScoreDetails(item);
-      item.score = details.score;
-      item.networkHeat = details.networkHeat;
-      item.scoreBreakdown = details.breakdown;
-    }
     log(`ai-editor: enabled=${aiEditorial.enabled} analyzed=${aiEditorial.analyzed}`
       + ` cache=${aiEditorial.cacheHits} calls=${aiEditorial.calls} events=${aiEditorial.eventCount}`
       + ` failures=${aiEditorial.failures}${aiEditorial.lastError ? ` error=${aiEditorial.lastError}` : ''}`);
@@ -2748,10 +2805,29 @@ async function runMain() {
     log(`WARN ai-editor fallback: ${aiEditorial.lastError}`);
   }
 
+  // AI 的 relevant 结论及其改写后的中文摘要都必须重新通过本地确定性门禁。
+  // 本地规则是最后防线，模型不可通过高分把招聘、基金、活动等噪声带入输出。
+  const postAiItems = items.filter(isRelevantItem);
+  if (postAiItems.length !== items.length) {
+    log(`post-ai quality: kept=${postAiItems.length} dropped=${items.length - postAiItems.length}`);
+  }
+  items = postAiItems;
+  const publishedLinks = new Set(items.map((item) => item.link).filter(Boolean));
+  for (const item of items) {
+    if (Array.isArray(item.related)) {
+      item.related = item.related.filter((related) => publishedLinks.has(related.link));
+    }
+    // AI 可能更新分类、摘要和事件信息，因此在精选前重新计算一次综合分。
+    const details = computeScoreDetails(item);
+    item.score = details.score;
+    item.networkHeat = details.networkHeat;
+    item.scoreBreakdown = details.breakdown;
+  }
+
   // AI 精选只允许北京时间当天新闻；以跨源热度、来源权威度、时效和产业重要性综合选出。
   const todayKey = beijingDateKey();
   const todayItems = items
-    .filter((it) => it.dateKey === todayKey)
+    .filter((it) => it.dateKey === todayKey && isFeaturedEligibleItem(it))
     .sort((a, b) => b.score - a.score || b.sourceCount - a.sourceCount || b.pubDate.localeCompare(a.pubDate));
   const featuredMinScore = Math.max(1, Math.min(100, Number(process.env.PVHOT_FEATURED_MIN_SCORE || 70)));
   const featuredMaxItems = Math.max(1, Math.min(20, Number(process.env.PVHOT_FEATURED_MAX_ITEMS || 12)));
@@ -2870,9 +2946,11 @@ module.exports = {
   isMojibake,
   isHighInfluenceWeiboItem,
   inspectFeedStructure,
+  isFeaturedEligibleItem,
   isRelevantItem,
   mapLimit,
   looksBlocked,
+  normalizeArticleImage,
   normalizeWeiboItem,
   parseGenericRSS,
   parseJsonLdListItems,

@@ -68,7 +68,12 @@ test('admin AI settings keep the API key server-side and return only a mask', as
   const login = await fetch(`${base}/admin/api/login`, {
     method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ pass:loginValue }),
   });
+  const loginBody = await login.json();
   const cookie = String(login.headers.get('set-cookie')).split(';')[0];
+  const mutationHeaders = {
+    'Content-Type':'application/json', Cookie:cookie, Origin:base,
+    'Sec-Fetch-Site':'same-origin', 'X-CSRF-Token':loginBody.csrfToken,
+  };
   const initial = await (await fetch(`${base}/admin/api/ai-config`, { headers:{ Cookie:cookie } })).json();
   assert.equal(initial.enabled, false);
   assert.equal(initial.apiKeyConfigured, false);
@@ -76,7 +81,7 @@ test('admin AI settings keep the API key server-side and return only a mask', as
 
   const savedResponse = await fetch(`${base}/admin/api/ai-config`, {
     method:'PUT',
-    headers:{ 'Content-Type':'application/json', Cookie:cookie },
+    headers:mutationHeaders,
     body:JSON.stringify({
       enabled:false, provider:'deepseek', model:'editor-model', apiKey:placeholderKey,
       dailyArticleLimit:60, timeoutMs:20000, maxInputChars:6000,
@@ -96,7 +101,7 @@ test('admin AI settings keep the API key server-side and return only a mask', as
   assert.equal(rereadText.includes(placeholderKey), false);
 
   const cleared = await (await fetch(`${base}/admin/api/ai-config`, {
-    method:'PUT', headers:{ 'Content-Type':'application/json', Cookie:cookie },
+    method:'PUT', headers:mutationHeaders,
     body:JSON.stringify({ enabled:false, clearApiKey:true }),
   })).json();
   assert.equal(cleared.config.apiKeyConfigured, false);

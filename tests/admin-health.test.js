@@ -77,6 +77,50 @@ test('public health endpoint reports release and data freshness without authenti
   assert.equal(body.error, null);
 });
 
+test('client-supplied forwarded chains cannot rotate around login rate limits', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pvhot-admin-xff-'));
+  const port = await reservePort();
+  fs.writeFileSync(path.join(root, 'data.json'), JSON.stringify({ items: [] }));
+  fs.writeFileSync(path.join(root, 'admin.html'), '<!doctype html><title>admin</title>');
+  const child = spawn(process.execPath, [path.join(process.cwd(), 'admin_server.js')], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      PVHOT_ROOT: root,
+      PVHOT_ADMIN_HOST: '127.0.0.1',
+      PVHOT_ADMIN_PORT: String(port),
+      PVHOT_ADMIN_PASSWORD_HASH: crypto.createHash('sha256').update('correct-password').digest('hex'),
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  t.after(() => {
+    child.kill();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+  await waitForReady(child);
+  const baseUrl = `http://127.0.0.1:${port}`;
+  for (let index = 0; index < 8; index += 1) {
+    const response = await fetch(`${baseUrl}/admin/api/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Forwarded-For': `198.51.100.${index + 1}, 203.0.113.9`,
+      },
+      body: JSON.stringify({ pass: 'wrong-password' }),
+    });
+    assert.equal(response.status, 401);
+  }
+  const blocked = await fetch(`${baseUrl}/admin/api/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Forwarded-For': '198.51.100.99, 203.0.113.9',
+    },
+    body: JSON.stringify({ pass: 'correct-password' }),
+  });
+  assert.equal(blocked.status, 429);
+});
+
 test('public SEO routes render indexable articles and a live sitemap', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pvhot-admin-seo-'));
   const port = await reservePort();
@@ -274,7 +318,15 @@ test('authenticated source health API manages a custom WeChat source safely', as
     body: JSON.stringify({ pass: testLoginValue }),
   });
   assert.equal(login.status, 200);
+  const loginBody = await login.json();
   const cookie = String(login.headers.get('set-cookie')).split(';')[0];
+  const mutationHeaders = {
+    'Content-Type': 'application/json',
+    Cookie: cookie,
+    Origin: baseUrl,
+    'Sec-Fetch-Site': 'same-origin',
+    'X-CSRF-Token': loginBody.csrfToken,
+  };
 
   const initialHealthResponse = await fetch(`${baseUrl}/admin/api/source-health`, {
     headers: { Cookie: cookie },
@@ -310,7 +362,7 @@ test('authenticated source health API manages a custom WeChat source safely', as
 
   const duplicateBuiltInX = await fetch(`${baseUrl}/admin/api/sources`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    headers: mutationHeaders,
     body: JSON.stringify({
       name: '重复 PV Magazine',
       type: 'x',
@@ -322,7 +374,7 @@ test('authenticated source health API manages a custom WeChat source safely', as
 
   const invalidXPost = await fetch(`${baseUrl}/admin/api/sources`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    headers: mutationHeaders,
     body: JSON.stringify({
       name: '错误帖子地址',
       type: 'x',
@@ -338,7 +390,7 @@ test('authenticated source health API manages a custom WeChat source safely', as
   const forbiddenValue = 'must-not-appear-in-any-response';
   const secretFieldX = await fetch(`${baseUrl}/admin/api/sources`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    headers: mutationHeaders,
     body: JSON.stringify({
       name: '不应接收凭证',
       type: 'x',
@@ -353,7 +405,7 @@ test('authenticated source health API manages a custom WeChat source safely', as
 
   const createX = await fetch(`${baseUrl}/admin/api/sources`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    headers: mutationHeaders,
     body: JSON.stringify({
       name: 'Solar Signal on X',
       type: 'x',
@@ -373,7 +425,7 @@ test('authenticated source health API manages a custom WeChat source safely', as
 
   const create = await fetch(`${baseUrl}/admin/api/sources`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    headers: mutationHeaders,
     body: JSON.stringify({
       name: '测试光伏观察',
       type: 'wechat',
@@ -405,7 +457,7 @@ test('authenticated source health API manages a custom WeChat source safely', as
 
   const disable = await fetch(`${baseUrl}/admin/api/sources/${encodeURIComponent(created.source.id)}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    headers: mutationHeaders,
     body: JSON.stringify({ enabled: false }),
   });
   const disabled = await disable.json();
@@ -414,7 +466,7 @@ test('authenticated source health API manages a custom WeChat source safely', as
 
   const unsafeRss = await fetch(`${baseUrl}/admin/api/sources`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    headers: mutationHeaders,
     body: JSON.stringify({
       name: '危险地址',
       type: 'rss',
@@ -426,7 +478,7 @@ test('authenticated source health API manages a custom WeChat source safely', as
 
   const saveOnly = await fetch(`${baseUrl}/admin/api/sources`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    headers: mutationHeaders,
     body: JSON.stringify({
       name: '仅保存测试网站',
       type: 'website',
@@ -442,18 +494,18 @@ test('authenticated source health API manages a custom WeChat source safely', as
 
   const removeSavedOnly = await fetch(
     `${baseUrl}/admin/api/sources/${encodeURIComponent(savedOnly.source.id)}`,
-    { method: 'DELETE', headers: { Cookie: cookie } }
+    { method: 'DELETE', headers: mutationHeaders }
   );
   assert.equal(removeSavedOnly.status, 200);
 
   const remove = await fetch(`${baseUrl}/admin/api/sources/${encodeURIComponent(created.source.id)}`, {
     method: 'DELETE',
-    headers: { Cookie: cookie },
+    headers: mutationHeaders,
   });
   assert.equal(remove.status, 200);
   const removeX = await fetch(`${baseUrl}/admin/api/sources/${encodeURIComponent(createdX.source.id)}`, {
     method: 'DELETE',
-    headers: { Cookie: cookie },
+    headers: mutationHeaders,
   });
   assert.equal(removeX.status, 200);
   const registry = JSON.parse(fs.readFileSync(

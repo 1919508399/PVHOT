@@ -1481,23 +1481,47 @@
     return '设备未知';
   }
   function isSafeEmail(value){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim()); }
+  function safePublicHttpsUrl(value){
+    try {
+      const url = new URL(String(value || '').trim());
+      if (url.protocol !== 'https:' || url.username || url.password || (url.port && url.port !== '443')) return '';
+      const host = url.hostname.toLowerCase().replace(/\.$/, '');
+      if (!host || !host.includes('.') || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return '';
+      if (['localhost','localhost.localdomain'].includes(host)
+          || ['.localhost','.local','.internal','.lan','.home','.test','.invalid','.onion','.arpa'].some(suffix => host.endsWith(suffix))) return '';
+      return url.href;
+    } catch(e){ return ''; }
+  }
 
   function toast(msg){
     const t = $('#toast'); t.textContent = msg; t.classList.add('show');
     clearTimeout(t._t); t._t = setTimeout(()=>t.classList.remove('show'), 1800);
   }
+  let csrfToken = '';
+  async function loadCsrfToken(){
+    const response = await fetch(API + '/csrf', { credentials:'same-origin', cache:'no-store' });
+    if (!response.ok) return false;
+    const data = await response.json();
+    csrfToken = String(data.token || '');
+    return !!csrfToken;
+  }
   async function api(path, opts){
     opts = opts || {};
     let r;
     try {
-      r = await fetch(API + path, Object.assign({ credentials:'same-origin',
-        headers:{'Content-Type':'application/json'} }, opts));
+      const method = String(opts.method || 'GET').toUpperCase();
+      const headers = Object.assign({'Content-Type':'application/json'}, opts.headers || {});
+      if (!['GET','HEAD','OPTIONS'].includes(method) && path !== '/login') {
+        if (!csrfToken && !(await loadCsrfToken())) throw new Error('登录会话已失效');
+        headers['X-CSRF-Token'] = csrfToken;
+      }
+      r = await fetch(API + path, Object.assign({ credentials:'same-origin' }, opts, { headers }));
     } catch (e) {
       return { ok:false, status:0, data:{ error:'网络连接失败，请稍后重试' } };
     }
     let data = {}; try { data = await r.json(); } catch(e){}
     if (r.status === 401 && path !== '/login'){ showLogin(); throw new Error('未登录'); }
-    return { ok: r.ok, status: r.status, data };
+    return { ok: r.ok, status: r.status, data, headers:r.headers };
   }
 
   /* ---- 主题 ---- */
@@ -1520,12 +1544,16 @@
     const r = await api('/login', { method:'POST', body: JSON.stringify({ pass }) });
     $('#loginBtn').disabled = false;
     $('#loginBtn').textContent = '进入管理后台';
-    if (r.ok){ $('#loginErr').textContent=''; $('#passInput').value=''; showMain(); }
+    if (r.ok){
+      csrfToken = String(r.data.csrfToken || r.headers.get('x-csrf-token') || '');
+      if (!csrfToken) await loadCsrfToken();
+      $('#loginErr').textContent=''; $('#passInput').value=''; showMain();
+    }
     else { $('#loginErr').textContent = (r.data && r.data.error) || '登录失败'; }
   }
   $('#loginBtn').onclick = doLogin;
   $('#passInput').addEventListener('keydown', e => { if (e.key==='Enter') doLogin(); });
-  $('#logoutBtn').onclick = async () => { await api('/logout', { method:'POST' }); showLogin(); };
+  $('#logoutBtn').onclick = async () => { await api('/logout', { method:'POST' }); csrfToken=''; showLogin(); };
 
   /* ---- 列表 ---- */
   async function load(){
@@ -1560,7 +1588,7 @@
     const summary = cleanDisplayText(it.summary_cn || it.summary || '', '摘要编码异常，已隐藏');
     const source = cleanDisplayText(it.source || '', '来源名称编码异常') || '未知信源';
     const image = cleanDisplayText(it.image || '', '');
-    const link = cleanDisplayText(it.link || '', '');
+    const link = safePublicHttpsUrl(cleanDisplayText(it.link || '', ''));
     const thumb = /^https?:\/\//i.test(image)
       ? `<a class="item-thumb" href="${esc(link || '#')}" target="_blank" rel="noopener"><img src="${esc(image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.item-thumb').remove()" /></a>`
       : '';
@@ -1712,7 +1740,7 @@
   (async () => {
     try {
       const r = await api('/items?pageSize=1');
-      if (r.ok) showMain(); else showLogin();
+      if (r.ok && await loadCsrfToken()) showMain(); else showLogin();
     } catch(e){ showLogin(); }
   })();
 

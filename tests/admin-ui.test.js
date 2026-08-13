@@ -94,6 +94,9 @@ test('three core admin views use friendly labels and hide raw technical details'
   assert.match(app, /sanitizePublicPayload\(data\)/);
   assert.match(app, /TEXTS = sanitizePublicPayload/);
   assert.match(app, /const safeRichText =/);
+  assert.match(app, /const safePublicHttpsUrl =/);
+  assert.match(app, /const safeHref = value =>/);
+  assert.doesNotMatch(app, /href="\$\{esc\((?:it|item)\.link/);
   assert.match(app, /safeRichText\(a\.title_html\)/);
   assert.match(app, /<pre id="agtVerify">\$\{esc\(verifyQ\)\}<\/pre>/);
   assert.match(app, /const editorialReason = state\.view === "featured" && featured \? reasonHTML\(it\) : '';/);
@@ -103,6 +106,10 @@ test('three core admin views use friendly labels and hide raw technical details'
   assert.match(app, /另有 \$\{additionalSources\} 家信源报道/);
   assert.doesNotMatch(app, /\$\{impactHTML\(it\)\}/);
   assert.doesNotMatch(app, /\$\{relatedHTML\}/);
+
+  assert.match(html, /return \{ ok: r\.ok, status: r\.status, data, headers:r\.headers \}/);
+  assert.match(html, /headers\['X-CSRF-Token'\] = csrfToken/);
+  assert.match(html, /csrfToken = String\(r\.data\.csrfToken \|\| r\.headers\.get/);
 
   const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
   assert.match(css, /body\[data-view="featured"\][\s\S]*--content-w: min\(1600px, 100%\)/);
@@ -174,11 +181,54 @@ test('admin request body keeps Chinese text intact when UTF-8 bytes arrive in se
   });
 
   assert.equal(result.status, 200);
-  assert.deepEqual(JSON.parse(result.body), { ok:true });
+  const loginBody = JSON.parse(result.body);
+  assert.equal(loginBody.ok, true);
+  assert.match(loginBody.csrfToken, /^[A-Za-z0-9_-]{40,}$/);
   const cookie = String(result.headers['set-cookie']).split(';')[0];
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const mutationHeaders = {
+    'Content-Type':'application/json', Cookie:cookie, Origin:baseUrl,
+    'Sec-Fetch-Site':'same-origin', 'X-CSRF-Token':loginBody.csrfToken,
+  };
+
+  const missingCsrf = await fetch(`${baseUrl}/admin/api/texts/about`, {
+    method:'PUT', headers:{ 'Content-Type':'application/json', Cookie:cookie, Origin:baseUrl, 'Sec-Fetch-Site':'same-origin' },
+    body:JSON.stringify({ value:{} }),
+  });
+  assert.equal(missingCsrf.status, 403);
+  const crossOrigin = await fetch(`${baseUrl}/admin/api/texts/about`, {
+    method:'PUT', headers:{ ...mutationHeaders, Origin:'https://attacker.example' },
+    body:JSON.stringify({ value:{} }),
+  });
+  assert.equal(crossOrigin.status, 403);
+  const crossSiteMetadata = await fetch(`${baseUrl}/admin/api/texts/about`, {
+    method:'PUT', headers:{ ...mutationHeaders, 'Sec-Fetch-Site':'cross-site' },
+    body:JSON.stringify({ value:{} }),
+  });
+  assert.equal(crossSiteMetadata.status, 403);
+
+  for (const link of ['javascript:alert(1)', 'http://example.com/story', 'https://127.0.0.1/private']) {
+    const unsafeLink = await fetch(`${baseUrl}/admin/api/items`, {
+      method:'POST', headers:mutationHeaders,
+      body:JSON.stringify({ title_cn:'unsafe link', link }),
+    });
+    assert.equal(unsafeLink.status, 400);
+  }
+  const safeManualItem = await fetch(`${baseUrl}/admin/api/items`, {
+    method:'POST', headers:mutationHeaders,
+    body:JSON.stringify({ title_cn:'safe link', link:'https://Example.com:443/story#section' }),
+  });
+  assert.equal(safeManualItem.status, 200);
+  const safeManualBody = await safeManualItem.json();
+  assert.equal(safeManualBody.item.link, 'https://example.com/story');
+  const unsafeManualUpdate = await fetch(`${baseUrl}/admin/api/items/featured-news`, {
+    method:'PUT', headers:mutationHeaders,
+    body:JSON.stringify({ link:'javascript:alert(2)' }),
+  });
+  assert.equal(unsafeManualUpdate.status, 400);
 
   const unsafeSave = await fetch(`http://127.0.0.1:${port}/admin/api/texts/about`, {
-    method:'PUT', headers:{ 'Content-Type':'application/json', Cookie:cookie },
+    method:'PUT', headers:mutationHeaders,
     body:JSON.stringify({ value:{
       eyebrow:'关于', title_html:'<script>alert(1)</script>', sub:'简介', poem:['第一行'], fineprint_html:'说明',
     } }),
@@ -186,7 +236,7 @@ test('admin request body keeps Chinese text intact when UTF-8 bytes arrive in se
   assert.equal(unsafeSave.status, 400);
 
   const brokenEncodingSave = await fetch(`http://127.0.0.1:${port}/admin/api/texts/about`, {
-    method:'PUT', headers:{ 'Content-Type':'application/json', Cookie:cookie },
+    method:'PUT', headers:mutationHeaders,
     body:JSON.stringify({ value:{
       eyebrow:'关于', title_html:'异常' + String.fromCharCode(0xFFFD) + '标题', sub:'简介', poem:['第一行'], fineprint_html:'说明',
     } }),
@@ -204,7 +254,7 @@ test('admin request body keeps Chinese text intact when UTF-8 bytes arrive in se
     sub:'让行业信息更清楚。', poem:['每天整理重要动态。'], fineprint_html:'内容来自公开信源。',
   };
   const safeSave = await fetch(`http://127.0.0.1:${port}/admin/api/texts/about`, {
-    method:'PUT', headers:{ 'Content-Type':'application/json', Cookie:cookie },
+    method:'PUT', headers:mutationHeaders,
     body:JSON.stringify({ value:safeValue }),
   });
   assert.equal(safeSave.status, 200);
@@ -216,7 +266,7 @@ test('admin request body keeps Chinese text intact when UTF-8 bytes arrive in se
     body:'精选页会优先展示这条重要提醒。',
   };
   const announcementSave = await fetch(`http://127.0.0.1:${port}/admin/api/texts/announcement`, {
-    method:'PUT', headers:{ 'Content-Type':'application/json', Cookie:cookie },
+    method:'PUT', headers:mutationHeaders,
     body:JSON.stringify({ value:announcementValue }),
   });
   assert.equal(announcementSave.status, 200);
@@ -224,7 +274,7 @@ test('admin request body keeps Chinese text intact when UTF-8 bytes arrive in se
   assert.deepEqual(withAnnouncement.announcement, announcementValue);
 
   const announcementClear = await fetch(`http://127.0.0.1:${port}/admin/api/texts/announcement`, {
-    method:'PUT', headers:{ 'Content-Type':'application/json', Cookie:cookie },
+    method:'PUT', headers:mutationHeaders,
     body:JSON.stringify({ value:{ title:'', body:'' } }),
   });
   assert.equal(announcementClear.status, 200);

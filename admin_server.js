@@ -7,6 +7,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const net = require('net');
 const { spawn } = require('child_process');
 const { merge } = require('./merge.js');
 const {
@@ -23,7 +24,7 @@ const {
   removeCustomSource,
   updateCustomSource,
 } = require('./lib/custom_sources');
-const { parseRss, probeRss } = require('./lib/safe_remote_fetch');
+const { parseRss, probeRss, validateArticleUrl } = require('./lib/safe_remote_fetch');
 const { probeXAccount, validXApiToken } = require('./lib/x_sources');
 const { buildHealthEntry, normalizeStatus, summarizeHealth } = require('./lib/source_health');
 const { withProcessLockSync } = require('./lib/process_lock');
@@ -144,13 +145,28 @@ function saveStats(s) {
   try { atomicWriteJsonSync(STATS_FILE, s); }
   catch (e) { console.error('[stats] save error', e); }
 }
+function normalizeIp(value) {
+  const raw = String(value || '').trim();
+  const normalized = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.test(raw)
+    ? raw.slice(7)
+    : raw;
+  return net.isIP(normalized) ? normalized : '';
+}
+function requestPeerIp(req) {
+  return normalizeIp(req.socket?.remoteAddress) || 'unknown';
+}
 function requestIp(req) {
-  const peer = String(req.socket?.remoteAddress || 'unknown').replace(/^::ffff:/, '');
+  const peer = requestPeerIp(req);
   if (!TRUSTED_PROXY_IPS.has(peer)) return peer;
-  return String(req.headers['x-forwarded-for'] || peer).split(',')[0].trim().replace(/^::ffff:/, '') || peer;
+  // The trusted reverse proxy must replace (not append to) this header. A
+  // chain or malformed value is ignored so a client-supplied first hop can
+  // never become the rate-limit identity.
+  const forwarded = String(req.headers['x-forwarded-for'] || '').trim();
+  if (!forwarded || forwarded.includes(',')) return peer;
+  return normalizeIp(forwarded) || peer;
 }
 function internalWechatBootstrapAuthorized(req) {
-  const peer = String(req.socket?.remoteAddress || '').replace(/^::ffff:/, '');
+  const peer = requestPeerIp(req);
   if (!['127.0.0.1', '::1'].includes(peer)) return false;
   if (req.headers.forwarded || req.headers['x-forwarded-for']) return false;
   let expected = '';
@@ -424,12 +440,18 @@ function parseCookies(s) {
   });
   return o;
 }
-function authed(req) {
-  const t = parseCookies(req.headers.cookie || '')[COOKIE];
-  if (!t) return false;
-  const exp = sessions.get(t);
-  if (!exp || exp < Date.now()) { sessions.delete(t); return false; }
-  return true;
+function sessionForRequest(req) {
+  const token = parseCookies(req.headers.cookie || '')[COOKIE];
+  if (!token) return null;
+  const expiry = sessions.get(token);
+  if (!expiry || expiry < Date.now()) {
+    sessions.delete(token);
+    return null;
+  }
+  return { token, expiry };
+}
+function csrfToken(sessionToken) {
+  return crypto.createHash('sha256').update(`pvhot-csrf:${sessionToken}`).digest('base64url');
 }
 function loginAllowed(ip) {
   const now = Date.now();
@@ -621,16 +643,43 @@ async function getSourceBodyOrReject(req, res) {
   return result.value;
 }
 
-function mutationOriginAllowed(req) {
+function sameOriginRequest(req) {
   const origin = String(req.headers.origin || '').trim();
-  if (!origin) return true;
+  if (!origin) return false;
   try {
     const parsed = new URL(origin);
-    const forwardedHost = String(req.headers['x-forwarded-host'] || '').split(',')[0].trim();
-    const expectedHost = forwardedHost || String(req.headers.host || '').trim();
-    return ['http:', 'https:'].includes(parsed.protocol) && parsed.host === expectedHost;
+    const peer = requestPeerIp(req);
+    const trustedProxy = TRUSTED_PROXY_IPS.has(peer);
+    const forwardedProto = trustedProxy
+      ? String(req.headers['x-forwarded-proto'] || '').trim().toLowerCase()
+      : '';
+    const expectedHost = String(req.headers.host || '').trim();
+    if (!expectedHost || expectedHost.includes(',') || forwardedProto.includes(',')) return false;
+    const expectedProtocol = forwardedProto || (req.socket?.encrypted ? 'https' : 'http');
+    if (!['http', 'https'].includes(expectedProtocol)) return false;
+    const expected = new URL(`${expectedProtocol}://${expectedHost}`);
+    return parsed.origin === expected.origin;
   } catch (error) {
     return false;
+  }
+}
+
+function adminMutationAllowed(req, session) {
+  const fetchSite = String(req.headers['sec-fetch-site'] || '').trim().toLowerCase();
+  if (fetchSite !== 'same-origin') return false;
+  if (!sameOriginRequest(req)) return false;
+  const provided = String(req.headers['x-csrf-token'] || '').trim();
+  const expected = csrfToken(session.token);
+  const left = Buffer.from(provided);
+  const right = Buffer.from(expected);
+  return left.length === right.length && crypto.timingSafeEqual(left, right);
+}
+
+function normalizeManualArticleLink(value) {
+  try {
+    return validateArticleUrl(value).href;
+  } catch {
+    return null;
   }
 }
 
@@ -1212,6 +1261,7 @@ function loadData() {
 function runMerge() { try { return merge(); } catch (e) { console.error('[admin] merge error', e); return false; } }
 function publicItem(item, options = {}) {
   const includeReason = options.includeReason === true && item.featured === true;
+  const safeLink = normalizeManualArticleLink(item.link) || '';
   return {
     id: item.id,
     title: item.title_cn || item.title || '',
@@ -1229,8 +1279,11 @@ function publicItem(item, options = {}) {
     score: item.score || 0,
     pubDate: item.pubDate || '',
     dateKey: item.dateKey || String(item.pubDate || '').slice(0, 10),
-    link: item.link || '',
-    links: item.links || { original: item.link || '', discovery: item.googleNewsUrl || '' },
+    link: safeLink,
+    links: {
+      original: normalizeManualArticleLink(item.links?.original || safeLink) || '',
+      discovery: normalizeManualArticleLink(item.links?.discovery || item.googleNewsUrl) || '',
+    },
     image: item.image || '',
     reason: includeReason ? (item.recommendationReason || item.reason || '') : '',
     tags: item.tags || [],
@@ -1452,8 +1505,12 @@ const server = http.createServer(async (req, res) => {
       recordLoginAttempt(ip, true);
       const t = newToken();
       sessions.set(t, Date.now() + TTL);
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Set-Cookie': cookieHeader(t) });
-      res.end(JSON.stringify({ ok: true }));
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Set-Cookie': cookieHeader(t),
+        'X-CSRF-Token': csrfToken(t),
+      });
+      res.end(JSON.stringify({ ok: true, csrfToken: csrfToken(t) }));
     } else {
       recordLoginAttempt(ip, false);
       send(res, 401, { error: '密码错误' });
@@ -1462,6 +1519,11 @@ const server = http.createServer(async (req, res) => {
   }
   if (p === '/admin/api/logout' && method === 'POST') {
     const t = parseCookies(req.headers.cookie || '')[COOKIE];
+    const session = sessionForRequest(req);
+    if (session && !adminMutationAllowed(req, session)) {
+      send(res, 403, { error: '请求来源校验失败，请刷新后台页面后重试' });
+      return;
+    }
     if (t) sessions.delete(t);
     send(res, 200, { ok: true }, {
       'Set-Cookie': COOKIE + '=; Path=/admin; HttpOnly; Secure; SameSite=Strict; Max-Age=0',
@@ -1737,7 +1799,18 @@ const server = http.createServer(async (req, res) => {
   }
 
   /* ---------- 鉴权：texts / feedback 管理 ---------- */
-  if (!authed(req)) { send(res, 401, { error: '未登录' }); return; }
+  const adminSession = sessionForRequest(req);
+  if (!adminSession) { send(res, 401, { error: '未登录' }); return; }
+
+  if (p === '/admin/api/csrf' && method === 'GET') {
+    send(res, 200, { token: csrfToken(adminSession.token) });
+    return;
+  }
+
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && !adminMutationAllowed(req, adminSession)) {
+    send(res, 403, { error: '请求来源校验失败，请刷新后台页面后重试' });
+    return;
+  }
 
   /* ---------- 信源健康与自定义信源（需登录） ---------- */
   if (p === '/admin/api/ai-config' && method === 'GET') {
@@ -1750,11 +1823,6 @@ const server = http.createServer(async (req, res) => {
     } catch (error) {
       aiConfigErrorResponse(res, error);
     }
-    return;
-  }
-
-  if (p.startsWith('/admin/api/ai-config') && method !== 'GET' && !mutationOriginAllowed(req)) {
-    send(res, 403, { error: '请求来源校验失败，请刷新后台页面后重试' });
     return;
   }
 
@@ -1807,11 +1875,6 @@ const server = http.createServer(async (req, res) => {
 
   if (p === '/admin/api/wechat-gateway' && method === 'GET') {
     send(res, 200, wechatGateway.publicState());
-    return;
-  }
-
-  if (p.startsWith('/admin/api/wechat-gateway/') && method !== 'GET' && !mutationOriginAllowed(req)) {
-    send(res, 403, { error: '请求来源校验失败，请刷新后台页面后重试' });
     return;
   }
 
@@ -1881,11 +1944,6 @@ const server = http.createServer(async (req, res) => {
     } catch (error) {
       customSourceErrorResponse(res, error);
     }
-    return;
-  }
-
-  if (p.startsWith('/admin/api/sources') && method !== 'GET' && !mutationOriginAllowed(req)) {
-    send(res, 403, { error: '请求来源校验失败，请刷新后台页面后重试' });
     return;
   }
 
@@ -2188,6 +2246,8 @@ const server = http.createServer(async (req, res) => {
   if (p === '/admin/api/items' && method === 'POST') {
     const body = await getBodyOrReject(req, res); if (!body) return;
     if (!body.title && !body.title_cn) { send(res, 400, { error: '标题必填' }); return; }
+    const safeLink = normalizeManualArticleLink(body.link);
+    if (!safeLink) { send(res, 400, { error: '来源链接必须是公开的 HTTPS 地址' }); return; }
     const e = loadEdits();
     const iso = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 19);
     const cat = body.category || '行情';
@@ -2195,7 +2255,7 @@ const server = http.createServer(async (req, res) => {
       id: 'pvman' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       title: body.title || '',
       title_cn: body.title_cn || body.title || '',
-      link: body.link || '',
+      link: safeLink,
       summary: body.summary || '',
       summary_cn: body.summary_cn || body.summary || '',
       category: cat,
@@ -2238,6 +2298,11 @@ const server = http.createServer(async (req, res) => {
       const body = await getBodyOrReject(req, res); if (!body) return;
       const cur = (loadData().items || []).find((i) => i.id === id);
       if (!cur) { send(res, 404, { error: '原数据无此条' }); return; }
+      if ('link' in body) {
+        const safeLink = normalizeManualArticleLink(body.link);
+        if (!safeLink) { send(res, 400, { error: '来源链接必须是公开的 HTTPS 地址' }); return; }
+        body.link = safeLink;
+      }
       const e = loadEdits();
       const ov = Object.assign({}, e.overrides[id] || {});
       ['title_cn', 'title', 'summary_cn', 'summary', 'reason', 'category', 'featured', 'link', 'tags'].forEach((k) => {
