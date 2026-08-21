@@ -8,8 +8,17 @@ const path = require('path');
 const { atomicWriteJsonSync, atomicWriteUtf8Sync } = require('./lib/safe_io');
 const { withProcessLockSync } = require('./lib/process_lock');
 const { resolveItemSource } = require('./lib/source_catalog');
+const { consumeWechatRunFailure } = require('./lib/wechat_run_status');
 
 const ROOT = process.env.PVHOT_ROOT || '/var/www/pvhot';
+const IS_CURRENT_RELEASE = path.basename(path.resolve(ROOT)) === 'current';
+const HAS_SHARED_ROOT = Boolean(process.env.PVHOT_SHARED_DIR);
+const SHARED_ROOT = process.env.PVHOT_SHARED_DIR
+  || (IS_CURRENT_RELEASE ? path.join(path.dirname(ROOT), 'shared') : ROOT);
+const WECHAT_RUN_STATUS_DIR = process.env.PVHOT_WECHAT_RUN_STATUS_DIR
+  || (IS_CURRENT_RELEASE || HAS_SHARED_ROOT
+    ? path.join(SHARED_ROOT, 'run')
+    : path.join(ROOT, '.runtime'));
 const RAW = path.join(ROOT, 'data_raw.json');
 const EDITS = path.join(ROOT, 'admin_edits.json');
 const OUT = path.join(ROOT, 'data.json');
@@ -205,6 +214,13 @@ function merge() {
 if (require.main === module) {
   try {
     if (!merge()) process.exit(1);
+    const wechatFailure = consumeWechatRunFailure(WECHAT_RUN_STATUS_DIR, process.ppid);
+    if (wechatFailure) {
+      console.error(
+        `[merge] other sources were published, but WeChat refresh failed (${wechatFailure.errorCode})`
+      );
+      process.exit(1);
+    }
   } catch (e) {
     console.error('[merge] FATAL', e && e.stack || e);
     process.exit(1);

@@ -2,6 +2,7 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
+const { buildHealthEntry } = require('../lib/source_health');
 const {
   beijingDateKey,
   buildBody,
@@ -15,6 +16,7 @@ const {
   extractArticleDetails,
   extractTopics,
   filterPostEnrichmentFresh,
+  indexWechatAccountSnapshotHealth,
   inspectFeedStructure,
   isMojibake,
   isHighInfluenceWeiboItem,
@@ -27,7 +29,64 @@ const {
   parseJsonLdListItems,
   selectArticleEnrichmentCandidates,
   shortenWeiboTitle,
+  wechatAccountHealthDiagnostics,
 } = require('../fetch_pv_news');
+
+test('WeChat health index includes account results from the gateway namespace', () => {
+  const direct = { id: 'account:光伏們', name: '光伏們', status: 'captcha' };
+  const gateway = { id: 'gateway:account:光伏們', name: '光伏們', status: 'risk_control' };
+  const pendingGateway = { id: 'gateway:account:索比光伏网', name: '索比光伏网', status: 'pending' };
+  const directResolved = { id: 'account:索比光伏网', name: '索比光伏网', status: 'ok' };
+  const gatewayWithoutName = { id: 'gateway:account:阳光电源', status: 'ok' };
+  const indexed = indexWechatAccountSnapshotHealth([
+    { id: 'topic:光伏', name: '光伏', status: 'ok' },
+    direct,
+    gateway,
+    directResolved,
+    pendingGateway,
+    gatewayWithoutName,
+  ]);
+
+  assert.equal(indexed.size, 3);
+  assert.equal(indexed.get('光伏們'), gateway);
+  assert.equal(indexed.get('索比光伏网'), directResolved);
+  assert.equal(indexed.get('阳光电源'), gatewayWithoutName);
+});
+
+test('WeChat gateway failure statuses retain diagnostics and map to source health states', () => {
+  const cases = [
+    ['risk_control', 'blocked', 'risk_control'],
+    ['session_invalid', 'blocked', 'session_invalid'],
+    ['waiting_for_login', 'blocked', 'waiting_for_login'],
+    ['upstream_bad_request', 'parse_error', 'upstream_bad_request'],
+    ['link_unresolved', 'parse_error', 'link_unresolved'],
+    ['parse_failed', 'parse_error', 'parse_failed'],
+    ['error', 'parse_error', 'wechat_fetch_error'],
+  ];
+
+  for (const [gatewayStatus, expectedStatus, expectedErrorCode] of cases) {
+    const message = `${gatewayStatus} detail`;
+    const diagnostics = wechatAccountHealthDiagnostics({
+      id: 'gateway:account:光伏們',
+      status: gatewayStatus,
+      error: message,
+    });
+    const health = buildHealthEntry(
+      { id: 'wechat:光伏們', name: '光伏們', kind: 'wechat' },
+      [],
+      null,
+      diagnostics,
+      '2026-08-21T08:00:00.000Z'
+    );
+
+    assert.equal(health.status, expectedStatus, gatewayStatus);
+    assert.equal(health.errorCode, expectedErrorCode, gatewayStatus);
+    assert.equal(health.detail, message, gatewayStatus);
+  }
+
+  const waiting = wechatAccountHealthDiagnostics({ status: 'waiting_for_login' });
+  assert.match(waiting.detail, /等待登录/);
+});
 
 test('rule fallback recommendation reason preserves the concrete procurement signal', () => {
   const reason = buildReason({

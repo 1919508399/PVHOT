@@ -28,6 +28,7 @@ const { parseRss, probeRss, validateArticleUrl } = require('./lib/safe_remote_fe
 const { probeXAccount, validXApiToken } = require('./lib/x_sources');
 const { buildHealthEntry, normalizeStatus, summarizeHealth } = require('./lib/source_health');
 const { withProcessLockSync } = require('./lib/process_lock');
+const { clearWechatRunFailure } = require('./lib/wechat_run_status');
 const {
   AiConfigError,
   loadAiConfig,
@@ -64,6 +65,10 @@ const IS_CURRENT_RELEASE = path.basename(path.resolve(ROOT)) === 'current';
 const HAS_SHARED_ROOT = Boolean(process.env.PVHOT_SHARED_DIR);
 const SHARED_ROOT = process.env.PVHOT_SHARED_DIR
   || (IS_CURRENT_RELEASE ? path.join(path.dirname(ROOT), 'shared') : ROOT);
+const WECHAT_RUN_STATUS_DIR = process.env.PVHOT_WECHAT_RUN_STATUS_DIR
+  || (IS_CURRENT_RELEASE || HAS_SHARED_ROOT
+    ? path.join(SHARED_ROOT, 'run')
+    : path.join(ROOT, '.runtime'));
 const PORT = Number(process.env.PVHOT_ADMIN_PORT || 8777);
 const HOST = process.env.PVHOT_ADMIN_HOST || '127.0.0.1';
 const NODE = process.env.PVHOT_NODE || '/usr/bin/node';
@@ -221,10 +226,16 @@ function validateDesktopWechatArticles(value) {
   });
 }
 
-function syncDesktopWechatItems() {
+function syncDesktopWechatItems(queriedAccounts = []) {
   const gateway = JSON.parse(fs.readFileSync(WECHAT_GATEWAY_OUTPUT, 'utf8'));
   let previous = { items: [] };
   try { previous = JSON.parse(fs.readFileSync(WECHAT_ITEMS_FILE, 'utf8')); } catch {}
+  const queriedNames = [...new Set(
+    (Array.isArray(queriedAccounts) ? queriedAccounts : [])
+      .map((name) => String(name || '').trim())
+      .filter(Boolean)
+  )];
+  const queriedNameSet = new Set(queriedNames);
   const cutoff = Date.now() - 14 * 86400_000;
   const byLink = new Map();
   for (const item of [...(gateway.items || []), ...(previous.items || [])]) {
@@ -237,7 +248,12 @@ function syncDesktopWechatItems() {
     fetchedAt: new Date().toISOString(),
     gatewayProvider: 'wechat-desktop-local',
     monitoredAccounts: gateway.monitoredAccounts || 5,
-    health: gateway.health || [],
+    queriedAccounts: queriedNames,
+    // A desktop submission proves only the accounts represented by the
+    // accepted articles. Pending state for every other account must not be
+    // treated as a fresh successful check by the news health merger.
+    health: (Array.isArray(gateway.health) ? gateway.health : [])
+      .filter((entry) => queriedNameSet.has(String(entry && entry.name || '').trim())),
     count: items.length,
     items,
   }, { space: 2, validate: (candidate) => candidate.count === candidate.items.length });
@@ -383,9 +399,56 @@ function getPublicHealth() {
   const dataAgeSeconds = dataStat
     ? Math.max(0, Math.round((now - dataStat.mtimeMs) / 1000))
     : null;
+  let wechat = {
+    status: 'unknown',
+    fetchedAt: null,
+    ageSeconds: null,
+    monitoredAccounts: 0,
+    queriedAccounts: 0,
+    checkedAccounts: 0,
+    blockedAccounts: 0,
+    parseErrorAccounts: 0,
+    staleAccounts: 0,
+  };
+  try {
+    const sourceHealth = JSON.parse(fs.readFileSync(SOURCE_HEALTH_FILE, 'utf8'));
+    const wechatHealth = sourceHealth && sourceHealth.wechat || {};
+    const fetchedAtMs = Date.parse(wechatHealth.fetchedAt || '');
+    const ageSeconds = Number.isFinite(fetchedAtMs)
+      ? Math.max(0, Math.round((now - fetchedAtMs) / 1000))
+      : null;
+    const queriedNames = new Set(
+      (Array.isArray(wechatHealth.queriedAccounts) ? wechatHealth.queriedAccounts : [])
+        .map((name) => String(name || '').trim())
+        .filter(Boolean)
+    );
+    const accountHealth = Array.isArray(wechatHealth.health) ? wechatHealth.health : [];
+    const checkedHealth = queriedNames.size
+      ? accountHealth.filter((entry) => queriedNames.has(String(entry && entry.name || '').trim()))
+      : [];
+    const blockedAccounts = checkedHealth.filter((entry) => entry && entry.status === 'blocked').length;
+    const parseErrorAccounts = checkedHealth.filter((entry) => entry && entry.status === 'parse_error').length;
+    const staleAccounts = checkedHealth.filter((entry) => entry && entry.status === 'stale').length;
+    const failedAccounts = blockedAccounts + parseErrorAccounts + staleAccounts;
+    const staleSnapshot = ageSeconds === null || ageSeconds > 2 * 3600;
+    const failedRun = checkedHealth.length > 0 && failedAccounts >= Math.ceil(checkedHealth.length / 2);
+    const noCheckedAccounts = Number(wechatHealth.monitoredAccounts || 0) > 0 && checkedHealth.length === 0;
+    wechat = {
+      status: staleSnapshot || failedRun || noCheckedAccounts ? 'degraded' : 'ok',
+      fetchedAt: wechatHealth.fetchedAt || null,
+      ageSeconds,
+      monitoredAccounts: Number(wechatHealth.monitoredAccounts || 0),
+      queriedAccounts: queriedNames.size,
+      checkedAccounts: checkedHealth.length,
+      blockedAccounts,
+      parseErrorAccounts,
+      staleAccounts,
+    };
+  } catch (error) {}
+  const degraded = dataAgeSeconds > 2 * 3600 || wechat.status !== 'ok';
   return {
     ok: !dataError,
-    status: dataError ? 'unhealthy' : (dataAgeSeconds > 2 * 3600 ? 'degraded' : 'ok'),
+    status: dataError ? 'unhealthy' : (degraded ? 'degraded' : 'ok'),
     service: 'pvhot-admin',
     release: release.gitSha || release.sha || process.env.PVHOT_RELEASE_SHA || 'unversioned',
     startedAt: new Date(now - process.uptime() * 1000).toISOString(),
@@ -397,6 +460,7 @@ function getPublicHealth() {
       ageSeconds: dataAgeSeconds,
       fresh: dataAgeSeconds !== null && dataAgeSeconds <= 2 * 3600,
     },
+    sources: { wechat },
     error: dataError,
     checkedAt: new Date(now).toISOString(),
   };
@@ -1359,12 +1423,14 @@ function runNodeTask(filename, options = {}) {
         PVHOT_WECHAT_LOCK_TIMEOUT_MS: process.env.PVHOT_WECHAT_LOCK_TIMEOUT_MS || '120000',
         PVHOT_NEWS_LOCK_TIMEOUT_MS: process.env.PVHOT_NEWS_LOCK_TIMEOUT_MS || '120000',
       },
-      stdio: 'ignore',
+      // Keep child diagnostics in the admin service journal. Silencing this
+      // output made a failed WeChat refresh indistinguishable from success.
+      stdio: ['ignore', 'inherit', 'inherit'],
     });
     child.once('error', reject);
     child.once('close', (code, signal) => {
       if (code === 0) {
-        resolve();
+        resolve({ ok: true, filename });
         return;
       }
       const error = new Error(`${filename} exited with ${signal || code}`);
@@ -1374,7 +1440,7 @@ function runNodeTask(filename, options = {}) {
   }).catch((error) => {
     if (options.allowFailure) {
       console.error(`[admin] ${filename} failed; continuing`, error.message);
-      return;
+      return { ok: false, filename, error: error.message };
     }
     throw error;
   });
@@ -1383,14 +1449,22 @@ function runNodeTask(filename, options = {}) {
 async function runRefreshPipeline() {
   const startedAt = refreshStartedAt || new Date().toISOString();
   try {
-    await runNodeTask('fetch_wechat.js', { allowFailure: true });
+    const wechatResult = await runNodeTask('fetch_wechat.js', { allowFailure: true });
     await runNodeTask('fetch_pv_news.js');
     merge();
-    refreshLastResult = {
-      ok: true,
-      startedAt,
-      finishedAt: new Date().toISOString(),
-    };
+    refreshLastResult = wechatResult.ok
+      ? {
+          ok: true,
+          startedAt,
+          finishedAt: new Date().toISOString(),
+        }
+      : {
+          ok: false,
+          partial: true,
+          startedAt,
+          finishedAt: new Date().toISOString(),
+          error: '微信公众号抓取失败；其他信源已更新，请查看服务日志',
+        };
   } catch (error) {
     console.error('[admin] refresh pipeline error', error);
     refreshLastResult = {
@@ -1400,6 +1474,9 @@ async function runRefreshPipeline() {
       error: '抓取未完整完成，请查看运行日志',
     };
   } finally {
+    // fetch_wechat is spawned by this admin process, so its compatibility
+    // marker is keyed by our PID. The admin reports partial failure directly.
+    try { clearWechatRunFailure(WECHAT_RUN_STATUS_DIR, process.pid); } catch {}
     refreshJob = null;
     refreshStartedAt = null;
   }
@@ -1475,7 +1552,7 @@ const server = http.createServer(async (req, res) => {
     try {
       const articles = validateDesktopWechatArticles(body);
       const result = wechatGateway.ingestDesktopArticles(articles);
-      syncDesktopWechatItems();
+      syncDesktopWechatItems(result.items.map((item) => item.account || item.sources?.[0]?.name));
       if (!refreshJob) {
         refreshStartedAt = new Date().toISOString();
         refreshLastResult = { ok: null, startedAt: refreshStartedAt, finishedAt: null };

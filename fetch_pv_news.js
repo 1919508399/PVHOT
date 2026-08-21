@@ -2014,6 +2014,61 @@ function healthSourceName(config) {
   return HEALTH_SOURCE_LABELS[config.id] || config.source || config.id || config.q;
 }
 
+function indexWechatAccountSnapshotHealth(snapshotHealth) {
+  const accountIdPattern = /^(?:gateway:)?account:/i;
+  const indexed = new Map();
+  for (const item of Array.isArray(snapshotHealth) ? snapshotHealth : []) {
+    const id = String(item && item.id || '').trim();
+    if (!accountIdPattern.test(id)) continue;
+    const name = String(item.name || id.replace(accountIdPattern, '')).trim();
+    if (!name) continue;
+    const isGatewayPending = /^gateway:account:/i.test(id)
+      && String(item.status || '').trim().toLowerCase() === 'pending';
+    if (isGatewayPending && indexed.has(name)) continue;
+    indexed.set(name, item);
+  }
+  return indexed;
+}
+
+function wechatAccountHealthDiagnostics(current) {
+  const status = String(current && current.status || '').trim().toLowerCase();
+  const blockedStatuses = new Set([
+    'captcha',
+    'blocked',
+    'risk_control',
+    'session_invalid',
+    'waiting_for_login',
+  ]);
+  const parseErrorStatuses = new Set([
+    'error',
+    'parse_error',
+    'parse_failed',
+    'link_unresolved',
+    'upstream_bad_request',
+  ]);
+  const blocked = blockedStatuses.has(status);
+  const parseError = parseErrorStatuses.has(status);
+  const fallbackDetails = {
+    captcha: '搜狗微信返回了验证码',
+    blocked: '微信公众号采集被拦截',
+    risk_control: '微信公众号网关触发风控',
+    session_invalid: '微信公众号网关会话已失效',
+    waiting_for_login: '微信公众号网关正在等待登录',
+    error: '微信公众号采集失败',
+    parse_error: '微信公众号响应解析失败',
+    parse_failed: '微信公众号响应解析失败',
+    link_unresolved: '微信公众号原文链接无法解析',
+    upstream_bad_request: '微信公众号网关的上游请求无效',
+  };
+  const errorCode = blocked || parseError
+    ? (status === 'error' ? 'wechat_fetch_error' : status)
+    : null;
+  const detail = blocked || parseError
+    ? (String(current && current.error || '').trim() || fallbackDetails[status] || '微信公众号采集异常')
+    : null;
+  return { blocked, parseError, errorCode, detail };
+}
+
 function writeSourceHealthUnlocked({
   gnewsResults,
   rssResults,
@@ -2096,11 +2151,7 @@ function writeSourceHealthUnlocked({
       kind: account.kind || '公众号',
     })),
   ];
-  const snapshotByName = new Map(
-    snapshotHealth
-      .filter((item) => String(item.id || '').startsWith('account:'))
-      .map((item) => [String(item.name || '').trim(), item])
-  );
+  const snapshotByName = indexWechatAccountSnapshotHealth(snapshotHealth);
   const accountKey = (value) => String(value || '').toLowerCase()
     .replace(/[\s·\-—_（）()｜|]/g, '');
   for (const account of monitoredWechat) {
@@ -2164,13 +2215,7 @@ function writeSourceHealthUnlocked({
         .map(accountKey)
         .some((alias) => actual && alias && (actual.includes(alias) || alias.includes(actual)));
     });
-    const status = String(current.status || '');
-    const diagnostics = {
-      blocked: status === 'captcha' || status === 'blocked',
-      parseError: status === 'error' || status === 'parse_error',
-      errorCode: status === 'captcha' ? 'captcha' : (current.error ? 'wechat_fetch_error' : null),
-      detail: current.error || (status === 'captcha' ? '搜狗微信返回了验证码' : ''),
-    };
+    const diagnostics = wechatAccountHealthDiagnostics(current);
     const snapshotTimestamp = Date.parse(wechatSnapshot && wechatSnapshot.fetchedAt || '');
     const snapshotFetchedAt = Number.isFinite(snapshotTimestamp)
       ? new Date(snapshotTimestamp).toISOString()
@@ -2592,7 +2637,7 @@ async function runMain() {
             avatar: it.avatar || (it.sources && it.sources[0] && it.sources[0].avatar) || '',
             _sourceChannelId: `wechat:${account}`,
             _sourceChannelType: 'wechat',
-            _sourceMode: 'wechat-search',
+            _sourceMode: it._sourceMode || 'wechat-search',
           });
           wcount++;
         });
@@ -2946,12 +2991,14 @@ module.exports = {
   isMojibake,
   isHighInfluenceWeiboItem,
   inspectFeedStructure,
+  indexWechatAccountSnapshotHealth,
   isFeaturedEligibleItem,
   isRelevantItem,
   mapLimit,
   looksBlocked,
   normalizeArticleImage,
   normalizeWeiboItem,
+  wechatAccountHealthDiagnostics,
   parseGenericRSS,
   parseJsonLdListItems,
   shortenWeiboTitle,

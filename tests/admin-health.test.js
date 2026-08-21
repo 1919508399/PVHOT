@@ -74,7 +74,103 @@ test('public health endpoint reports release and data freshness without authenti
   assert.equal(body.release, 'test-sha');
   assert.equal(body.data.items, 1);
   assert.equal(body.data.fresh, true);
+  assert.equal(body.status, 'degraded');
+  assert.equal(body.sources.wechat.status, 'unknown');
   assert.equal(body.error, null);
+});
+
+test('public health reports a stale WeChat snapshot as degraded without hiding fresh site data', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pvhot-admin-wechat-health-'));
+  const port = await reservePort();
+  fs.writeFileSync(path.join(root, 'data.json'), JSON.stringify({
+    updated: new Date().toISOString(),
+    items: [{ id: 'fresh-site-item' }],
+  }));
+  fs.writeFileSync(path.join(root, 'source_health.json'), JSON.stringify({
+    wechat: {
+      fetchedAt: new Date(Date.now() - 3 * 3600_000).toISOString(),
+      monitoredAccounts: 45,
+      queriedAccounts: ['光伏們'],
+      health: [{ name: '光伏們', status: 'normal' }],
+    },
+  }));
+  fs.writeFileSync(path.join(root, 'release.json'), JSON.stringify({ gitSha: 'test-sha' }));
+  fs.writeFileSync(path.join(root, 'admin.html'), '<!doctype html><title>admin</title>');
+
+  const child = spawn(process.execPath, [path.join(process.cwd(), 'admin_server.js')], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      PVHOT_ROOT: root,
+      PVHOT_ADMIN_HOST: '127.0.0.1',
+      PVHOT_ADMIN_PORT: String(port),
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  t.after(() => {
+    child.kill();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  await waitForReady(child);
+  const response = await fetch(`http://127.0.0.1:${port}/api/healthz`);
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.ok, true);
+  assert.equal(body.status, 'degraded');
+  assert.equal(body.data.fresh, true);
+  assert.equal(body.sources.wechat.status, 'degraded');
+  assert.equal(body.sources.wechat.monitoredAccounts, 45);
+  assert.ok(body.sources.wechat.ageSeconds >= 3 * 3600 - 5);
+
+  fs.writeFileSync(path.join(root, 'source_health.json'), JSON.stringify({
+    wechat: {
+      fetchedAt: new Date().toISOString(),
+      monitoredAccounts: 45,
+      queriedAccounts: ['光伏們', '索比光伏网'],
+      health: [
+        { name: '光伏們', status: 'blocked' },
+        { name: '索比光伏网', status: 'parse_error' },
+      ],
+    },
+  }));
+  const blockedResponse = await fetch(`http://127.0.0.1:${port}/api/healthz`);
+  const blockedBody = await blockedResponse.json();
+  assert.equal(blockedResponse.status, 200);
+  assert.equal(blockedBody.status, 'degraded');
+  assert.equal(blockedBody.sources.wechat.blockedAccounts, 1);
+  assert.equal(blockedBody.sources.wechat.parseErrorAccounts, 1);
+
+  fs.writeFileSync(path.join(root, 'source_health.json'), JSON.stringify({
+    wechat: {
+      fetchedAt: new Date().toISOString(),
+      monitoredAccounts: 45,
+      queriedAccounts: ['光伏們', '索比光伏网'],
+      health: [
+        { name: '光伏們', status: 'stale' },
+        { name: '索比光伏网', status: 'stale' },
+      ],
+    },
+  }));
+  const staleResponse = await fetch(`http://127.0.0.1:${port}/api/healthz`);
+  const staleBody = await staleResponse.json();
+  assert.equal(staleBody.status, 'degraded');
+  assert.equal(staleBody.sources.wechat.staleAccounts, 2);
+
+  fs.writeFileSync(path.join(root, 'source_health.json'), JSON.stringify({
+    wechat: {
+      fetchedAt: new Date().toISOString(),
+      monitoredAccounts: 5,
+      queriedAccounts: [],
+      health: [{ name: '光伏們', status: 'stale' }],
+    },
+  }));
+  const uncheckedResponse = await fetch(`http://127.0.0.1:${port}/api/healthz`);
+  const uncheckedBody = await uncheckedResponse.json();
+  assert.equal(uncheckedBody.status, 'degraded');
+  assert.equal(uncheckedBody.sources.wechat.status, 'degraded');
+  assert.equal(uncheckedBody.sources.wechat.checkedAccounts, 0);
 });
 
 test('client-supplied forwarded chains cannot rotate around login rate limits', async (t) => {

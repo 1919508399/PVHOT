@@ -259,6 +259,10 @@ main() {
 
   exec 9>"${BASE_DIR}/.deploy.lock"
   flock -w 120 9 || die "timed out waiting for deployment lock"
+  [[ -d "${BASE_DIR}/shared/run" && ! -L "${BASE_DIR}/shared/run" ]] \
+    || die "shared pipeline runtime directory is missing or unsafe"
+  exec 8>"${BASE_DIR}/shared/run/.pipeline.lock"
+  flock -w 120 8 || die "timed out waiting for the active data pipeline"
   trap on_exit EXIT
 
   ORIGINAL_CURRENT="$(release_from_link "${CURRENT_LINK}")"
