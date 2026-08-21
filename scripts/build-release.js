@@ -32,6 +32,7 @@ const REQUIRED_RELEASE_FILES = Object.freeze([
   'source_registry.js',
   'lib/safe_io.js',
   'lib/process_lock.js',
+  'lib/wechat_run_status.js',
   'lib/source_health.js',
   'lib/custom_sources.js',
   'lib/safe_remote_fetch.js',

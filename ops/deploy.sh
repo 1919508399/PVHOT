@@ -614,6 +614,7 @@ preflight_release() {
     source_registry.js
     lib/safe_io.js
     lib/process_lock.js
+    lib/wechat_run_status.js
     lib/source_health.js
     lib/custom_sources.js
     lib/safe_remote_fetch.js
@@ -659,6 +660,7 @@ preflight_release() {
     source_registry.js \
     lib/safe_io.js \
     lib/process_lock.js \
+    lib/wechat_run_status.js \
     lib/source_health.js \
     lib/custom_sources.js \
     lib/safe_remote_fetch.js \
@@ -973,6 +975,14 @@ main() {
     STAGING_DIR=""
     log "prepared immutable release ${sha}"
   fi
+
+  # Keep every command in a running fetch/price pipeline on one immutable
+  # release. Without this shared lock, `current` could switch between the
+  # fetch and merge steps and mix runtime protocols from two versions.
+  [[ -d "${SHARED_DIR}/run" && ! -L "${SHARED_DIR}/run" ]] \
+    || die "shared pipeline runtime directory is missing or unsafe"
+  exec 8>"${SHARED_DIR}/run/.pipeline.lock"
+  flock -w 120 8 || die "timed out waiting for the active data pipeline"
 
   OLD_CURRENT="$(current_release "${CURRENT_LINK}")"
   OLD_PREVIOUS="$(current_release "${PREVIOUS_LINK}")"
