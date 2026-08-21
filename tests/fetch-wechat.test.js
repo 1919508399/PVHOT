@@ -60,9 +60,19 @@ test('only official WeChat article URLs pass output validation', () => {
   assert.equal(new URL(legacy).searchParams.get('__biz'), 'MzA1');
   assert.equal(new URL(legacy).searchParams.has('scene'), false);
 
+  const signedSogou = normalizeOfficialWechatLink(
+    'https://mp.weixin.qq.com/s?src=11&timestamp=1787302386&ver=6917'
+      + '&signature=2O26PUGifo0KOoqokBrPGGL1EIi38X6khDd3YDAlUW-Ut2pnZkEyN8hdVPvRk6nx*new&new=1',
+  );
+  assert.equal(new URL(signedSogou).pathname, '/s');
+  assert.equal(new URL(signedSogou).searchParams.get('src'), '11');
+  assert.equal(new URL(signedSogou).searchParams.get('signature').endsWith('*new'), true);
+
   assert.equal(normalizeOfficialWechatLink('http://mp.weixin.qq.com/s/insecure'), '');
   assert.equal(normalizeOfficialWechatLink('https://mp.weixin.qq.com.evil.example/s/lookalike'), '');
   assert.equal(normalizeOfficialWechatLink('https://mp.weixin.qq.com/mp/profile_ext?action=home'), '');
+  assert.equal(normalizeOfficialWechatLink('https://mp.weixin.qq.com/s?src=11&timestamp=1787302386&ver=6917'), '');
+  assert.equal(normalizeOfficialWechatLink('https://mp.weixin.qq.com/s?src=12&timestamp=1787302386&ver=6917&signature=abcdefghijklmnopqrstuvwxyz123456'), '');
   assert.equal(normalizeOfficialWechatLink('https://weixin.sogou.com/antispider/?from=%2flink'), '');
 });
 
@@ -85,7 +95,8 @@ test('embedded and percent-encoded official article URLs are preferred without n
 
 test('a normal Sogou navigation may resolve to an official article URL', async () => {
   const discovery = 'https://weixin.sogou.com/link?url=opaque-token';
-  const official = 'https://mp.weixin.qq.com/s/resolved_article?scene=1';
+  const official = 'https://mp.weixin.qq.com/s?src=11&timestamp=1787302386&ver=6917'
+    + '&signature=2O26PUGifo0KOoqokBrPGGL1EIi38X6khDd3YDAlUW-Ut2pnZkEyN8hdVPvRk6nx*new&new=1';
   let currentUrl = discovery;
   let gotoOptions = null;
   const page = {
@@ -108,7 +119,8 @@ test('a normal Sogou navigation may resolve to an official article URL', async (
     waitMs: 0,
   });
   assert.equal(result.status, 'resolved');
-  assert.equal(result.link, 'https://mp.weixin.qq.com/s/resolved_article');
+  assert.equal(new URL(result.link).hostname, 'mp.weixin.qq.com');
+  assert.equal(new URL(result.link).searchParams.get('signature').endsWith('*new'), true);
   assert.equal(gotoOptions.referer, 'https://weixin.sogou.com/weixin?type=2&query=solar');
 });
 
