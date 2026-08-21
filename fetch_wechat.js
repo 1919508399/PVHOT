@@ -133,7 +133,15 @@ function normalizeOfficialWechatLink(value) {
       && url.searchParams.has('__biz')
       && url.searchParams.has('mid')
       && url.searchParams.has('sn');
-    if ((!shortId || !shortId[1]) && !legacyArticle) return '';
+    const signature = url.searchParams.get('signature') || '';
+    const signedSogouArticle = url.pathname === '/s'
+      && url.searchParams.get('src') === '11'
+      && /^\d{10,13}$/.test(url.searchParams.get('timestamp') || '')
+      && /^\d{1,8}$/.test(url.searchParams.get('ver') || '')
+      && signature.length >= 32
+      && signature.length <= 512
+      && /^[A-Za-z0-9_*+~-]+$/.test(signature);
+    if ((!shortId || !shortId[1]) && !legacyArticle && !signedSogouArticle) return '';
     return normalizeWechatLink(url.toString());
   } catch {
     return '';
