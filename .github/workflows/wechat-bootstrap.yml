@@ -17,6 +17,8 @@ on:
           - news-refresh
           - host-check
           - desktop-enroll
+          - werss-install
+          - werss-status
       login_id:
         description: Login session id returned by the start operation
         required: false
@@ -87,6 +89,34 @@ jobs:
           login_id="${2:-}"
           article_url="${3:-}"
           token_hash="${4:-}"
+          if [[ "${operation}" == "werss-install" || "${operation}" == "werss-status" ]]; then
+            container="pvhot-werrs"
+            image="ghcr.io/rachelos/we-mp-rss:latest"
+            data_dir="/var/www/pvhot/shared/we-mp-rss-data"
+            if [[ "${operation}" == "werss-install" ]]; then
+              command -v docker >/dev/null
+              docker info >/dev/null
+              install -d -m 2770 "${data_dir}"
+              docker pull "${image}"
+              if docker container inspect "${container}" >/dev/null 2>&1; then
+                docker rm -f "${container}" >/dev/null
+              fi
+              docker run -d \
+                --name "${container}" \
+                --restart unless-stopped \
+                -p 8001:8001 \
+                -e TZ=Asia/Shanghai \
+                -e ENABLE_JOB=True \
+                -e PORT=8001 \
+                -v "${data_dir}:/app/data" \
+                "${image}"
+              sleep 5
+            fi
+            docker ps -a --filter "name=^/${container}$" --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'
+            curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8001/ >/dev/null
+            printf 'WeRSS is responding on port 8001\n'
+            exit 0
+          fi
           token_file="/var/www/pvhot/shared/config/wechat-bootstrap-token"
           [[ -f "${token_file}" && ! -L "${token_file}" ]]
           token="$(<"${token_file}")"

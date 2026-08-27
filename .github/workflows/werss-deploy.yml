@@ -1,0 +1,120 @@
+name: WeRSS deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Manage the standalone WeRSS container on production
+        required: true
+        type: choice
+        options:
+          - install
+          - status
+          - restart
+          - logs
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: WeRSS ${{ inputs.operation }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: production
+    env:
+      DEPLOY_HOST: ${{ vars.PVHOT_DEPLOY_HOST }}
+      DEPLOY_PORT: ${{ vars.PVHOT_DEPLOY_PORT || '22' }}
+      DEPLOY_USER: pvhot-deploy
+      OPERATION: ${{ inputs.operation }}
+      CONTAINER_NAME: pvhot-werrs
+      IMAGE: ghcr.io/rachelos/we-mp-rss:latest
+      DATA_DIR: /var/www/pvhot/shared/we-mp-rss-data
+    steps:
+      - name: Configure restricted SSH identity
+        shell: bash
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PVHOT_DEPLOY_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PVHOT_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "${SSH_PRIVATE_KEY}"
+          test -n "${SSH_KNOWN_HOSTS}"
+          [[ "${DEPLOY_HOST}" =~ ^[A-Za-z0-9.-]+$ ]]
+          [[ "${DEPLOY_PORT}" =~ ^[0-9]+$ ]]
+          umask 077
+          mkdir -p "${HOME}/.ssh"
+          printf '%s\n' "${SSH_PRIVATE_KEY}" >"${HOME}/.ssh/pvhot_deploy"
+          printf '%s\n' "${SSH_KNOWN_HOSTS}" >"${HOME}/.ssh/known_hosts"
+          chmod 600 "${HOME}/.ssh/pvhot_deploy" "${HOME}/.ssh/known_hosts"
+          ssh-keygen -y -f "${HOME}/.ssh/pvhot_deploy" >/dev/null
+
+      - name: Run WeRSS operation
+        shell: bash
+        run: |
+          set -euo pipefail
+          destination="${DEPLOY_USER}@${DEPLOY_HOST}"
+          ssh_options=(
+            -i "${HOME}/.ssh/pvhot_deploy"
+            -p "${DEPLOY_PORT}"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o ConnectTimeout=15
+          )
+          ssh "${ssh_options[@]}" "${destination}" \
+            bash -s -- "${OPERATION}" "${CONTAINER_NAME}" "${IMAGE}" "${DATA_DIR}" <<'REMOTE'
+          set -euo pipefail
+          operation="$1"
+          container="$2"
+          image="$3"
+          data_dir="$4"
+          case "${operation}" in
+            install)
+              command -v docker >/dev/null
+              docker info >/dev/null
+              install -d -m 2770 "${data_dir}"
+              docker pull "${image}"
+              if docker container inspect "${container}" >/dev/null 2>&1; then
+                docker rm -f "${container}" >/dev/null
+              fi
+              docker run -d \
+                --name "${container}" \
+                --restart unless-stopped \
+                -p 8001:8001 \
+                -e TZ=Asia/Shanghai \
+                -e ENABLE_JOB=True \
+                -e PORT=8001 \
+                -v "${data_dir}:/app/data" \
+                "${image}"
+              sleep 5
+              docker ps --filter "name=^/${container}$" --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'
+              curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8001/ >/dev/null
+              printf 'WeRSS is responding on port 8001\n'
+              ;;
+            status)
+              docker ps -a --filter "name=^/${container}$" --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'
+              curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8001/ >/dev/null
+              printf 'WeRSS is responding on port 8001\n'
+              ;;
+            restart)
+              docker restart "${container}"
+              sleep 3
+              curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8001/ >/dev/null
+              printf 'WeRSS restarted and is responding on port 8001\n'
+              ;;
+            logs)
+              docker logs --tail 100 "${container}"
+              ;;
+            *)
+              printf 'Unsupported operation\n' >&2
+              exit 2
+              ;;
+          esac
+          REMOTE
+
+      - name: Remove SSH identity
+        if: always()
+        shell: bash
+        run: rm -f -- "${HOME}/.ssh/pvhot_deploy"
