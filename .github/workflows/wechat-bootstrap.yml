@@ -91,13 +91,23 @@ jobs:
           token_hash="${4:-}"
           if [[ "${operation}" == "werss-install" || "${operation}" == "werss-status" ]]; then
             container="pvhot-werrs"
-            image="ghcr.io/rachelos/we-mp-rss:latest"
             data_dir="/var/www/pvhot/shared/we-mp-rss-data"
             if [[ "${operation}" == "werss-install" ]]; then
               command -v docker >/dev/null
               docker info >/dev/null
               install -d -m 2770 "${data_dir}"
-              docker pull "${image}"
+              image=""
+              for candidate in \
+                "docker.1ms.run/rachelos/we-mp-rss:latest" \
+                "ghcr.io/rachelos/we-mp-rss:latest" \
+                "rachelos/we-mp-rss:latest"; do
+                printf 'Trying image %s\n' "${candidate}"
+                if timeout 180 docker pull "${candidate}"; then
+                  image="${candidate}"
+                  break
+                fi
+              done
+              [[ -n "${image}" ]]
               if docker container inspect "${container}" >/dev/null 2>&1; then
                 docker rm -f "${container}" >/dev/null
               fi

@@ -29,7 +29,6 @@ jobs:
       DEPLOY_USER: pvhot-deploy
       OPERATION: ${{ inputs.operation }}
       CONTAINER_NAME: pvhot-werrs
-      IMAGE: ghcr.io/rachelos/we-mp-rss:latest
       DATA_DIR: /var/www/pvhot/shared/we-mp-rss-data
     steps:
       - name: Configure restricted SSH identity
@@ -64,18 +63,28 @@ jobs:
             -o ConnectTimeout=15
           )
           ssh "${ssh_options[@]}" "${destination}" \
-            bash -s -- "${OPERATION}" "${CONTAINER_NAME}" "${IMAGE}" "${DATA_DIR}" <<'REMOTE'
+            bash -s -- "${OPERATION}" "${CONTAINER_NAME}" "${DATA_DIR}" <<'REMOTE'
           set -euo pipefail
           operation="$1"
           container="$2"
-          image="$3"
-          data_dir="$4"
+          data_dir="$3"
           case "${operation}" in
             install)
               command -v docker >/dev/null
               docker info >/dev/null
               install -d -m 2770 "${data_dir}"
-              docker pull "${image}"
+              image=""
+              for candidate in \
+                "docker.1ms.run/rachelos/we-mp-rss:latest" \
+                "ghcr.io/rachelos/we-mp-rss:latest" \
+                "rachelos/we-mp-rss:latest"; do
+                printf 'Trying image %s\n' "${candidate}"
+                if timeout 180 docker pull "${candidate}"; then
+                  image="${candidate}"
+                  break
+                fi
+              done
+              [[ -n "${image}" ]]
               if docker container inspect "${container}" >/dev/null 2>&1; then
                 docker rm -f "${container}" >/dev/null
               fi
