@@ -653,6 +653,7 @@
   .switch-row input:checked+.switch-ui{background:var(--emerald);}
   .switch-row input:checked+.switch-ui:after{transform:translateX(16px);}
   .form-grid.two{grid-template-columns:1fr 1fr;}
+  .ai-provider-grid{grid-template-columns:1fr 1fr 1.25fr;}
   #panelAi .field{margin-bottom:17px;}
   #panelAi .field label{display:block;margin-bottom:8px;font-size:12px;font-weight:720;color:var(--ink-2);}
   #panelAi .field input,#panelAi .field select{width:100%;min-height:44px;padding:10px 12px;border:1px solid var(--border);border-radius:11px;background:#f8faf7;color:var(--ink);font:inherit;font-size:13px;outline:none;}
@@ -777,7 +778,7 @@
     #panelContent .qr-preview{width:min(240px,100%);height:auto;aspect-ratio:1;margin:0 auto;}
     #panelContent .qr-ops{align-items:center;}
     .form-grid.three{grid-template-columns:1fr 1fr;}
-    .form-grid.two,.ai-feature-grid{grid-template-columns:1fr;}
+    .form-grid.two,.ai-feature-grid,.ai-provider-grid{grid-template-columns:1fr;}
     .ai-config-card{padding:18px;}
     .ai-card-heading{display:block;}
     .switch-row{margin-top:14px;}
@@ -1045,8 +1046,9 @@
               <label class="switch-row"><input id="aiEnabled" type="checkbox"/><span class="switch-ui"></span><b>启用 AI 编辑</b></label>
             </div>
 
-            <div class="form-grid two ai-provider-grid">
+            <div class="form-grid ai-provider-grid">
               <div class="field"><label for="aiProvider">AI 服务商</label><select id="aiProvider" aria-label="AI 服务商"></select><small class="field-help" id="aiProviderHelp">请选择已经开通 API 的服务商。</small></div>
+              <div class="field"><label for="aiPlan">套餐类型</label><select id="aiPlan" aria-label="套餐类型"></select><small class="field-help" id="aiPlanHelp">按量 API 或 Coding Plan 会使用不同的专属接口。</small></div>
               <div class="field"><label for="aiModel">模型名称</label><input id="aiModel" maxlength="120" autocomplete="off" placeholder="填写控制台中可用的模型名称"/><small class="field-help">不自动猜测模型，避免调用不存在或已停用的型号。</small></div>
             </div>
 
@@ -1819,6 +1821,7 @@
       `<option value="${esc(item.id)}">${esc(item.name)}</option>`
     ).join('');
     provider.value = config.provider || 'openai';
+    renderAiPlanOptions(config.plan || 'standard');
     $('#aiEnabled').checked = config.enabled === true;
     $('#aiModel').value = config.model || '';
     $('#aiApiKey').value = '';
@@ -1843,11 +1846,33 @@
     renderAiUsage(config.usage, config.dailyArticleLimit);
   }
 
+  function renderAiPlanOptions(preferredPlan){
+    if (!AI_CONFIG) return;
+    const selectedProvider = (AI_CONFIG.providers || []).find(item => item.id === $('#aiProvider').value);
+    const supported = selectedProvider && Array.isArray(selectedProvider.plans)
+      ? selectedProvider.plans
+      : ['standard'];
+    const planNames = Object.fromEntries((AI_CONFIG.plans || [
+      { id:'standard', name:'按量 API' }, { id:'coding', name:'Coding Plan' },
+    ]).map(item => [item.id, item.name]));
+    const plan = supported.includes(preferredPlan) ? preferredPlan : supported[0] || 'standard';
+    $('#aiPlan').innerHTML = supported.map(id =>
+      `<option value="${esc(id)}">${esc(planNames[id] || id)}</option>`
+    ).join('');
+    $('#aiPlan').value = plan;
+    $('#aiPlanHelp').textContent = supported.includes('coding')
+      ? 'Coding Plan 使用订阅专属接口和 Key；按量 API 使用普通 API 额度。'
+      : '当前服务商仅提供按量 API。';
+  }
+
   function renderAiProviderHelp(){
     if (!AI_CONFIG) return;
     const selected = (AI_CONFIG.providers || []).find(item => item.id === $('#aiProvider').value);
+    const plan = $('#aiPlan').value || 'standard';
+    const help = plan === 'coding' && selected && selected.codingHelp ? selected.codingHelp : selected && selected.help;
+    const baseUrl = plan === 'coding' && selected && selected.codingBaseUrl ? selected.codingBaseUrl : selected && selected.baseUrl;
     $('#aiProviderHelp').textContent = selected
-      ? `${selected.help} · 接口地址由系统安全管理：${selected.baseUrl}`
+      ? `${help} · 接口地址由系统安全管理：${baseUrl}`
       : '请选择已经开通 API 的服务商。';
   }
 
@@ -1867,6 +1892,7 @@
     return Object.assign({
       enabled: $('#aiEnabled').checked,
       provider: $('#aiProvider').value,
+      plan: $('#aiPlan').value,
       model: $('#aiModel').value.trim(),
       dailyArticleLimit: Number($('#aiDailyLimit').value),
       timeoutMs: Number($('#aiTimeout').value) * 1000,
@@ -1881,7 +1907,8 @@
     }, key ? { apiKey:key } : {}, overrides || {});
   }
 
-  $('#aiProvider').onchange = renderAiProviderHelp;
+  $('#aiProvider').onchange = () => { renderAiPlanOptions($('#aiPlan').value || 'standard'); renderAiProviderHelp(); };
+  $('#aiPlan').onchange = renderAiProviderHelp;
   $('#aiRevealKey').onclick = () => {
     const input = $('#aiApiKey');
     const show = input.type === 'password';

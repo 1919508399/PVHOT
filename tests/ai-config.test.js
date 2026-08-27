@@ -25,7 +25,10 @@ test('AI config is disabled and secret-free by default', () => {
     assert.equal(config.enabled, false);
     assert.equal(publicConfig.apiKeyConfigured, false);
     assert.equal('apiKey' in publicConfig, false);
-    assert.equal(publicConfig.providers.length, 3);
+    assert.equal(publicConfig.providers.length, 6);
+    assert.deepEqual(publicConfig.providers.find((item) => item.id === 'zhipu').plans, ['standard', 'coding']);
+    assert.deepEqual(publicConfig.providers.find((item) => item.id === 'xiaomi').plans, ['standard', 'coding']);
+    assert.deepEqual(publicConfig.providers.find((item) => item.id === 'kimi').plans, ['standard', 'coding']);
     assert.equal(publicConfig.features.featuredReason, true);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
