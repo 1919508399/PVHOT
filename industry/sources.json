@@ -1,0 +1,707 @@
+{
+  "$comment": "示范信源：首次启动时导入（scripts/seed.ts），已存在的不会被覆盖。之后在后台“信源”里新建、修改和暂停。字段说明见 docs/customize.md。中文公众号与 X 账号需要付费采集服务的 key，见 docs/sources-pvhot.md。",
+  "sources": [
+    {
+      "id": "rss-pv-magazine",
+      "name": "pv magazine",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.bing.com/news/search?q=site%3Apv-magazine.com&format=RSS",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        },
+        "urlParam": "url"
+      },
+      "tier": "T1",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "海外",
+        "垂直媒体"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-pv-magazine-china",
+      "name": "pv magazine 中文版",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.bing.com/news/search?q=site%3Apv-magazine-china.com&format=RSS",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        },
+        "urlParam": "url"
+      },
+      "tier": "T1",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "中文",
+        "垂直媒体"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-pv-magazine-india",
+      "name": "pv magazine India",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.bing.com/news/search?q=site%3Apv-magazine-india.com&format=RSS",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        },
+        "urlParam": "url"
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 180,
+      "tags": [
+        "印度市场"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false
+    },
+    {
+      "id": "rss-pv-magazine-australia",
+      "name": "pv magazine Australia",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.bing.com/news/search?q=site%3Apv-magazine-australia.com&format=RSS",
+        "_aihot": {
+          "initialBackfillLimit": 6
+        },
+        "urlParam": "url"
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "澳洲市场"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false
+    },
+    {
+      "id": "rss-ess-news",
+      "name": "Energy Storage News",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.bing.com/news/search?q=site%3Aess-news.com&format=RSS",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        },
+        "urlParam": "url"
+      },
+      "tier": "T1",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "储能"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-mercom-india",
+      "name": "Mercom India",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.mercomindia.com/feed",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "participation_mode": "editorial",
+      "interval_minutes": 180,
+      "tags": [
+        "印度市场"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-taiyang-news",
+      "name": "TaiyangNews",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.taiyangnews.info/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 360,
+      "tags": [
+        "海外",
+        "技术"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-utility-dive",
+      "name": "Utility Dive",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.utilitydive.com/feeds/news/",
+        "_aihot": {
+          "initialBackfillLimit": 5
+        }
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "美国市场",
+        "电力市场"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-cleantechnica",
+      "name": "CleanTechnica",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.bing.com/news/search?q=site%3Acleantechnica.com&format=RSS",
+        "_aihot": {
+          "initialBackfillLimit": 6
+        },
+        "urlParam": "url"
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "海外",
+        "综合"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "web-nea-xny",
+      "name": "国家能源局 新能源司",
+      "kind": "web_list",
+      "config": {
+        "url": "https://www.nea.gov.cn/sjzz/xny/",
+        "parseMode": "html",
+        "itemSelector": "ul.dataList > li.clearfix",
+        "linkSelector": "h3 a",
+        "titleSelector": "h3 a",
+        "publishedAtSelector": ".time",
+        "allowUrlPrefixes": [
+          "https://www.nea.gov.cn/2"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T1",
+      "participation_mode": "editorial",
+      "interval_minutes": 240,
+      "tags": [
+        "官方",
+        "政策"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-pv-tech",
+      "name": "PV Tech",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.bing.com/news/search?q=site%3Apv-tech.org&format=RSS",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        },
+        "urlParam": "url"
+      },
+      "tier": "T1",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "海外",
+        "垂直媒体"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-energy-storage-news",
+      "name": "Energy-Storage.News",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.bing.com/news/search?q=site%3Aenergy-storage.news&format=RSS",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        },
+        "urlParam": "url"
+      },
+      "tier": "T1",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "海外",
+        "储能"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-renew-news",
+      "name": "reNEWS",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.renews.biz/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 90,
+      "tags": [
+        "海外",
+        "欧洲"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-clean-energy-wire",
+      "name": "Clean Energy Wire",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.cleanenergywire.org/rss.xml",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "海外",
+        "德国"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-saur-energy",
+      "name": "Saur Energy",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.saurenergy.com/rss",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 90,
+      "tags": [
+        "海外",
+        "印度"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-balkan-green",
+      "name": "Balkan Green Energy News",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.balkan-green.com/feed/",
+        "_aihot": {
+          "initialBackfillLimit": 8
+        }
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "海外",
+        "欧洲"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-bing-pv-cn",
+      "name": "必应新闻 光伏",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.bing.com/news/search?q=%E5%85%89%E4%BC%8F&format=RSS",
+        "_aihot": {
+          "initialBackfillLimit": 6
+        },
+        "urlParam": "url"
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "中文",
+        "聚合"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-bing-storage-cn",
+      "name": "必应新闻 储能",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.bing.com/news/search?q=%E5%82%A8%E8%83%BD&format=RSS",
+        "_aihot": {
+          "initialBackfillLimit": 6
+        },
+        "urlParam": "url"
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 90,
+      "tags": [
+        "中文",
+        "储能",
+        "聚合"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-bing-price-cn",
+      "name": "必应新闻 光伏组件价格",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.bing.com/news/search?q=%E5%85%89%E4%BC%8F%E7%BB%84%E4%BB%B6%E4%BB%B7%E6%A0%BC&format=RSS",
+        "_aihot": {
+          "initialBackfillLimit": 6
+        },
+        "urlParam": "url"
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 90,
+      "tags": [
+        "中文",
+        "价格",
+        "聚合"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-bing-polysilicon-cn",
+      "name": "必应新闻 多晶硅",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.bing.com/news/search?q=%E5%A4%9A%E6%99%B6%E7%A1%85&format=RSS",
+        "_aihot": {
+          "initialBackfillLimit": 6
+        },
+        "urlParam": "url"
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 90,
+      "tags": [
+        "中文",
+        "价格",
+        "聚合"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-bing-policy-cn",
+      "name": "必应新闻 光伏政策",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.bing.com/news/search?q=%E5%85%89%E4%BC%8F%E6%94%BF%E7%AD%96&format=RSS",
+        "_aihot": {
+          "initialBackfillLimit": 6
+        },
+        "urlParam": "url"
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "中文",
+        "政策",
+        "聚合"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "rss-bing-tender-cn",
+      "name": "必应新闻 光伏招标",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "https://www.bing.com/news/search?q=%E5%85%89%E4%BC%8F%E6%8B%9B%E6%A0%87&format=RSS",
+        "_aihot": {
+          "initialBackfillLimit": 6
+        },
+        "urlParam": "url"
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 120,
+      "tags": [
+        "中文",
+        "项目",
+        "聚合"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "web-solarbe",
+      "name": "索比光伏网",
+      "kind": "web_list",
+      "config": {
+        "url": "https://news.solarbe.com/",
+        "parseMode": "html",
+        "itemSelector": ".home-content-boxgeneral-list > a",
+        "allowUrlPrefixes": [
+          "https://news.solarbe.com/2"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T1_5",
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "中文",
+        "行业媒体"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false
+    },
+    {
+      "id": "web-in-en-solar",
+      "name": "国际能源网 光伏",
+      "kind": "web_list",
+      "config": {
+        "url": "https://solar.in-en.com/",
+        "parseMode": "html",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "acceptLanguage": "zh-CN,zh;q=0.9,en;q=0.8",
+        "itemSelector": "li:has(> span.date)",
+        "linkSelector": "a",
+        "titleSelector": "a",
+        "publishedAtSelector": "span.date",
+        "allowUrlPrefixes": [
+          "https://solar.in-en.com/html/"
+        ],
+        "_aihot": {
+          "initialBackfillLimit": 10
+        }
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 90,
+      "tags": [
+        "中文",
+        "行业媒体",
+        "价格"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": false
+    },
+    {
+      "id": "rss-mp-guangfumen",
+      "name": "公众号 光伏們",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "http://host.docker.internal:8001/rss/MP_WXS_3016566024",
+        "_aihot": {
+          "initialBackfillLimit": 3
+        }
+      },
+      "tier": "T1_5",
+      "participation_mode": "editorial",
+      "interval_minutes": 45,
+      "tags": [
+        "中文",
+        "公众号",
+        "产业媒体"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-mp-solarbe",
+      "name": "公众号 索比光伏网",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "http://host.docker.internal:8001/rss/MP_WXS_2393822661",
+        "_aihot": {
+          "initialBackfillLimit": 3
+        }
+      },
+      "tier": "T1_5",
+      "participation_mode": "editorial",
+      "interval_minutes": 45,
+      "tags": [
+        "中文",
+        "公众号",
+        "产业媒体"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-mp-bjx-solar",
+      "name": "公众号 北极星太阳能光伏网",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "http://host.docker.internal:8001/rss/MP_WXS_2395007964",
+        "_aihot": {
+          "initialBackfillLimit": 3
+        }
+      },
+      "tier": "T1_5",
+      "participation_mode": "editorial",
+      "interval_minutes": 45,
+      "tags": [
+        "中文",
+        "公众号",
+        "产业媒体"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-mp-cpia",
+      "name": "公众号 中国光伏行业协会CPIA",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "http://host.docker.internal:8001/rss/MP_WXS_3096402184",
+        "_aihot": {
+          "initialBackfillLimit": 3
+        }
+      },
+      "tier": "T1_5",
+      "participation_mode": "editorial",
+      "interval_minutes": 45,
+      "tags": [
+        "中文",
+        "公众号",
+        "行业协会"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-mp-zhihui",
+      "name": "公众号 智汇光伏",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "http://host.docker.internal:8001/rss/MP_WXS_2390300250",
+        "_aihot": {
+          "initialBackfillLimit": 3
+        }
+      },
+      "tier": "T1_5",
+      "participation_mode": "editorial",
+      "interval_minutes": 45,
+      "tags": [
+        "中文",
+        "公众号",
+        "产业媒体"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-mp-pvzixun",
+      "name": "公众号 光伏资讯",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "http://host.docker.internal:8001/rss/MP_WXS_3076412918",
+        "_aihot": {
+          "initialBackfillLimit": 3
+        }
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 45,
+      "tags": [
+        "中文",
+        "公众号"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-mp-pvheadline",
+      "name": "公众号 光伏头条",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "http://host.docker.internal:8001/rss/MP_WXS_3267200885",
+        "_aihot": {
+          "initialBackfillLimit": 3
+        }
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 45,
+      "tags": [
+        "中文",
+        "公众号"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    },
+    {
+      "id": "rss-mp-gantanhao",
+      "name": "公众号 赶碳号科技",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "http://host.docker.internal:8001/rss/MP_WXS_3874773223",
+        "_aihot": {
+          "initialBackfillLimit": 3
+        }
+      },
+      "tier": "T2",
+      "participation_mode": "editorial",
+      "interval_minutes": 45,
+      "tags": [
+        "中文",
+        "公众号",
+        "储能"
+      ],
+      "site_fulltext": false,
+      "syndicate_fulltext": false,
+      "enabled": true
+    }
+  ]
+}

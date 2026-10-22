@@ -1,0 +1,366 @@
+{
+  "groups": [
+    {
+      "key": "company",
+      "name": "公司与机构",
+      "blurb": "按厂商追踪价格、产能、订单与技术路线"
+    },
+    {
+      "key": "field",
+      "name": "产业链与方向",
+      "blurb": "按环节和技术深挖：TOPCon、HJT、钙钛矿、储能、出海……"
+    },
+    {
+      "key": "genre",
+      "name": "内容类型",
+      "blurb": "按体裁浏览：价格、政策、订单、财报、技术突破……"
+    }
+  ],
+  "topics": [
+    {
+      "slug": "longi",
+      "name": "隆基绿能",
+      "group": "company",
+      "entityId": "longi",
+      "definition": "隆基绿能的硅片、电池与组件业务，BC 路线进展，以及财报、扩产与人事变化。"
+    },
+    {
+      "slug": "jinko",
+      "name": "晶科能源",
+      "group": "company",
+      "entityId": "jinko",
+      "definition": "晶科能源的组件出货、TOPCon 产能与技术迭代、海外市场与财报。"
+    },
+    {
+      "slug": "trina",
+      "name": "天合光能",
+      "group": "company",
+      "entityId": "trina",
+      "definition": "天合光能的组件、跟踪支架、分布式与储能业务，以及产能与业绩动态。"
+    },
+    {
+      "slug": "ja-solar",
+      "name": "晶澳科技",
+      "group": "company",
+      "entityId": "ja",
+      "definition": "晶澳科技的组件出货、产能布局、海外建厂与财报。"
+    },
+    {
+      "slug": "tongwei",
+      "name": "通威股份",
+      "group": "company",
+      "entityId": "tongwei",
+      "definition": "通威的硅料（永祥）与电池片业务：产能、开工率、价格与一体化进展。"
+    },
+    {
+      "slug": "gcl",
+      "name": "协鑫科技",
+      "group": "company",
+      "entityId": "gcl",
+      "aliases": ["协鑫", "GCL", "颗粒硅"],
+      "definition": "协鑫科技的颗粒硅产能与成本、FBR 工艺进展，以及协鑫集团相关动态。"
+    },
+    {
+      "slug": "gclsi",
+      "name": "协鑫集成",
+      "group": "company",
+      "entityId": "gclsi",
+      "aliases": ["GCLSI"],
+      "definition": "协鑫集成的组件出货、供应链与新能源业务，以及重大合同与业绩变化。"
+    },
+    {
+      "slug": "tcl-zhonghuan",
+      "name": "TCL中环",
+      "group": "company",
+      "entityId": "tclzh",
+      "aliases": ["中环股份"],
+      "definition": "TCL中环的硅片产能与开工率、尺寸与薄片化进展，以及业绩与资本动作。"
+    },
+    {
+      "slug": "aiko",
+      "name": "爱旭股份",
+      "group": "company",
+      "entityId": "aiko",
+      "aliases": ["ABC 组件"],
+      "definition": "爱旭的 ABC 电池与组件量产进度、效率与成本，以及公司经营动态。"
+    },
+    {
+      "slug": "canadian-solar",
+      "name": "阿特斯",
+      "group": "company",
+      "entityId": "canadian",
+      "aliases": ["CSI Solar"],
+      "definition": "阿特斯的组件出货、储能业务与海外电站资产，以及财报与产能安排。"
+    },
+    {
+      "slug": "risen",
+      "name": "东方日升",
+      "group": "company",
+      "entityId": "risen",
+      "definition": "东方日升的组件与异质结（HJT）路线、储能业务，以及经营与业绩变化。"
+    },
+    {
+      "slug": "astronergy",
+      "name": "正泰新能",
+      "group": "company",
+      "entityId": "astronergy",
+      "definition": "正泰新能的组件业务、TOPCon 产能与海外市场布局。"
+    },
+    {
+      "slug": "das-solar",
+      "name": "一道新能",
+      "group": "company",
+      "entityId": "das",
+      "definition": "一道新能的 TOPCon 产品迭代、产能扩张与出货情况。"
+    },
+    {
+      "slug": "huasun",
+      "name": "华晟新能源",
+      "group": "company",
+      "entityId": "huasun",
+      "aliases": ["异质结", "HJT"],
+      "definition": "华晟的异质结电池与组件量产、效率与成本进展，以及扩产计划。"
+    },
+    {
+      "slug": "sungrow",
+      "name": "阳光电源",
+      "group": "company",
+      "entityId": "sungrow",
+      "definition": "阳光电源的光伏逆变器、储能系统与新能源开发业务，以及财报与订单。"
+    },
+    {
+      "slug": "huawei-fusionsolar",
+      "name": "华为数字能源",
+      "group": "company",
+      "entityId": "huawei",
+      "aliases": ["FusionSolar", "华为智能光伏"],
+      "definition": "华为智能光伏的逆变器与储能产品、智能电站方案，以及相关项目与市场动态。"
+    },
+    {
+      "slug": "solis",
+      "name": "锦浪科技",
+      "group": "company",
+      "entityId": "solis",
+      "definition": "锦浪科技的组串式逆变器出货、海外市场与业绩变化。"
+    },
+    {
+      "slug": "goodwe",
+      "name": "固德威",
+      "group": "company",
+      "entityId": "goodwe",
+      "definition": "固德威的逆变器与户用储能产品、海外渠道与经营情况。"
+    },
+    {
+      "slug": "sineng",
+      "name": "上能电气",
+      "group": "company",
+      "entityId": "sineng",
+      "definition": "上能电气的集中式与组串式逆变器、储能 PCS 业务与中标情况。"
+    },
+    {
+      "slug": "first-applied",
+      "name": "福斯特",
+      "group": "company",
+      "entityId": "first",
+      "aliases": ["胶膜", "EVA", "POE"],
+      "definition": "福斯特的光伏胶膜出货、EVA 与 POE 结构变化、价格与产能。"
+    },
+    {
+      "slug": "flat-glass",
+      "name": "福莱特",
+      "group": "company",
+      "entityId": "flat",
+      "aliases": ["光伏玻璃"],
+      "definition": "福莱特的光伏玻璃产能、价格、库存与冷修点火情况。"
+    },
+    {
+      "slug": "maxwell",
+      "name": "迈为股份",
+      "group": "company",
+      "entityId": "maxwell",
+      "aliases": ["HJT 设备"],
+      "definition": "迈为股份的 HJT 整线设备、订单与新技术（含钙钛矿）设备进展。"
+    },
+    {
+      "slug": "autowell",
+      "name": "奥特维",
+      "group": "company",
+      "entityId": "autowell",
+      "definition": "奥特维的串焊机、划焊一体机等组件设备订单与新品。"
+    },
+    {
+      "slug": "arctech",
+      "name": "中信博",
+      "group": "company",
+      "entityId": "arctech",
+      "aliases": ["跟踪支架"],
+      "definition": "中信博的跟踪支架出货、海外订单与新品。"
+    },
+    {
+      "slug": "catl-storage",
+      "name": "宁德时代",
+      "group": "company",
+      "entityId": "catl",
+      "aliases": ["储能电芯"],
+      "definition": "宁德时代的储能电芯与系统产品、大储订单、产能与价格。"
+    },
+    {
+      "slug": "hithium",
+      "name": "海辰储能",
+      "group": "company",
+      "entityId": "hithium",
+      "definition": "海辰储能的电芯产能、大储订单、海外布局与融资进展。"
+    },
+    {
+      "slug": "first-solar",
+      "name": "First Solar",
+      "group": "company",
+      "entityId": "firstsolar",
+      "aliases": ["碲化镉"],
+      "definition": "First Solar 的碲化镉组件产能、美国与印度工厂、订单与财报。"
+    },
+    {
+      "slug": "qcells",
+      "name": "韩华Qcells",
+      "group": "company",
+      "entityId": "qcells",
+      "definition": "韩华Qcells 的组件产能、美国本土化布局与叠层技术进展。"
+    },
+    {
+      "slug": "topcon",
+      "name": "TOPCon",
+      "group": "field",
+      "tags": ["TOPCon"],
+      "definition": "TOPCon 电池的产能、效率、良率、成本与设备路线，以及各家的平台迭代。"
+    },
+    {
+      "slug": "hjt",
+      "name": "异质结 HJT",
+      "group": "field",
+      "tags": ["HJT"],
+      "definition": "异质结电池的量产效率、银包铜与 0BB 降本、设备投资与产能落地。"
+    },
+    {
+      "slug": "xbc",
+      "name": "BC 电池",
+      "group": "field",
+      "tags": ["xBC"],
+      "aliases": ["BC", "HPBC", "ABC"],
+      "definition": "BC 路线的量产进展：隆基 HPBC、爱旭 ABC 等，效率、良率、成本与分布式场景表现。"
+    },
+    {
+      "slug": "perovskite",
+      "name": "钙钛矿与叠层",
+      "group": "field",
+      "tags": ["钙钛矿", "叠层电池"],
+      "definition": "钙钛矿单结与晶硅钙钛矿叠层的效率纪录、中试线与量产设备、稳定性与认证进展。"
+    },
+    {
+      "slug": "polysilicon-price",
+      "name": "硅料价格与供给",
+      "group": "field",
+      "tags": ["价格/行情", "产能/开工"],
+      "aliases": ["多晶硅", "颗粒硅", "工业硅"],
+      "definition": "多晶硅与工业硅的成交价、库存、检修与复产、开工率，以及能耗与产能调控对供给的影响。"
+    },
+    {
+      "slug": "storage",
+      "name": "储能",
+      "group": "field",
+      "tags": ["大储", "光储一体"],
+      "definition": "大储与工商储的招标中标、电芯与系统价格、容量电价与调用收益、安全与标准。"
+    },
+    {
+      "slug": "distributed",
+      "name": "分布式与户用",
+      "group": "field",
+      "tags": ["户用", "工商业"],
+      "definition": "户用与工商业光伏的装机、渠道与金融模式、分时电价与自发自用收益变化。"
+    },
+    {
+      "slug": "bos-materials",
+      "name": "辅材与设备",
+      "group": "field",
+      "tags": ["胶膜", "光伏玻璃", "银浆", "0BB", "跟踪支架"],
+      "definition": "胶膜、玻璃、银浆、焊带、边框与产线设备的出货、价格与国产替代进展。"
+    },
+    {
+      "slug": "trade-barrier",
+      "name": "反倾销与关税",
+      "group": "field",
+      "tags": ["反倾销/关税"],
+      "aliases": ["双反", "201", "301"],
+      "definition": "美国、欧盟、印度、巴西等市场的双反调查、关税调整、本土化要求与合规限制。"
+    },
+    {
+      "slug": "going-global",
+      "name": "出海建厂",
+      "group": "field",
+      "tags": ["出海建厂"],
+      "definition": "中国光伏企业在东南亚、中东、美国、欧洲的建厂、合资与产能落地进展。"
+    },
+    {
+      "slug": "grid-consumption",
+      "name": "消纳与电价",
+      "group": "field",
+      "tags": ["消纳/限电", "绿证/绿电"],
+      "definition": "新能源消纳、弃光率、分时电价与机制电价、绿证与绿电交易对项目收益的影响。"
+    },
+    {
+      "slug": "prices",
+      "name": "价格与行情",
+      "group": "genre",
+      "tags": ["价格/行情"],
+      "definition": "产业链各环节的报价与成交变化：硅料、硅片、电池片、组件、玻璃、胶膜、储能系统。"
+    },
+    {
+      "slug": "capacity",
+      "name": "产能与开工",
+      "group": "genre",
+      "tags": ["产能/开工"],
+      "definition": "扩产、减产、停产检修、复产、开工率、库存与产能出清的实际进展。"
+    },
+    {
+      "slug": "policy",
+      "name": "政策与监管",
+      "group": "genre",
+      "tags": ["政策/监管"],
+      "definition": "国内外光伏与储能相关政策、标准、监管处罚与行业规范条件的落地。"
+    },
+    {
+      "slug": "orders",
+      "name": "项目与订单",
+      "group": "genre",
+      "tags": ["项目/订单"],
+      "definition": "组件与储能订单、框架协议、EPC 中标、电站并网与装机数据。"
+    },
+    {
+      "slug": "earnings",
+      "name": "财报与业绩",
+      "group": "genre",
+      "tags": ["财报/业绩"],
+      "definition": "光伏与储能企业的季报、年报、业绩预告、减值与现金流变化。"
+    },
+    {
+      "slug": "tech-breakthrough",
+      "name": "技术突破",
+      "group": "genre",
+      "tags": ["技术突破", "研究/论文"],
+      "definition": "电池效率纪录、新工艺与新材料、论文与第三方认证结果。"
+    },
+    {
+      "slug": "capital",
+      "name": "资本与并购",
+      "group": "genre",
+      "tags": ["资本/并购"],
+      "definition": "融资、IPO、并购重组、股权转让、破产重整与股东减持。"
+    },
+    {
+      "slug": "safety",
+      "name": "安全与事故",
+      "group": "genre",
+      "tags": ["安全/事故"],
+      "definition": "光伏与储能电站、工厂的火灾、爆炸、质量召回、事故调查与处罚结果。"
+    }
+  ]
+}
